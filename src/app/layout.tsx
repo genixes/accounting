@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Layaw System — Construction Accounting",
   description: "Simple. Smart. Solid. Multi-tenant construction accounting, one system per client.",
+  icons: { icon: "/assets/logo.png" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
