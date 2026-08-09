@@ -14,8 +14,10 @@ export default function Home() {
       }}
     >
       <div style={{ textAlign: "center", maxWidth: 480 }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.svg" alt="Layaw System" width={64} height={64} style={{ margin: "0 auto 20px" }} />
+        <div style={{ background: "#fff", padding: 12, borderRadius: 16, display: "inline-block", margin: "0 auto 20px", boxShadow: "0 8px 24px rgba(0,0,0,.4)" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/assets/logo.png" alt="Layaw System" width={56} height={56} style={{ display: "block" }} />
+        </div>
         <div style={{ fontFamily: "'Barlow Condensed', Impact, sans-serif", fontWeight: 700, fontSize: 34, textTransform: "uppercase", letterSpacing: ".04em" }}>
           Layaw System
         </div>
