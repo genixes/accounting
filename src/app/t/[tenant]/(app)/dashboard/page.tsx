@@ -4,6 +4,7 @@ import { TrendingUp, Wallet, BarChart3, Landmark, CreditCard, FileBarChart2, Bui
 import { loadTenant } from "@/lib/tenant";
 import { getSession } from "@/lib/auth";
 import { getDashboard, getCashFlowSeries, defaultRange, type DashboardRange } from "@/lib/dashboard";
+import { scanAll } from "@/lib/aggregate";
 import { peso, pct, dmy } from "@/lib/format";
 import { REGISTER_ICON } from "@/components/register-icons";
 import CashFlowChart from "@/components/CashFlowChart";
@@ -60,10 +61,12 @@ export default async function DashboardPage({
   const activePreset = sp.range && PRESETS.some((p) => p.key === sp.range) ? sp.range : "90";
   const range = rangeForPreset(activePreset);
 
-  const [d, cashFlow] = await Promise.all([
-    getDashboard(tenant.id, session, range),
-    getCashFlowSeries(tenant.id, 6),
-  ]);
+  // Fetched once and shared — getDashboard() and getCashFlowSeries() both
+  // need every live row of every register, so there's no reason to make the
+  // same four queries against Neon twice on one page load.
+  const all = await scanAll(tenant.id);
+  const d = await getDashboard(tenant.id, session, range, all);
+  const cashFlow = getCashFlowSeries(all, 6);
 
   const topCats = d.categories.slice(0, 8);
   const base = `/t/${slug}/dashboard`;
