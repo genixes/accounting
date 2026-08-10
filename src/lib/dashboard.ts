@@ -7,6 +7,7 @@ import {
 } from "@/lib/aggregate";
 
 export type DashboardData = Awaited<ReturnType<typeof getDashboard>>;
+export type RawScan = Awaited<ReturnType<typeof scanAll>>;
 
 export type DashboardRange = { from: string; to: string };
 
@@ -82,7 +83,12 @@ function pctChange(curr: number, prev: number): number | null {
  *  KPI cards can show a real trend against the immediately preceding window of
  *  the same length, instead of a fabricated delta. Voided rows are excluded
  *  from every total; nothing here writes. */
-export async function getDashboard(tenantId: string, session: Session, range?: DashboardRange) {
+export async function getDashboard(
+  tenantId: string,
+  session: Session,
+  range?: DashboardRange,
+  preScanned?: RawScan
+) {
   if (!session.perms.seeAllEntries) {
     throw new Error(`Your role (${session.role}) does not have a dashboard.`);
   }
@@ -92,7 +98,7 @@ export async function getDashboard(tenantId: string, session: Session, range?: D
   const { fromMs: prevFromMs, toMs: prevToMs } = bounds(prevRange);
 
   const [all, projects, accounts] = await Promise.all([
-    scanAll(tenantId),
+    preScanned ?? scanAll(tenantId),
     db.project.findMany({ where: { tenantId }, orderBy: { name: "asc" } }),
     db.account.findMany({ where: { tenantId }, orderBy: { name: "asc" } }),
   ]);
@@ -206,9 +212,10 @@ export async function getDashboard(tenantId: string, session: Session, range?: D
 
 /** Monthly in/out/net totals for the last `months` calendar months, for the
  *  Cash Flow Overview chart. Independent of the KPI date range — a trend
- *  chart reads better on a fixed, longer window than the KPI cards do. */
-export async function getCashFlowSeries(tenantId: string, months = 6) {
-  const all = await scanAll(tenantId);
+ *  chart reads better on a fixed, longer window than the KPI cards do.
+ *  Takes the same scanAll() result getDashboard() already fetched, rather
+ *  than re-querying the same four tables a second time. */
+export function getCashFlowSeries(all: RawScan, months = 6) {
   const facts = [
     ...all.expenses.map(expenseFact),
     ...all.payrolls.map(payrollFact),
