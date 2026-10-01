@@ -35,7 +35,7 @@
 
   <script>
     // Flag JS early so reveal states never hide content when scripts fail.
-    document.documentElement.classList.replace('no-js', 'js');
+    document.documentElement.classList.remove('no-js'); document.documentElement.classList.add('js');
   </script>
   <script type="importmap">
     { "imports": { "three": "./vendor/three.module.min.js" } }

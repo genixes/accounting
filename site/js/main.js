@@ -110,7 +110,7 @@ document.addEventListener('click', (e) => {
   e.preventDefault();
   if (!menu.hidden) closeMenu(false);
   scrollToTarget(target);
-  history.replaceState(null, '', id === '#top' ? location.pathname + location.search : id);
+  try { history.replaceState(null, '', id === '#top' ? location.pathname + location.search : id); } catch {}
 });
 
 /* ---------------------------------------------------------
@@ -501,9 +501,11 @@ $$('[data-picker] input').forEach((input) => {
     renderBuild(input.value, true);
     personalise(input.value);
     store.set('layaw.industry', input.value);
-    const u = new URL(location.href);
-    u.searchParams.set('for', input.value);
-    history.replaceState(null, '', u);
+    try {
+      const u = new URL(location.href);
+      u.searchParams.set('for', input.value);
+      history.replaceState(null, '', u);
+    } catch {}
   });
 });
 
