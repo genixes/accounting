@@ -8,12 +8,12 @@ type Point = { month: string; in: number; out: number; net: number };
 function TooltipBox({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: "#16203A", border: "1px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "10px 12px", boxShadow: "0 8px 24px rgba(0,0,0,.4)" }}>
-      <div style={{ fontSize: 11, color: "#6B7797", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 }}>{label}</div>
+    <div style={{ background: "#04284D", border: "1px solid rgba(158,194,205,.16)", borderRadius: 10, padding: "10px 12px", boxShadow: "0 8px 24px rgba(0,0,0,.4)" }}>
+      <div style={{ fontSize: 11, color: "#62899A", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 }}>{label}</div>
       {payload.map((p) => (
-        <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "#F4F6FB", padding: "2px 0" }}>
+        <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "#F2F7F9", padding: "2px 0" }}>
           <span style={{ width: 8, height: 8, borderRadius: 2, background: p.color, flex: "none" }} />
-          <span style={{ color: "#9AA6C3" }}>{p.name}</span>
+          <span style={{ color: "#9EC2CD" }}>{p.name}</span>
           <span style={{ marginLeft: "auto", fontWeight: 600 }}>{peso(p.value)}</span>
         </div>
       ))}
@@ -26,12 +26,12 @@ export default function CashFlowChart({ data, inColor, outColor, netColor }: { d
     <ResponsiveContainer width="100%" height={280}>
       <ComposedChart data={data} margin={{ top: 6, right: 8, left: -12, bottom: 0 }}>
         <CartesianGrid stroke="rgba(255,255,255,.06)" vertical={false} />
-        <XAxis dataKey="month" tick={{ fill: "#6B7797", fontSize: 12 }} axisLine={{ stroke: "rgba(255,255,255,.08)" }} tickLine={false} />
-        <YAxis tick={{ fill: "#6B7797", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => pesoShort(v)} width={54} />
+        <XAxis dataKey="month" tick={{ fill: "#62899A", fontSize: 12 }} axisLine={{ stroke: "rgba(158,194,205,.10)" }} tickLine={false} />
+        <YAxis tick={{ fill: "#62899A", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => pesoShort(v)} width={54} />
         <Tooltip content={<TooltipBox />} cursor={{ fill: "rgba(255,255,255,.03)" }} />
         <Legend
-          wrapperStyle={{ fontSize: 12, color: "#9AA6C3" }}
-          formatter={(value: string) => <span style={{ color: "#9AA6C3" }}>{value}</span>}
+          wrapperStyle={{ fontSize: 12, color: "#9EC2CD" }}
+          formatter={(value: string) => <span style={{ color: "#9EC2CD" }}>{value}</span>}
         />
         <Bar dataKey="in" name="Cash Inflow" fill={inColor} radius={[4, 4, 0, 0]} maxBarSize={22} />
         <Bar dataKey="out" name="Cash Outflow" fill={outColor} radius={[4, 4, 0, 0]} maxBarSize={22} />

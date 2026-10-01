@@ -7,26 +7,49 @@ export default function Home() {
         placeItems: "center",
         padding: 24,
         background:
-          "radial-gradient(circle at 20% 15%, rgba(34,211,238,.08), transparent 45%)," +
-          "radial-gradient(circle at 85% 85%, rgba(59,130,246,.08), transparent 45%), #0A101F",
-        color: "#F4F6FB",
-        fontFamily: "'IBM Plex Sans', -apple-system, Segoe UI, Roboto, sans-serif",
+          "radial-gradient(circle at 20% 15%, rgba(8,219,222,.07), transparent 45%)," +
+          "radial-gradient(circle at 85% 85%, rgba(4,40,77,.55), transparent 50%), var(--brand-deep)",
+        color: "var(--ink)",
+        fontFamily: "var(--body)",
       }}
     >
       <div style={{ textAlign: "center", maxWidth: 480 }}>
-        <div style={{ background: "#fff", padding: 12, borderRadius: 16, display: "inline-block", margin: "0 auto 20px", boxShadow: "0 8px 24px rgba(0,0,0,.4)" }}>
+        {/* Light plate with generous clear space: the navy half of the mark
+            would otherwise sink into the deep background. */}
+        <div
+          style={{
+            background: "#F2F7F9",
+            padding: 18,
+            borderRadius: 20,
+            display: "inline-block",
+            margin: "0 auto 28px",
+            boxShadow: "0 12px 32px rgba(0,0,0,.45)",
+          }}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/assets/logo.png" alt="Layaw System" width={56} height={56} style={{ display: "block" }} />
+          <img src="/assets/logo.png" alt="Layaw System" width={72} height={72} style={{ display: "block" }} />
         </div>
-        <div style={{ fontFamily: "'Barlow Condensed', Impact, sans-serif", fontWeight: 700, fontSize: 34, textTransform: "uppercase", letterSpacing: ".04em" }}>
+        <div style={{ fontFamily: "var(--display)", fontWeight: 700, fontSize: 28, textTransform: "uppercase", letterSpacing: ".08em" }}>
           Layaw System
         </div>
-        <div style={{ fontFamily: "'Barlow Condensed', Impact, sans-serif", fontSize: 12, letterSpacing: ".28em", color: "#5B9EEF", textTransform: "uppercase", marginTop: 6 }}>
+        <div
+          style={{
+            fontFamily: "var(--display)",
+            fontWeight: 600,
+            fontSize: 11.5,
+            letterSpacing: ".32em",
+            color: "var(--brand-tagline)",
+            textTransform: "uppercase",
+            marginTop: 10,
+          }}
+        >
           Simple &middot; Smart &middot; Solid
         </div>
-        <p style={{ color: "#9AA6C3", fontSize: 14.5, lineHeight: 1.6, marginTop: 20 }}>
+        <div style={{ width: 56, height: 2, margin: "22px auto 0", background: "var(--brand-grad)", borderRadius: 2 }} />
+        <p style={{ color: "var(--ink-2)", fontSize: 14.5, lineHeight: 1.7, marginTop: 22 }}>
           Multi-tenant construction accounting. Each client gets their own branded,
-          isolated workspace at <code style={{ color: "#F4F6FB" }}>/t/&lt;company-slug&gt;</code>.
+          isolated workspace at{" "}
+          <code style={{ color: "var(--ink)", fontFamily: "var(--data)", fontSize: 13 }}>/t/&lt;company-slug&gt;</code>.
         </p>
       </div>
     </div>

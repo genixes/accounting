@@ -1,6 +1,6 @@
 # Layaw System — Construction Accounting
 
-*Simple. Smart. Solid.*
+*SIMPLE · SMART · SOLID*
 
 Multi-tenant construction accounting ledger. Rebuilt from a Google Sheets +
 Apps Script system into a Next.js + PostgreSQL app so the same codebase can
