@@ -45,3 +45,9 @@ The seed script prints each demo user's name and PIN to the console.
 - Every write is audited (`AuditLog`).
 - Role permissions (Encoder / Foreman / Bookkeeper / Owner) are enforced
   server-side only — see `src/lib/roles.ts`.
+
+## Marketing site
+
+The LAYAW SYSTEM flagship homepage lives in [`site/`](site/README.md). It is a
+static site with no build step (deploy the `site` folder to Cloudflare Pages
+or GitHub Pages) and is independent of the Next.js app above.
