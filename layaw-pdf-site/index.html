@@ -259,7 +259,17 @@ p{margin:0}
 .pv[data-tool="edit"] .ln:focus{box-shadow:inset 0 0 0 1.5px var(--teal);background:rgba(11,151,166,.06)}
 .pv[data-tool="highlight"] .ln{cursor:pointer}
 .pv[data-tool="highlight"] .ln:hover{box-shadow:inset 0 -2px 0 var(--hl,#F2C14E)}
-.pv .ln.mk{background:var(--mk)}
+.pv .ln.mk{background-image:linear-gradient(var(--mk),var(--mk));background-repeat:no-repeat;background-size:100% 100%;animation:hlIn .6s var(--ease)}
+@keyframes hlIn{from{background-size:0% 100%}}
+.pv .ln.flash{animation:flash 1.3s var(--ease)}
+@keyframes flash{0%,100%{box-shadow:inset 0 0 0 0 rgba(11,151,166,0)}30%{box-shadow:inset 0 0 0 1.5px var(--teal);background-color:rgba(11,151,166,.08)}}
+.pv .sigbox svg{position:absolute;left:0;bottom:2px;height:56px;width:auto}
+.pv .sigbox svg path{fill:none;stroke:#0A3A6B;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:400;stroke-dashoffset:400;animation:sigDraw 1.4s .1s var(--ease) forwards}
+@keyframes sigDraw{to{stroke-dashoffset:0}}
+.win.dk .pv .sigbox svg path{stroke:#CFE6EC}
+.wtoast{position:absolute;left:50%;top:12px;z-index:3;transform:translate(-50%,-8px);max-width:calc(100% - 24px);padding:9px 14px;border-radius:10px;background:var(--navy);color:#EAF3F6;font:500 12.5px/1.35 var(--f-body);box-shadow:0 12px 28px -12px rgba(4,40,77,.7);opacity:0;pointer-events:none;transition:opacity .3s,transform .4s var(--ease);text-align:center}
+.wtoast.on{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){.pv .ln.mk,.pv .ln.flash{animation:none}.pv .sigbox svg path{animation:none;stroke-dashoffset:0}}
 .pv .sigline{margin-top:auto;display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
 .pv .sigbox{flex:1;height:52px;border-bottom:1.5px solid #9EB3BF;position:relative}
 .pv .sigbox img{position:absolute;left:0;bottom:2px;height:56px;width:auto;max-width:100%}
@@ -605,10 +615,11 @@ p{margin:0}
                 <tr><th>5</th><td>Location</td><td>Cebu City</td></tr>
               </tbody></table></div>
             <span class="px-tag">PNG · 300 dpi</span>
+            <div class="wtoast" id="wtoast" role="status" aria-live="polite"></div>
           </div>
         </div>
       </div>
-      <div class="panel" aria-live="polite">
+      <div class="panel">
         <div class="p-pane on" data-pane="edit"><h3>Edit text</h3><p>Click any line on the page and type over it. Change the 7 back to 14 if you are feeling generous.</p><p class="hint">In the app this works on scanned pages too.</p><div class="row"><button class="sbtn" type="button" id="resetText">Reset text</button></div></div>
         <div class="p-pane" data-pane="highlight"><h3>Highlight</h3><p>Pick a colour, then click lines on the page to mark them. Click again to remove.</p><div class="chips" id="hlChips"><button class="chip" type="button" aria-pressed="true" data-c="rgba(242,193,78,.55)"><span class="sw" style="background:#F2C14E"></span>Sun</button><button class="chip" type="button" aria-pressed="false" data-c="rgba(11,151,166,.28)"><span class="sw" style="background:#0B97A6"></span>Teal</button><button class="chip" type="button" aria-pressed="false" data-c="rgba(158,194,205,.6)"><span class="sw" style="background:#9EC2CD"></span>Ice</button></div></div>
         <div class="p-pane" data-pane="sign"><h3>Sign</h3><p>Draw your signature with a mouse, pen, or finger. Then put it on the page.</p><canvas class="pad" id="pad" aria-label="Signature pad"></canvas><div class="row"><button class="sbtn pri" type="button" id="placeSig">Place on page</button><button class="sbtn" type="button" id="clearSig">Clear</button></div><p class="msg" id="sigMsg"></p></div>
@@ -1081,6 +1092,8 @@ safe(function(){
     lines.forEach(function(l){ l.setAttribute('contenteditable', t === 'edit' ? 'true' : 'false'); });
     [].slice.call(document.querySelectorAll('.ribbon span')).forEach(function(s){ s.classList.toggle('on', s.dataset.rb === rb[t]); });
     if(t === 'sign') sizePad();
+    if(t !== 'protect' && saved !== null){ saved = null; pv.classList.remove('locked'); lockBtn.textContent = 'Lock file'; pw.placeholder = 'at least 4 characters'; pwMsg.textContent = ''; }
+    if(act[t]) act[t]();
   }
   tools.forEach(function(b){ b.addEventListener('click', function(){ setTool(b.dataset.tool); }); });
   document.getElementById('resetText').addEventListener('click', function(){ lines.forEach(function(l,i){ l.textContent = orig[i]; l.classList.remove('mk'); }); });
@@ -1107,6 +1120,7 @@ safe(function(){
     var c = document.createElement('canvas'); c.width = pad.width; c.height = pad.height; var x = c.getContext('2d');
     x.drawImage(pad, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = '#0A3A6B'; x.fillRect(0,0,c.width,c.height);
     var slot = document.getElementById('sigSlot'), img = slot.querySelector('img') || document.createElement('img');
+    var sample = slot.querySelector('svg'); if(sample) sample.remove();
     img.alt = 'Your signature'; img.src = c.toDataURL('image/png'); slot.appendChild(img);
     sigMsg.textContent = 'Signed. Looking very official.';
   });
@@ -1141,6 +1155,45 @@ safe(function(){
   var sw = document.getElementById('darkSw');
   sw.addEventListener('click', function(){ var on = sw.getAttribute('aria-pressed') !== 'true'; sw.setAttribute('aria-pressed', String(on)); win.classList.toggle('dk', on); });
   window.addEventListener('resize', function(){ if(current === 'sign') sizePad(); });
+
+  // every tool does something visible the moment it is picked
+  var toastEl = document.getElementById('wtoast'), toastT = 0;
+  function toast(msg){ toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function(){ toastEl.classList.remove('on'); }, 3200); }
+  var act = {
+    edit: function(){
+      lines.forEach(function(l, i){ l.classList.remove('flash'); void l.offsetWidth; l.style.animationDelay = (i*90) + 'ms'; l.classList.add('flash'); });
+      toast('Edit mode. Tap any line on the page and type.');
+    },
+    highlight: function(){
+      var target = lines[2];
+      if(!pv.querySelector('.ln.mk')){ target.style.setProperty('--mk', hlColor); target.classList.add('mk'); }
+      toast('Highlighted the payment terms. Tap other lines to mark them.');
+    },
+    sign: function(){
+      var slot = document.getElementById('sigSlot');
+      if(!slot.querySelector('img,svg')){
+        slot.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 200 60" aria-label="Sample signature"><path d="M6 44c10-6 16-26 22-30s4 20 2 26 8-18 14-22 2 20 6 20 10-16 16-18 2 14 6 14 12-10 18-12 6 8 10 8 14-6 22-8"/></svg>');
+      }
+      toast('Signed with a sample. Draw your own in the pad and place it.');
+    },
+    protect: function(){
+      if(saved === null){
+        saved = 'salamat'; pv.classList.add('locked'); lockBtn.textContent = 'Unlock';
+        pw.value = ''; pw.placeholder = 'type salamat to unlock';
+        pwMsg.textContent = 'Locked with the password "salamat". Type it to get back in.';
+      }
+      toast('Locked. The password is salamat. Type it below to unlock.');
+    },
+    convert: function(){
+      var on = document.querySelector('#fmtChips .chip[aria-pressed="true"]');
+      if(!on || on.dataset.f === 'pdf'){ document.querySelector('#fmtChips .chip[data-f="docx"]').click(); }
+      toast('Converted to Word. Try Excel or Image too.');
+    },
+    dark: function(){
+      if(sw.getAttribute('aria-pressed') !== 'true') sw.click();
+      toast('Dark mode on. Flip the switch to turn it off.');
+    }
+  };
 });
 
 /* ================= PRIVACY: the line ================= */
