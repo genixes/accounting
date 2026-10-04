@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="130 30 750 920" role="img" aria-label="LAYAW SYSTEM monogram">
+  <defs>
+    <linearGradient id="lsL" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#0BA6B3"/><stop offset="1" stop-color="#066678"/>
+    </linearGradient>
+    <linearGradient id="lsS" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0A3D6E"/><stop offset="1" stop-color="#04284D"/>
+    </linearGradient>
+  </defs>
+  <g stroke-linejoin="round" stroke-width="6">
+    <path id="L" fill="url(#lsL)" stroke="url(#lsL)" d="M157 268 L318 172 L318 584 L545 716 L545 738 L488 770 L245 646 L245 312 L232 320 L232 664 L503 820 L503 918 L157 716 Z"/>
+    <path id="S1" fill="url(#lsS)" stroke="url(#lsS)" d="M407 125 L505 56 L855 256 L855 356 L512 160 L481 174 L481 410 L697 535 L697 816 L517 922 L517 828 L622 768 L622 596 L407 470 Z"/>
+    <path id="S2" fill="url(#lsS)" stroke="url(#lsS)" d="M570 304 L855 462 L855 708 L727 790 L727 715 L777 686 L777 518 L570 398 Z"/>
+  </g>
+</svg>

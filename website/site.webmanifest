@@ -1,0 +1,13 @@
+{
+  "name": "LAYAW SYSTEM",
+  "short_name": "LAYAW",
+  "description": "Business systems that get used. Built in Cebu City.",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#021B35",
+  "theme_color": "#021B35",
+  "icons": [
+    { "src": "assets/brand/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
