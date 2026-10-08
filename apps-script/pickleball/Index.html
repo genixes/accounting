@@ -1,0 +1,1450 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nice Game! Pickleball Club — Court Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#144252; --ink2:#1d5a6d; --ink3:#0e333f;
+  --lime:#9ACB24; --lime-d:#7aa415; --lime-soft:rgba(154,203,36,.18);
+  --bg:#d9e5e9;
+  --line:rgba(20,66,82,.13); --line2:rgba(20,66,82,.07);
+  --text:#123037; --muted:#4c6168; --faint:#7a8e94;
+  --danger:#d93c3c; --danger-soft:rgba(224,68,68,.12);
+  --amber:#c97a12; --amber-soft:rgba(226,146,31,.16);
+  --good:#2f9145; --good-soft:rgba(58,157,78,.15);
+  --shadow:0 8px 32px rgba(20,66,82,.10);
+  --shadow-lg:0 24px 60px rgba(14,40,49,.28);
+  --r:20px;
+  /* iOS-style frosted glass: panels are only a light tint of whatever sits behind them */
+  --glass:rgba(255,255,255,.26);
+  --glass-2:rgba(255,255,255,.18);
+  --glass-line:rgba(255,255,255,.55);
+  --glass-edge:rgba(20,66,82,.08);
+  --glass-hi:inset 0 1px 0 rgba(255,255,255,.7),inset 0 0 0 .5px rgba(255,255,255,.25);
+  --field:rgba(255,255,255,.55);
+  --blur:saturate(180%) blur(24px);
+}
+/* browsers without backdrop blur: make the glass more solid so text stays readable */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  :root{--glass:rgba(255,255,255,.82);--glass-2:rgba(255,255,255,.7);--field:rgba(255,255,255,.9)}
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+html,body{max-width:100%;overflow-x:hidden}
+*{min-width:0}
+html{background:var(--bg)}
+body{
+  font-family:'Inter',system-ui,sans-serif;color:var(--text);
+  background:transparent;min-height:100vh;-webkit-font-smoothing:antialiased;
+}
+/* colourful backdrop the glass blurs over (fixed layer, so it also works on iPhone Safari) */
+body::before{content:"";position:fixed;inset:-10%;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(38% 42% at 6% 4%, rgba(154,203,36,.55), transparent 70%),
+    radial-gradient(42% 46% at 96% 8%, rgba(11,151,166,.48), transparent 70%),
+    radial-gradient(50% 50% at 72% 96%, rgba(20,66,82,.42), transparent 70%),
+    radial-gradient(36% 40% at 10% 88%, rgba(110,190,215,.45), transparent 70%),
+    radial-gradient(30% 34% at 50% 45%, rgba(255,255,255,.35), transparent 70%),
+    linear-gradient(160deg,#e6efe9 0%,#d6e4ea 55%,#cfdde4 100%);}
+.num{font-family:'Archivo',sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+button{font-family:inherit;cursor:pointer}
+h1,h2,h3{margin:0}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:40;
+  background:rgba(255,255,255,.3);
+  -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  border-bottom:1px solid rgba(255,255,255,.5);
+  box-shadow:0 1px 0 var(--glass-edge);
+}
+.topbar-in{max-width:1180px;margin:0 auto;padding:12px 22px;display:flex;align-items:center;gap:14px}
+.mark{width:40px;height:40px;flex:0 0 40px}
+.brand-txt{display:flex;flex-direction:column;line-height:1.05}
+.brand-txt b{font-family:'Archivo';font-weight:900;font-size:18px;color:var(--ink);letter-spacing:-.01em}
+.brand-txt span{font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--lime-d);text-transform:uppercase}
+.tabs{margin-left:auto;display:flex;gap:2px;background:rgba(118,118,128,.14);padding:3px;border-radius:12px}
+.tab{border:0;background:transparent;padding:8px 16px;border-radius:9px;font-weight:700;font-size:14px;color:var(--muted);transition:.2s}
+.tab.on{background:rgba(255,255,255,.88);color:var(--ink);box-shadow:0 3px 8px rgba(0,0,0,.08),0 1px 1px rgba(0,0,0,.04)}
+.btn{border:0;border-radius:12px;padding:10px 16px;font-weight:700;font-size:14px;display:inline-flex;align-items:center;gap:7px;transition:.15s}
+.btn:disabled{opacity:.6;cursor:default}
+.btn-lime{background:var(--lime);color:var(--ink3);box-shadow:0 4px 14px rgba(122,164,21,.3),inset 0 1px 0 rgba(255,255,255,.45)}
+.btn-lime:hover:not(:disabled){background:var(--lime-d);color:#fff}
+.btn-ghost{background:rgba(255,255,255,.45);color:var(--ink);border:1px solid rgba(255,255,255,.6)}
+.btn-ghost:hover{background:rgba(255,255,255,.7)}
+.btn-ink{background:var(--ink);color:#fff}
+.btn-ink:hover{background:var(--ink2)}
+
+.wrap{max-width:1180px;margin:0 auto;padding:24px 22px 80px;position:relative}
+.view{display:none}
+.view.on{display:block;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ---------- loading overlay ---------- */
+.loading{display:flex;align-items:center;justify-content:center;gap:12px;padding:60px 20px;color:var(--muted);font-size:14px;font-weight:600}
+.spin{width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--lime-d);border-radius:50%;animation:spin .7s linear infinite}
+.spin.sm{width:15px;height:15px;border-width:2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- scoreboard hero (dark glass) ---------- */
+.score{
+  background:linear-gradient(135deg,rgba(20,66,82,.84) 0,rgba(13,55,69,.76) 55%,rgba(10,44,55,.70) 100%);
+  -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:24px;padding:22px 24px;color:#fff;position:relative;overflow:hidden;
+  box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.18);
+}
+.score::after{content:"";position:absolute;inset:0;opacity:.08;pointer-events:none;
+  background-image:linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px);
+  background-size:26px 26px;mask-image:linear-gradient(90deg,transparent,#000 70%)}
+.score-head{display:flex;align-items:center;gap:10px;margin-bottom:18px;position:relative;z-index:1}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 4px rgba(154,203,36,.25)}
+.score-head b{font-family:'Archivo';font-weight:800;font-size:13px;letter-spacing:.16em;text-transform:uppercase}
+.score-head .per{margin-left:auto;font-size:12px;color:#a9c4cc;font-weight:600}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;position:relative;z-index:1}
+.kpi{padding:14px 16px;border-radius:15px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12)}
+.kpi .lab{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#9fbcc4;display:flex;align-items:center;gap:6px}
+.kpi .val{font-family:'Archivo';font-weight:800;font-size:30px;margin-top:8px;line-height:1}
+.kpi .sub{font-size:12px;color:#8fb0b9;margin-top:6px;font-weight:500}
+.kpi.hot .val{color:var(--lime)}
+.kpi .val.neg{color:#ff8f8f}
+
+/* ---------- grids ---------- */
+.grid{display:grid;gap:16px;margin-top:16px}
+.g-3{grid-template-columns:repeat(3,1fr)}
+.g-2{grid-template-columns:1.4fr 1fr}
+.panel{background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-line);border-radius:var(--r);box-shadow:var(--shadow),var(--glass-hi)}
+.panel-h{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--glass-edge)}
+.panel-h h3{font-family:'Archivo';font-weight:800;font-size:14px;letter-spacing:.02em;color:var(--ink)}
+.panel-h .tag{margin-left:auto;font-size:11px;font-weight:700;color:var(--muted);background:rgba(255,255,255,.4);padding:3px 9px;border-radius:20px}
+.panel-b{padding:16px 18px}
+
+/* account ledger card */
+.acct{display:flex;flex-direction:column;gap:12px}
+.acct-row{display:flex;flex-direction:column;gap:9px;padding:14px;border:1px solid var(--glass-line);border-radius:15px;background:var(--glass-2)}
+.acct-top{display:flex;align-items:center;gap:10px}
+.avatar{width:34px;height:34px;border-radius:10px;background:var(--ink);color:#fff;display:grid;place-items:center;font-family:'Archivo';font-weight:800;font-size:14px}
+.acct-name{font-weight:800;color:var(--ink);font-size:15px}
+.acct-pend{margin-left:auto;text-align:right}
+.acct-pend .n{font-family:'Archivo';font-weight:800;font-size:17px;color:var(--amber)}
+.acct-pend .n.clear{color:var(--good)}
+.acct-pend .l{font-size:10.5px;color:var(--faint);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.bar{height:8px;border-radius:6px;background:rgba(20,66,82,.1);overflow:hidden;display:flex}
+.bar i{height:100%;display:block;background:var(--lime)}
+.bar i.p{background:var(--amber)}
+.acct-legend{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-weight:600}
+.acct-legend .u{color:var(--ink)}
+
+/* mini bar chart */
+.mbar{display:flex;flex-direction:column;gap:11px}
+.mbar-row{display:grid;grid-template-columns:96px 1fr auto;align-items:center;gap:10px;font-size:13px}
+.mbar-row .k{font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mbar-row .t{height:20px;border-radius:7px;background:var(--lime-soft);position:relative;overflow:hidden}
+.mbar-row .t i{position:absolute;inset:0;width:0;background:linear-gradient(90deg,#b6dd53,var(--lime));border-radius:7px}
+.mbar-row .v{font-family:'Archivo';font-weight:700;font-size:13px;color:var(--ink);min-width:60px;text-align:right}
+.mbar-row.loss .t{background:var(--danger-soft)}
+.mbar-row.loss .t i{background:linear-gradient(90deg,#f3a3a3,var(--danger))}
+
+/* pipeline */
+.pipe{display:flex;gap:8px}
+.pipe .step{flex:1;text-align:center;padding:14px 8px;border-radius:15px;border:1px solid rgba(255,255,255,.5)}
+.pipe .step .n{font-family:'Archivo';font-weight:900;font-size:26px;line-height:1}
+.pipe .step .l{font-size:11.5px;font-weight:700;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.04em}
+.pipe .booked{background:rgba(63,111,134,.12)}.pipe .booked .n{color:#3f6f86}
+.pipe .played{background:rgba(154,203,36,.18)}.pipe .played .n{color:var(--lime-d)}
+.pipe .pasalo{background:rgba(107,79,214,.12)}.pipe .pasalo .n{color:#6b4fd6}
+.pipe .returned{background:rgba(58,157,78,.14)}.pipe .returned .n{color:var(--good)}
+/* returns modal */
+.ret-group{margin-bottom:18px}
+.ret-head{display:flex;align-items:center;gap:11px;padding:6px 0 10px;border-bottom:1px solid var(--line2);margin-bottom:4px}
+.ret-item{display:flex;align-items:center;gap:11px;padding:9px 8px;border-radius:10px;cursor:pointer}
+.ret-item:hover{background:rgba(255,255,255,.4)}
+.ret-cb{width:17px;height:17px;accent-color:var(--lime-d);flex:0 0 17px;cursor:pointer}
+.ret-mid{flex:1;min-width:0}
+.ret-mid b{font-size:13.5px;color:var(--ink)}
+.ret-mid span{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+.ret-amt{font-family:'Archivo';font-weight:700;font-size:14px;color:var(--amber)}
+
+/* upcoming list */
+.up{display:flex;flex-direction:column}
+.up-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line2)}
+.up-item:last-child{border-bottom:0}
+.up-date{width:52px;text-align:center;flex:0 0 52px}
+.up-date .d{font-family:'Archivo';font-weight:900;font-size:20px;color:var(--ink);line-height:1}
+.up-date .m{font-size:10px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+.up-mid{flex:1;min-width:0}
+.up-mid b{font-size:14px;color:var(--ink);font-weight:700}
+.up-mid span{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.up-amt{font-family:'Archivo';font-weight:700;font-size:14px;color:var(--amber)}
+
+/* ---------- open play calendar ---------- */
+.cal-nav{margin-left:auto;display:flex;align-items:center;gap:6px}
+.cal-nav b{font-family:'Archivo';font-weight:800;font-size:14px;color:var(--ink);min-width:118px;text-align:center}
+.cal-nav .btn{padding:6px 12px;font-size:12.5px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.cal-wd{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:center;padding:2px 0 4px}
+.cal-cell{min-height:96px;border-radius:13px;padding:6px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.45);cursor:pointer;display:flex;flex-direction:column;gap:4px;transition:.15s;overflow:hidden}
+.cal-cell:hover{background:rgba(255,255,255,.4)}
+.cal-cell.blank{background:transparent;border-color:transparent;cursor:default}
+.cal-cell.has{background:rgba(255,255,255,.34)}
+.cal-cell.sel{border-color:var(--lime-d);box-shadow:0 0 0 2px rgba(154,203,36,.35)}
+.cal-n{font-family:'Archivo';font-weight:800;font-size:12.5px;color:var(--ink);width:24px;height:24px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto}
+.cal-cell.today .cal-n{background:var(--ink);color:#fff}
+.cal-ev{border-radius:7px;padding:4px 6px;font-size:10.5px;line-height:1.25;background:rgba(63,111,134,.14);border-left:3px solid #3f6f86}
+.cal-ev b{display:block;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-ev span{display:block;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-ev.played{background:rgba(154,203,36,.2);border-left-color:var(--lime-d)}
+.cal-ev.pasalo{background:rgba(107,79,214,.13);border-left-color:#6b4fd6}
+.cal-ev.returned{background:rgba(58,157,78,.14);border-left-color:var(--good)}
+.cal-dots{display:none;gap:3px;flex-wrap:wrap;justify-content:center;margin-top:auto;padding-bottom:2px}
+.cal-dots i{width:6px;height:6px;border-radius:50%;background:#3f6f86}
+.cal-dots i.played{background:var(--lime-d)}
+.cal-dots i.pasalo{background:#6b4fd6}
+.cal-dots i.returned{background:var(--good)}
+.cal-day{margin-top:14px;padding-top:12px;border-top:1px solid var(--glass-edge)}
+.cal-day-h{font-family:'Archivo';font-weight:800;font-size:13px;color:var(--ink);margin-bottom:2px}
+.cal-empty{color:var(--muted);font-size:13px;padding:6px 0}
+
+/* ---------- bookings table ---------- */
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.search{flex:1;min-width:180px;position:relative}
+.search input{width:100%;border:1px solid rgba(255,255,255,.65);border-radius:12px;padding:10px 12px 10px 34px;font-size:14px;font-family:inherit;background:var(--field);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);color:var(--text)}
+.search input:focus{outline:none;border-color:var(--lime);background:rgba(255,255,255,.8)}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--faint)}
+.seg{display:flex;gap:2px;background:rgba(118,118,128,.14);padding:3px;border-radius:11px}
+.seg button{border:0;background:transparent;padding:7px 13px;border-radius:8px;font-size:13px;font-weight:700;color:var(--muted)}
+.seg button.on{background:rgba(255,255,255,.9);color:var(--ink);box-shadow:0 3px 8px rgba(0,0,0,.08),0 1px 1px rgba(0,0,0,.04)}
+select.filter{border:1px solid rgba(255,255,255,.65);border-radius:12px;padding:9px 12px;font-size:13.5px;font-weight:600;font-family:inherit;background:var(--field);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);color:var(--ink)}
+
+.tablewrap{background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-line);border-radius:var(--r);box-shadow:var(--shadow),var(--glass-hi);overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+thead th{text-align:left;padding:12px 14px;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);background:rgba(255,255,255,.22);border-bottom:1px solid var(--glass-edge);white-space:nowrap}
+thead th.r,tbody td.r{text-align:right}
+tbody td{padding:12px 14px;border-bottom:1px solid var(--line2);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:rgba(255,255,255,.28)}
+.court b{color:var(--ink);font-weight:700}
+.court span{display:block;font-size:11.5px;color:var(--faint);margin-top:1px}
+.mono{font-family:'Archivo';font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
+.datecell{display:inline-flex;flex-direction:column;align-items:center;line-height:1.1}
+.rnote{display:block;font-size:11px;color:var(--muted);margin-top:4px;max-width:220px;white-space:pre-wrap;line-height:1.45}
+.datecell .dc-day{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--lime-d);width:100%;text-align:center}
+.datecell .dc-full{font-family:'Archivo';font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
+.rev-pos{color:var(--good);font-weight:700}
+.rev-neg{color:var(--danger);font-weight:700}
+.acct-pill{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:12.5px;color:var(--ink)}
+.acct-pill i{width:22px;height:22px;border-radius:7px;background:var(--ink);color:#fff;display:grid;place-items:center;font-family:'Archivo';font-weight:800;font-size:10px;font-style:normal}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;padding:4px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%}
+.chip.booked{background:rgba(63,111,134,.13);color:#3f6f86}.chip.booked::before{background:#3f6f86}
+.chip.played{background:var(--lime-soft);color:var(--lime-d)}.chip.played::before{background:var(--lime-d)}
+.chip.pasalo{background:rgba(107,79,214,.13);color:#6b4fd6}.chip.pasalo::before{background:#6b4fd6}
+.chip.returned{background:var(--good-soft);color:var(--good)}.chip.returned::before{background:var(--good)}
+.chip.pending{background:var(--amber-soft);color:var(--amber)}.chip.pending::before{background:var(--amber)}
+.rowacts{display:flex;gap:6px;justify-content:flex-end}
+.ico{width:32px;height:32px;border-radius:10px;border:1px solid rgba(255,255,255,.7);background:rgba(255,255,255,.5);display:grid;place-items:center;color:var(--muted);position:relative}
+.ico:hover{border-color:var(--lime);color:var(--ink);background:rgba(154,203,36,.25)}
+.ico.primary{border-color:var(--lime);background:var(--lime-soft);color:var(--ink)}
+.ico[data-n]::after{content:attr(data-n);position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--ink);color:#fff;font-size:10px;font-weight:800;line-height:16px;text-align:center}
+.empty{padding:60px 20px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);font-size:16px;margin-bottom:4px;font-family:'Archivo';font-weight:800}
+
+/* ---------- modal ---------- */
+.scrim{position:fixed;inset:0;background:rgba(14,40,49,.28);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);z-index:60;display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+.scrim.on{display:flex}
+.modal{background:rgba(255,255,255,.58);-webkit-backdrop-filter:saturate(180%) blur(30px);backdrop-filter:saturate(180%) blur(30px);border:1px solid var(--glass-line);border-radius:24px;width:100%;max-width:520px;box-shadow:var(--shadow-lg),var(--glass-hi);animation:pop .22s ease}
+@keyframes pop{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+.modal-h{padding:18px 20px;border-bottom:1px solid var(--line2);display:flex;align-items:flex-start;gap:12px}
+.modal-h .ttl{font-family:'Archivo';font-weight:800;font-size:17px;color:var(--ink)}
+.modal-h .sub{font-size:12.5px;color:var(--muted);margin-top:3px}
+.modal-h .x{margin-left:auto;width:32px;height:32px;border-radius:50%;border:0;background:rgba(118,118,128,.16);color:var(--muted);font-size:18px;line-height:1}
+.modal-h .x:hover{background:rgba(118,118,128,.26);color:var(--ink)}
+.modal-b{padding:20px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:6px;letter-spacing:.01em}
+.field label .opt{color:var(--faint);font-weight:500;text-transform:none;letter-spacing:0}
+.field input,.field select,.field textarea{width:100%;border:1px solid rgba(20,66,82,.12);border-radius:12px;padding:11px 12px;font-size:14px;font-family:inherit;background:var(--field);color:var(--text)}
+.field textarea{resize:vertical;min-height:80px;line-height:1.5}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--lime);background:rgba(255,255,255,.85);box-shadow:0 0 0 3px rgba(154,203,36,.2)}
+.field .pre{position:relative}
+.field .pre input{padding-left:26px}
+.field .pre::before{content:"₱";position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-weight:600;font-size:14px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.frow3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.calc{background:rgba(20,66,82,.88);border:1px solid rgba(255,255,255,.12);border-radius:15px;padding:14px 16px;color:#fff;margin:4px 0 16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+.calc-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px}
+.calc-row.big{border-top:1px dashed rgba(255,255,255,.2);margin-top:6px;padding-top:11px}
+.calc-row .cl{color:#a9c4cc;font-weight:600}
+.calc-row .cv{font-family:'Archivo';font-weight:800;font-size:16px}
+.calc-row.big .cv{font-size:22px;color:var(--lime)}
+.calc-row .cv.neg{color:#ff9a9a}
+.toggle{display:flex;gap:8px;margin-top:2px}
+.toggle button{flex:1;border:1.5px solid rgba(20,66,82,.12);background:rgba(255,255,255,.5);border-radius:12px;padding:11px;font-weight:700;font-size:14px;color:var(--muted)}
+.toggle button.on.yes{border-color:var(--good);background:var(--good-soft);color:var(--good)}
+.toggle button.on.no{border-color:var(--amber);background:var(--amber-soft);color:var(--amber)}
+.modal-f{padding:16px 20px;border-top:1px solid var(--line2);display:flex;gap:10px;justify-content:flex-end}
+.hint{font-size:12px;color:var(--muted);background:var(--lime-soft);border-radius:11px;padding:9px 12px;margin-bottom:16px;line-height:1.5}
+.upload{display:flex;align-items:center;gap:10px;border:1.5px dashed rgba(20,66,82,.22);border-radius:13px;padding:12px 14px;cursor:pointer;color:var(--muted);font-size:13.5px;background:rgba(255,255,255,.3);transition:.15s}
+.upload:hover{border-color:var(--lime);background:var(--lime-soft);color:var(--ink)}
+.upload.filled{border-style:solid;border-color:var(--lime-d);color:var(--ink);font-weight:600;background:var(--lime-soft)}
+.upload .up-ico{font-size:16px;flex:0 0 auto}
+.rc-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.rc-list:empty{display:none}
+.rc-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:5px 6px 5px 10px;border-radius:20px;background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.75);font-size:12px;font-weight:600;color:var(--ink);text-decoration:none}
+.rc-chip.new{background:var(--lime-soft);border-color:rgba(122,164,21,.35)}
+.rc-chip a{color:var(--lime-d);font-weight:700;text-decoration:none;white-space:nowrap}
+.rc-chip a:hover{text-decoration:underline}
+.rc-chip>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rc-chip button{border:0;width:20px;height:20px;border-radius:50%;background:rgba(20,66,82,.1);color:var(--muted);font-size:13px;line-height:1;flex:0 0 auto}
+.rc-chip button:hover{background:var(--danger-soft);color:var(--danger)}
+a.rc-chip{padding:8px 12px}
+a.rc-chip:hover{background:rgba(255,255,255,.8)}
+a.ico{text-decoration:none}
+
+/* toast */
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(14,40,49,.78);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid rgba(255,255,255,.15);color:#fff;padding:12px 18px;border-radius:14px;font-weight:600;font-size:14px;box-shadow:var(--shadow-lg);opacity:0;transition:.28s;z-index:80;display:flex;align-items:center;gap:9px}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast .tk{width:20px;height:20px;border-radius:50%;background:var(--lime);color:var(--ink3);display:grid;place-items:center;font-size:13px;font-weight:900}
+
+
+@media(max-width:900px){.g-2{grid-template-columns:1fr}.g-3{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){
+  .wrap{padding:16px 14px 70px}
+  .topbar-in{flex-wrap:wrap;padding:10px 14px;gap:10px}.tabs{width:100%;margin-left:0;order:3}
+  .tab{flex:1;padding:8px 6px;font-size:13px}
+
+  /* scoreboard: give the numbers room to breathe */
+  .score{padding:16px 14px;border-radius:20px}
+  .score-head{margin-bottom:14px}
+  .kpis{grid-template-columns:1fr 1fr !important;gap:7px}
+  .kpi{padding:11px 11px;border-radius:13px;min-width:0}
+  .kpi .lab{font-size:9.5px;letter-spacing:.03em;line-height:1.25}
+  .kpi .val{font-size:19px;margin-top:6px;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .kpi .sub{font-size:10.5px;margin-top:4px;line-height:1.3}
+
+  .panel-h{padding:13px 14px;flex-wrap:wrap;gap:8px}
+  .panel-b{padding:13px 14px}
+  .acct-row{padding:12px}
+  .acct-pend .n{font-size:15px}
+  .pipe{gap:6px}
+  .pipe .step{padding:11px 4px}
+  .pipe .step .n{font-size:20px}
+  .pipe .step .l{font-size:9.5px;letter-spacing:.02em}
+  .mbar-row{grid-template-columns:74px 1fr auto;gap:8px;font-size:12px}
+  .mbar-row .v{font-size:12px;min-width:52px}
+
+  /* calendar: phones show dots per day; tap a day to see its games below */
+  .cal-nav{margin-left:0;width:100%;justify-content:space-between}
+  .cal-grid{gap:4px}
+  .cal-wd{font-size:9.5px;letter-spacing:.02em}
+  .cal-cell{min-height:50px;padding:4px 2px;align-items:center;border-radius:11px}
+  .cal-ev{display:none}
+  .cal-dots{display:flex}
+
+  .hide-sm{display:none}.frow,.frow3{grid-template-columns:1fr}
+  .toolbar{gap:8px}
+  .toolbar>*{width:100%}
+  .search{min-width:0}
+  .seg{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .seg button{padding:7px 11px;font-size:12.5px;white-space:nowrap}
+  /* any inline min-width flex children must be allowed to shrink on phones */
+  [style*="min-width:220px"],[style*="min-width:190px"]{min-width:0 !important;width:100%}
+  .report .kpis,#report .kpis{grid-template-columns:1fr 1fr !important}
+  #rp-from,#rp-to{max-width:150px}
+
+  /* table -> stacked cards */
+  .tablewrap{overflow-x:hidden}
+  thead{display:none}
+  tbody td{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:8px 14px;border:0;min-width:0}
+  tbody td::before{content:attr(data-l);font-size:10.5px;font-weight:800;text-transform:uppercase;color:var(--muted);letter-spacing:.04em;flex:0 0 auto}
+  tbody td>*:last-child{min-width:0;text-align:right}
+  tbody td.r{justify-content:space-between}
+  tbody tr{display:block;border-bottom:1px solid var(--line);padding:8px 0}
+  /* status cell: let chips wrap instead of pushing width */
+  tbody td[data-l="Status"]{flex-wrap:wrap;justify-content:flex-start;gap:6px}
+  tbody td[data-l="Status"] .chip{margin-left:0 !important}
+  .rowacts{justify-content:flex-start;flex-wrap:wrap}
+  .datecell{align-items:flex-end}
+  .rnote{max-width:100%;text-align:right;word-break:break-word}
+  .court b,.court span{word-break:break-word}
+
+  /* modals */
+  .scrim{padding:16px 10px}
+  .modal-b{padding:16px}
+  .modal-h{padding:15px 16px}
+  .modal-f{padding:14px 16px}
+  .calc{padding:12px 13px}
+  .calc-row.big .cv{font-size:19px}
+}
+@media(max-width:380px){
+  .kpi .val{font-size:17px}
+  .kpi .lab{font-size:9px}
+  .cal-cell{min-height:44px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <svg class="mark" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+      <rect width="48" height="48" rx="11" fill="#144252"/>
+      <ellipse cx="18.5" cy="19" rx="8.5" ry="10.5" transform="rotate(-24 18.5 19)" fill="#9ACB24"/>
+      <ellipse cx="29.5" cy="19" rx="8.5" ry="10.5" transform="rotate(24 29.5 19)" fill="#0e333f" stroke="#9ACB24" stroke-width="1.6"/>
+      <rect x="14" y="33" width="20" height="4" rx="2" fill="#9ACB24"/>
+      <circle cx="34.5" cy="14" r="2" fill="#9ACB24"/>
+    </svg>
+    <div class="brand-txt">
+      <b>Nice Game!</b><span>Pickleball Club</span>
+    </div>
+    <div class="tabs">
+      <button class="tab on" data-view="dash">Dashboard</button>
+      <button class="tab" data-view="book">Bookings</button>
+      <button class="tab" data-view="exp">Expenses</button>
+      <button class="tab" data-view="report">Report</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- ============ LOADING (shown until first data arrives) ============ -->
+  <div id="bootLoading" class="loading">
+    <span class="spin"></span> Loading your ledger…
+  </div>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section class="view" id="dash" style="display:none">
+    <div class="score">
+      <div class="score-head">
+        <span class="dot"></span><b>Club Ledger</b>
+        <span class="per">All-time</span>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><div class="lab">Capital deployed</div><div class="val" id="k-cap">₱0</div><div class="sub" id="k-cap-s">0 bookings</div></div>
+        <div class="kpi hot"><div class="lab">Net profit</div><div class="val" id="k-rev">₱0</div><div class="sub" id="k-rev-s">from played games</div></div>
+        <div class="kpi"><div class="lab">To return</div><div class="val" id="k-pend">₱0</div><div class="sub" id="k-pend-s">unpaid to accounts</div></div>
+        <div class="kpi"><div class="lab">BDO markup (5%)</div><div class="val" id="k-markup" style="color:#7fd4e0">₱0</div><div class="sub" id="k-markup-s">BDO's interest earned</div></div>
+        <div class="kpi"><div class="lab">Players served</div><div class="val" id="k-play">0</div><div class="sub" id="k-play-s">across all games</div></div>
+      </div>
+    </div>
+
+    <!-- monthly calendar of open play schedules -->
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-h">
+        <h3>Open Play calendar</h3>
+        <div class="cal-nav">
+          <button class="ico" title="Previous month" onclick="calMove(-1)">‹</button>
+          <b id="cal-title">—</b>
+          <button class="ico" title="Next month" onclick="calMove(1)">›</button>
+          <button class="btn btn-ghost" onclick="calToday()">Today</button>
+        </div>
+      </div>
+      <div class="panel-b">
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="cal-day" id="calDay"></div>
+      </div>
+    </div>
+
+    <div class="grid g-2">
+      <div class="panel">
+        <div class="panel-h"><h3>Account ledger</h3><button class="btn btn-lime" style="margin-left:auto;padding:7px 13px;font-size:13px" onclick="openReturns()">💵 Update capital return</button></div>
+        <div class="panel-b"><div class="acct" id="acctList"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>Pipeline</h3></div>
+        <div class="panel-b">
+          <div class="pipe">
+            <div class="step booked"><div class="n" id="p-booked">0</div><div class="l">Booked</div></div>
+            <div class="step played"><div class="n" id="p-played">0</div><div class="l">Played</div></div>
+            <div class="step pasalo"><div class="n" id="p-pasalo">0</div><div class="l">Pasalo</div></div>
+            <div class="step returned"><div class="n" id="p-ret">0</div><div class="l">Returned</div></div>
+          </div>
+          <div style="margin-top:18px" class="panel-h" ><h3 style="padding:0">Upcoming games</h3></div>
+          <div class="up" id="upList" style="margin-top:6px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid g-2">
+      <div class="panel">
+        <div class="panel-h"><h3>Revenue by court</h3><span class="tag">profit / loss</span></div>
+        <div class="panel-b"><div class="mbar" id="courtBars"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>Bookings by court</h3></div>
+        <div class="panel-b"><div class="mbar" id="countBars"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BOOKINGS ============ -->
+  <section class="view" id="book" style="display:none">
+    <div class="toolbar">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="q" placeholder="Search court or account…">
+      </div>
+      <div class="seg" id="statusSeg">
+        <button class="on" data-s="all">All</button>
+        <button data-s="booked">Booked</button>
+        <button data-s="played">Played</button>
+        <button data-s="pasalo">Pasalo</button>
+        <button data-s="returned">Returned</button>
+        <button data-s="unreturned">Not returned</button>
+      </div>
+      <select class="filter" id="acctFilter"><option value="all">All accounts</option></select>
+      <button class="btn btn-lime" onclick="openBooking()">＋ New booking</button>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Court</th><th>Slot</th><th>Account</th>
+          <th class="r">Capital</th><th class="r">Players</th><th class="r">Rate</th>
+          <th class="r">Revenue</th><th class="r">To return</th><th>Status</th><th></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty" id="empty" style="display:none"><b>No bookings match</b>Try a different filter, or add a new booking.</div>
+    </div>
+  </section>
+
+  <!-- ============ EXPENSES ============ -->
+  <section class="view" id="exp" style="display:none">
+    <div class="toolbar">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="eq" placeholder="Search category or description…">
+      </div>
+      <select class="filter" id="expCatFilter"><option value="all">All categories</option></select>
+      <button class="btn btn-lime" onclick="openExpense()">＋ New expense</button>
+    </div>
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-b" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+        <div><div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Total expenses</div>
+          <div class="num" id="exp-total" style="font-size:26px;font-weight:800;color:var(--danger);margin-top:4px">₱0.00</div></div>
+        <div id="exp-bycat" class="mbar" style="flex:1;min-width:220px"></div>
+      </div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Category</th><th>Description</th><th class="r">Amount</th><th></th>
+        </tr></thead>
+        <tbody id="erows"></tbody>
+      </table>
+      <div class="empty" id="eempty" style="display:none"><b>No expenses yet</b>Add grocery, transpo, snacks, and other operating costs here.</div>
+    </div>
+  </section>
+
+  <!-- ============ REPORT (date-span) ============ -->
+  <section class="view" id="report" style="display:none">
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-b" style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+        <div><div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px">From</div>
+          <input type="date" id="rp-from" class="filter" style="padding:9px 11px"></div>
+        <div><div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px">To</div>
+          <input type="date" id="rp-to" class="filter" style="padding:9px 11px"></div>
+        <div class="seg" id="rpQuick" style="margin-left:2px">
+          <button data-q="7">7d</button>
+          <button data-q="30">30d</button>
+          <button data-q="month">This month</button>
+          <button data-q="all">All</button>
+        </div>
+        <div style="margin-left:auto;font-size:12.5px;color:var(--muted);font-weight:600" id="rp-count">—</div>
+      </div>
+    </div>
+
+    <!-- summary strip -->
+    <div class="kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px" id="rp-kpis">
+      <div class="panel"><div class="panel-b"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Open plays</div><div class="num" id="rp-plays" style="font-size:24px;font-weight:800;color:var(--ink);margin-top:4px">0</div></div></div>
+      <div class="panel"><div class="panel-b"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Total capital</div><div class="num" id="rp-cap" style="font-size:24px;font-weight:800;color:var(--ink);margin-top:4px">₱0</div></div></div>
+      <div class="panel"><div class="panel-b"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Total sales (halin)</div><div class="num" id="rp-sales" style="font-size:24px;font-weight:800;color:var(--lime-d);margin-top:4px">₱0</div></div></div>
+      <div class="panel"><div class="panel-b"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Players</div><div class="num" id="rp-players" style="font-size:24px;font-weight:800;color:var(--ink);margin-top:4px">0</div></div></div>
+    </div>
+    <div class="kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+      <div class="panel"><div class="panel-b"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Revenue (gross profit)</div><div class="num" id="rp-rev" style="font-size:22px;font-weight:800;color:var(--good);margin-top:4px">₱0</div></div></div>
+      <div class="panel"><div class="panel-b"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Expenses in range</div><div class="num" id="rp-exp" style="font-size:22px;font-weight:800;color:var(--danger);margin-top:4px">₱0</div></div></div>
+      <div class="panel"><div class="panel-b"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Net profit</div><div class="num" id="rp-net" style="font-size:22px;font-weight:800;color:var(--ink);margin-top:4px">₱0</div></div></div>
+      <div class="panel"><div class="panel-b"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">BDO markup (5%)</div><div class="num" id="rp-markup" style="font-size:22px;font-weight:800;color:var(--ink2);margin-top:4px">₱0</div></div></div>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Court</th><th>Slot</th><th>Account</th>
+          <th class="r">Capital</th><th class="r">Players</th><th class="r">Sales</th><th class="r">Revenue</th><th>Status</th>
+        </tr></thead>
+        <tbody id="rprows"></tbody>
+      </table>
+      <div class="empty" id="rpempty" style="display:none"><b>No games in this range</b>Pick a wider date span.</div>
+    </div>
+  </section>
+</div>
+
+<!-- ============ MODAL ============ -->
+<div class="scrim" id="scrim">
+  <div class="modal" id="modal"></div>
+</div>
+<div class="toast" id="toast"><span class="tk">✓</span><span id="toastMsg"></span></div>
+
+<script>
+/* ---------------- DATA LAYER ---------------- */
+const MARKUP = 1.05;
+let COURTS=["Dink City","Pickaboo","Net & Paddle","Dinkin Park"];
+let ACCOUNTS=["BDO","Nard","Nice"];
+
+/* ---- Apps Script bridge: every call returns a Promise ---- */
+function run(fn,args){return new Promise(function(res,rej){
+  var r=google.script.run.withSuccessHandler(res).withFailureHandler(function(e){toast((e&&e.message)||'Server error','!');rej(e);});
+  r[fn].apply(r,args||[]);
+});}
+const API={
+  getBookings:()=>run('getBookings'),
+  saveBooking:(b)=>run('saveBooking',[b]),
+  logResult:(id,players,rate)=>run('logResult',[id,players,rate]),
+  reconcile:(id,ret,paid,receipt,note,keep)=>run('reconcile',[id,ret,paid,receipt,note,keep]),
+  setPasalo:(id,val,partAmt)=>run('setPasalo',[id,val,partAmt]),
+  reconcileMany:(ids,paid,receipt,note)=>run('reconcileMany',[ids,paid,receipt,note]),
+  deleteBooking:(id)=>run('deleteBooking',[id]),
+  getExpenses:()=>run('getExpenses'),
+  saveExpense:(e)=>run('saveExpense',[e]),
+  deleteExpense:(id)=>run('deleteExpense',[id])
+};
+
+/* ---------------- shared app logic ---------------- */
+let DATA=[];
+let EXPENSES=[];
+let EXP_CATS=['Grocery','Transpo','Snacks','Equipment','Other'];
+let BOOTED=false; /* becomes true after first successful load */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+/* ---- Philippine time ----
+   "Today" always follows Manila time (UTC+8), even if the phone or laptop
+   is set to another timezone. (toISOString() is UTC, which is still
+   "yesterday" in the Philippines from 12 AM to 8 AM.) */
+const TZ='Asia/Manila';
+function phToday(){
+  const p={};
+  new Intl.DateTimeFormat('en-US',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'})
+    .formatToParts(new Date()).forEach(x=>{p[x.type]=x.value;});
+  return p.year+'-'+p.month+'-'+p.day;
+}
+/* shift a yyyy-MM-dd date by n days (plain calendar math, no timezone involved) */
+const addDays=(s,n)=>{const[y,m,d]=s.split('-').map(Number);return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10);};
+
+/* All money shows two decimals, always: ₱1,050.00 */
+const peso=v=>{v=Number(v)||0;return '₱'+v.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});};
+const pesoK=v=>{v=Number(v)||0;return '₱'+v.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});};
+/* Which account earns the +5% markup. Everyone else: no markup. */
+const MARKUP_ACCT='BDO';
+const marks=a=>String(a||'').trim().toUpperCase()===MARKUP_ACCT.toUpperCase();
+function calc(b){
+  const capital=Number(b.capital||0), fee=Number(b.fee||0), bdo=marks(b.acct);
+  const pasalo=b.pasalo===true||String(b.pasalo).toUpperCase()==='YES';           // full pasalo
+  const partAmt=(b.pasaloAmt!=null&&b.pasaloAmt!==''&&!isNaN(b.pasaloAmt))?Number(b.pasaloAmt):null; // partial
+  const partial=partAmt!=null&&partAmt>0;
+  // a game counts as "played" when players+rate were logged (even a partial-pasalo game is still played)
+  const played=!pasalo&&b.players!=null&&b.players!==''&&!isNaN(b.players);
+  const sales=played?(Number(b.players)*Number(b.rate||0)):null;
+  const revenue=played?(sales-(capital+fee)):null;
+
+  // return amount + the 5% markup (BDO's interest on the money it fronted,
+  // NOT the organizer's profit — tracked separately)
+  let toReturn, markup=0;
+  if(pasalo){
+    toReturn=capital+fee;                        // full transfer: exact, no +5%
+  }else if(partial){
+    const passed=Math.min(partAmt,capital);
+    const remaining=capital-passed;
+    markup=bdo?remaining*(MARKUP-1):0;           // 5% only on the played (remaining) part
+    toReturn=passed+remaining+markup+fee;
+  }else{
+    markup=bdo?capital*(MARKUP-1):0;             // 5% on full capital
+    toReturn=capital+markup+fee;
+  }
+
+  let status=b.returned?'returned':(pasalo?'pasalo':(played?'played':'booked'));
+  return {...b,pasalo,partial,partAmt,played,bdo,sales,revenue,toReturn,markup,status};
+}
+const initials=a=>(a||'?').slice(0,2).toUpperCase();
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fmtDate=d=>{if(!d)return '';const[y,m,day]=d.split('-');return MONTHS[+m-1]+' '+(+day)+', '+y;};
+/* weekday for a yyyy-MM-dd string, e.g. 'Sat' (noon avoids TZ rollover) */
+const dayName=d=>{if(!d)return '';const[y,m,day]=d.split('-');const dt=new Date(+y,+m-1,+day,12,0,0);return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];};
+/* full date cell for the table: small weekday sitting above the date */
+const dateCell=d=>{if(!d)return '';return `<span class="datecell"><span class="dc-day">${dayName(d)}</span><span class="dc-full">${fmtDate(d)}</span></span>`;};
+
+/* ---------------- receipts (several files per booking) ----------------
+   A receipt cell in the sheet holds one Drive link per line. */
+const links=s=>String(s||'').split(/\s*\n\s*/).filter(Boolean);
+const PICKED={}; /* files chosen in the open form, per upload field id */
+
+/* Upload box + list of new files + list of current receipts (each removable).
+   Picking files again ADDS to the list, so two transactions can be attached one at a time. */
+function uploadField(id,label,existing){
+  PICKED[id]=[];
+  const ex=links(existing);
+  return `<div class="upload" onclick="document.getElementById('${id}').click()">
+      <input type="file" id="${id}" multiple accept="image/*,application/pdf" style="display:none" onchange="fileChosen(this)">
+      <span class="up-ico">📎</span><span id="${id}-name" data-empty="${esc(label)}">${esc(label)}</span></div>
+    <div class="rc-list" id="${id}-new"></div>
+    ${ex.length?`<div class="rc-list" id="${id}-keep">${ex.map((u,i)=>`<span class="rc-chip" data-url="${esc(u)}"><a href="${esc(u)}" target="_blank">Receipt ${i+1} ↗</a><button type="button" title="Remove this receipt" onclick="this.parentNode.remove()">×</button></span>`).join('')}</div>`:''}`;
+}
+function fileChosen(input){
+  const id=input.id;
+  PICKED[id]=(PICKED[id]||[]).concat([...input.files]);
+  input.value=''; /* so the same file can be picked again after removing it */
+  showPicked(id);
+}
+function showPicked(id){
+  const list=PICKED[id]||[], lab=document.getElementById(id+'-name');
+  lab.closest('.upload').classList.toggle('filled',list.length>0);
+  lab.textContent=list.length?(list.length+' file'+(list.length>1?'s':'')+' ready · tap to add more'):lab.dataset.empty;
+  document.getElementById(id+'-new').innerHTML=list.map((f,i)=>
+    `<span class="rc-chip new"><span>${esc(f.name)}</span><button type="button" title="Remove" onclick="unpick('${id}',${i})">×</button></span>`).join('');
+}
+function unpick(id,i){PICKED[id].splice(i,1);showPicked(id);}
+/* links of the current receipts the user did not remove */
+function keptReceipts(id){return $$('#'+id+'-keep .rc-chip').map(x=>x.dataset.url);}
+
+function readFile(f){
+  return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f);});
+}
+/* Phone photos are shrunk (max 2000px, JPEG) before upload — much faster on mobile data,
+   and receipt text stays readable. PDFs and small images go as they are. */
+async function prepFile(f){
+  const dataUrl=await readFile(f);
+  if(!/^image\//i.test(f.type)||/gif|svg/i.test(f.type))return {name:f.name,dataUrl};
+  try{
+    const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=dataUrl;});
+    const s=Math.min(1,2000/Math.max(img.width,img.height));
+    if(s===1&&f.size<900000)return {name:f.name,dataUrl};
+    const c=document.createElement('canvas');c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);
+    const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(img,0,0,c.width,c.height);
+    return {name:f.name.replace(/\.[^.]+$/,'')+'.jpg',dataUrl:c.toDataURL('image/jpeg',0.85)};
+  }catch(e){return {name:f.name,dataUrl};}
+}
+/* all files picked in an upload field, as [{name,dataUrl}, ...] */
+function readReceipts(id){return Promise.all((PICKED[id]||[]).map(prepFile));}
+
+/* table button for a receipt cell: one file opens directly, several open a list */
+function receiptBtn(cell,icon,title){
+  const l=links(cell);if(!l.length)return '';
+  if(l.length===1)return `<a class="ico" title="${title}" href="${esc(l[0])}" target="_blank">${icon}</a>`;
+  return `<button class="ico" data-n="${l.length}" title="${title}s (${l.length})" data-title="${title}" data-links="${esc(l.join('\n'))}" onclick="showReceipts(this)">${icon}</button>`;
+}
+function showReceipts(el){
+  const l=links(el.dataset.links), t=el.dataset.title;
+  modal.innerHTML=`
+    <div class="modal-h"><div><div class="ttl">${esc(t)}s</div><div class="sub">${l.length} files · opens in Google Drive</div></div>
+      <button class="x" onclick="closeModal()">×</button></div>
+    <div class="modal-b"><div class="rc-list">${l.map((u,i)=>`<a class="rc-chip" href="${esc(u)}" target="_blank">📄 ${esc(t)} ${i+1} ↗</a>`).join('')}</div></div>`;
+  scrim.classList.add('on');
+}
+
+/* disable the modal's main button while saving (uploads can take a few seconds) */
+function busy(){
+  const b=document.querySelector('.modal-f .btn-lime');if(!b)return()=>{};
+  const t=b.innerHTML;b.disabled=true;b.innerHTML='<span class="spin sm"></span> Saving…';
+  return()=>{b.disabled=false;b.innerHTML=t;};
+}
+
+async function load(){
+  const [raw,rawExp]=await Promise.all([API.getBookings(),API.getExpenses()]);
+  DATA=raw.map(calc);
+  EXPENSES=rawExp.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const cSet=new Set(COURTS), aSet=new Set(ACCOUNTS);
+  DATA.forEach(b=>{if(b.court)cSet.add(b.court);if(b.acct)aSet.add(b.acct);});
+  COURTS=[...cSet]; ACCOUNTS=[...aSet];
+  const catSet=new Set(EXP_CATS);EXPENSES.forEach(e=>{if(e.category)catSet.add(e.category);});EXP_CATS=[...catSet];
+  /* first successful load: hide the spinner, reveal the active tab */
+  if(!BOOTED){
+    BOOTED=true;
+    const bl=$('#bootLoading'); if(bl) bl.style.display='none';
+    const active=$('.tab.on')?$('.tab.on').dataset.view:'dash';
+    $('#'+active).style.display='block';
+    $('#'+active).classList.add('on');
+  }
+  render();
+  renderExpenses();
+  if(!rpFrom&&!rpTo)rpDefault();
+  renderReport();
+}
+
+/* ---- dashboard ---- */
+function render(){
+  const cap=DATA.reduce((s,b)=>s+Number(b.capital||0),0);
+  const rev=DATA.filter(b=>b.played).reduce((s,b)=>s+b.revenue,0);
+  const expTotal=EXPENSES.reduce((s,e)=>s+Number(e.amount||0),0);
+  const net=rev-expTotal;
+  const pend=DATA.filter(b=>!b.returned).reduce((s,b)=>s+b.toReturn,0);
+  const players=DATA.filter(b=>b.played).reduce((s,b)=>s+Number(b.players),0);
+  const markup=DATA.reduce((s,b)=>s+Number(b.markup||0),0);
+  const markupPaid=DATA.filter(b=>b.returned).reduce((s,b)=>s+Number(b.markup||0),0);
+  $('#k-cap').textContent=pesoK(cap); $('#k-cap-s').textContent=DATA.length+' bookings';
+  $('#k-rev').textContent=pesoK(net); $('#k-rev').classList.toggle('neg',net<0);
+  $('#k-rev-s').textContent=expTotal>0?('after '+pesoK(expTotal)+' expenses'):'from played games';
+  $('#k-pend').textContent=pesoK(pend); $('#k-pend-s').textContent=DATA.filter(b=>!b.returned).length+' unpaid to accounts';
+  $('#k-markup').textContent=pesoK(markup); $('#k-markup-s').textContent=markupPaid<markup?(pesoK(markupPaid)+' already paid'):"BDO's interest earned";
+  $('#k-play').textContent=players.toLocaleString('en');
+
+  renderCalendar();
+
+  // account ledger
+  const accts={};
+  DATA.forEach(b=>{const a=b.acct||'—';if(!accts[a])accts[a]={used:0,ret:0,pend:0};accts[a].used+=b.toReturn;(b.returned?accts[a].ret+=b.toReturn:accts[a].pend+=b.toReturn);});
+  $('#acctList').innerHTML=Object.entries(accts).sort((a,b)=>b[1].pend-a[1].pend).map(([a,v])=>{
+    const rp=v.used?(v.ret/v.used*100):0, pp=v.used?(v.pend/v.used*100):0;
+    return `<div class="acct-row">
+      <div class="acct-top"><div class="avatar">${initials(a)}</div><div class="acct-name">${a}</div>
+        <div class="acct-pend"><div class="n ${v.pend<1?'clear':''}">${v.pend<1?'Clear':peso(v.pend)}</div><div class="l">pending</div></div></div>
+      <div class="bar"><i style="width:${rp}%"></i><i class="p" style="width:${pp}%"></i></div>
+      <div class="acct-legend"><span class="u">Used ${peso(v.used)}</span><span>Returned ${peso(v.ret)}</span></div>
+    </div>`;}).join('');
+
+  // pipeline
+  $('#p-booked').textContent=DATA.filter(b=>b.status==='booked').length;
+  $('#p-played').textContent=DATA.filter(b=>b.status==='played').length;
+  $('#p-pasalo').textContent=DATA.filter(b=>b.pasalo||b.partial).length;
+  $('#p-ret').textContent=DATA.filter(b=>b.status==='returned').length;
+
+  // upcoming
+  const today=phToday();
+  const up=DATA.filter(b=>b.date>=today&&!b.returned).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
+  $('#upList').innerHTML=up.length?up.map(b=>{const[,m,d]=b.date.split('-');const mo=MONTHS[+m-1].toUpperCase();
+    return `<div class="up-item"><div class="up-date"><div class="d">${+d}</div><div class="m">${mo}</div></div>
+      <div class="up-mid"><b>${b.court}</b><span>${b.courts}C ${b.hours}H${b.time?' · '+b.time:''} · ${b.acct}</span></div>
+      <div class="up-amt">${peso(b.toReturn)}</div></div>`;}).join(''):'<div style="color:var(--muted);font-size:13px;padding:14px 0">No upcoming games.</div>';
+
+  // revenue by court
+  const byCourt={};DATA.filter(b=>b.played).forEach(b=>{byCourt[b.court]=(byCourt[b.court]||0)+b.revenue;});
+  const maxAbs=Math.max(1,...Object.values(byCourt).map(v=>Math.abs(v)));
+  $('#courtBars').innerHTML=Object.entries(byCourt).sort((a,b)=>b[1]-a[1]).map(([c,v])=>
+    `<div class="mbar-row ${v<0?'loss':''}"><div class="k">${c}</div><div class="t"><i style="width:${Math.abs(v)/maxAbs*100}%"></i></div><div class="v" style="color:${v<0?'var(--danger)':'var(--good)'}">${v<0?'-':''}${peso(Math.abs(v))}</div></div>`).join('')||'<div style="color:var(--muted);font-size:13px">No played games yet.</div>';
+
+  // bookings by court
+  const cnt={};DATA.forEach(b=>{cnt[b.court]=(cnt[b.court]||0)+1;});
+  const maxC=Math.max(1,...Object.values(cnt));
+  $('#countBars').innerHTML=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).map(([c,v])=>
+    `<div class="mbar-row"><div class="k">${c}</div><div class="t"><i style="width:${v/maxC*100}%"></i></div><div class="v">${v}</div></div>`).join('');
+
+  // account filter options
+  const af=$('#acctFilter');const cur=af.value;
+  af.innerHTML='<option value="all">All accounts</option>'+Object.keys(accts).map(a=>`<option>${a}</option>`).join('');
+  af.value=cur||'all';
+
+  renderTable();
+}
+
+/* ---- open play calendar (one month at a time) ---- */
+let calY=null,calM=null,calSel=null; /* year, month (0-11), selected day yyyy-MM-dd */
+function calInit(){const t=phToday();calY=+t.slice(0,4);calM=+t.slice(5,7)-1;calSel=t;}
+function calMove(n){calM+=n;if(calM<0){calM=11;calY--;}if(calM>11){calM=0;calY++;}calSel=null;renderCalendar();}
+function calToday(){calInit();renderCalendar();}
+function calPick(d){calSel=d;renderCalendar();}
+/* rough start-time of a slot like "7-10PM" or "10PM-1AM", for sorting a day's games */
+function timeKey(t){
+  const s=String(t||''), m=s.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+  if(!m)return 24*60;
+  const ap=(m[3]||(s.match(/(am|pm)/i)||[])[1]||'pm').toLowerCase();
+  return ((+m[1]%12)+(ap==='pm'?12:0))*60+(+m[2]||0);
+}
+const slot=b=>`${b.courts}C${b.hours}H`;
+function renderCalendar(){
+  if(calY===null)calInit();
+  const today=phToday(), prefix=calY+'-'+String(calM+1).padStart(2,'0')+'-';
+  $('#cal-title').textContent=MONTHS[calM]+' '+calY;
+  const byDay={};
+  DATA.forEach(b=>{if(b.date&&b.date.startsWith(prefix))(byDay[b.date]=byDay[b.date]||[]).push(b);});
+  Object.values(byDay).forEach(l=>l.sort((a,b)=>timeKey(a.time)-timeKey(b.time)));
+  const first=new Date(Date.UTC(calY,calM,1)).getUTCDay(), days=new Date(Date.UTC(calY,calM+1,0)).getUTCDate();
+  let h=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div class="cal-wd">${d}</div>`).join('');
+  for(let i=0;i<first;i++)h+='<div class="cal-cell blank"></div>';
+  for(let d=1;d<=days;d++){
+    const ds=prefix+String(d).padStart(2,'0'), list=byDay[ds]||[];
+    h+=`<div class="cal-cell${ds===today?' today':''}${ds===calSel?' sel':''}${list.length?' has':''}" onclick="calPick('${ds}')">
+      <div class="cal-n">${d}</div>
+      ${list.map(b=>`<div class="cal-ev ${b.status}" title="${esc(b.court+' · '+slot(b)+(b.time?' · '+b.time:''))}"><b>${esc(b.court)}</b><span>${slot(b)}${b.time?' · '+esc(b.time):''}</span></div>`).join('')}
+      ${list.length?`<div class="cal-dots">${list.map(b=>`<i class="${b.status}"></i>`).join('')}</div>`:''}
+    </div>`;
+  }
+  $('#calGrid').innerHTML=h;
+
+  // games of the selected day, listed under the calendar (main view on phones)
+  const sel=calSel&&calSel.startsWith(prefix)?calSel:null, list=sel?(byDay[sel]||[]):[];
+  $('#calDay').innerHTML=!sel
+    ? '<div class="cal-empty">Tap a day to see its games.</div>'
+    : `<div class="cal-day-h">${dayName(sel)}, ${fmtDate(sel)}</div>`+(list.length
+      ? list.map(b=>`<div class="up-item">
+          <div class="up-mid"><b>${esc(b.court)}</b><span>${slot(b)}${b.time?' · '+esc(b.time):''} · ${esc(b.acct)}</span></div>
+          <span class="chip ${b.status}">${b.status}</span></div>`).join('')
+      : '<div class="cal-empty">No open play scheduled.</div>');
+}
+
+/* ---- bookings table ---- */
+let fStatus='all';
+function renderTable(){
+  const q=$('#q').value.trim().toLowerCase();
+  const acct=$('#acctFilter').value;
+  let rows=DATA.slice().sort((a,b)=>b.date.localeCompare(a.date));
+  if(fStatus==='played'){
+    // "Played" = any game that was actually played (has players + rate),
+    // whether or not the capital has already been returned.
+    rows=rows.filter(b=>b.played);
+  }else if(fStatus==='pasalo'){
+    // "Pasalo" = any transferred court (full or partial), even after the
+    // capital was returned — so past pasalos stay searchable.
+    rows=rows.filter(b=>b.pasalo||b.partial);
+  }else if(fStatus==='unreturned'){
+    // "Not returned" = capital still owed to an account (booked or played, not yet paid back).
+    rows=rows.filter(b=>!b.returned);
+  }else if(fStatus!=='all'){
+    rows=rows.filter(b=>b.status===fStatus);
+  }
+  if(acct!=='all')rows=rows.filter(b=>b.acct===acct);
+  if(q)rows=rows.filter(b=>(b.court+' '+b.acct).toLowerCase().includes(q));
+  $('#empty').style.display=rows.length?'none':'block';
+  $('#rows').innerHTML=rows.map(b=>`
+    <tr>
+      <td data-l="Date">${dateCell(b.date)}</td>
+      <td data-l="Court" class="court"><b>${b.court}</b><span>${b.courts}C ${b.hours}H</span></td>
+      <td data-l="Slot">${b.time||'<span style="color:var(--faint)">—</span>'}</td>
+      <td data-l="Account"><span class="acct-pill"><i>${initials(b.acct)}</i>${b.acct}</span></td>
+      <td data-l="Capital" class="r"><span class="mono">${peso(b.capital)}</span>${b.fee?`<span style="color:var(--faint);font-size:11px"> +${peso(b.fee)}</span>`:''}</td>
+      <td data-l="Players" class="r">${b.played?`<span class="mono">${b.players}</span>`:'<span style="color:var(--faint)">—</span>'}</td>
+      <td data-l="Rate" class="r">${b.played?peso(b.rate):'<span style="color:var(--faint)">—</span>'}</td>
+      <td data-l="Revenue" class="r">${b.played?`<span class="${b.revenue<0?'rev-neg':'rev-pos'}">${b.revenue<0?'-':'+'}${peso(Math.abs(b.revenue))}</span>`:'<span style="color:var(--faint)">—</span>'}</td>
+      <td data-l="Return" class="r"><span class="mono">${peso(b.toReturn)}</span></td>
+      <td data-l="Status"><span class="chip ${b.status}">${b.status}</span>${(b.pasalo&&b.returned)?'<span class="chip pasalo" style="margin-left:4px;font-size:9.5px;padding:2px 6px">pasalo</span>':''}${b.partial?'<span class="chip pasalo" style="margin-left:4px;font-size:9.5px;padding:2px 6px" title="Part of this booking was passed on">pasalo</span>':''}${!b.returned?'<span class="chip pending" style="margin-left:4px;font-size:9.5px;padding:2px 6px">not returned</span>':''}${b.note?`<span class="rnote">📝 ${esc(b.note)}</span>`:''}</td>
+      <td data-l="" class="r"><div class="rowacts">
+        ${!b.pasalo?`<button class="ico ${(!b.played&&!b.returned)?'primary':''}" title="${b.played?'Edit game result':'Log game result'}" onclick="openResult('${b.id}')">🏓</button>`:''}
+        ${!b.pasalo?`<button class="ico ${b.partial?'primary':''}" title="Court Pasalo (transfer)" onclick="openPasalo('${b.id}')">🔁</button>`:''}
+        ${b.pasalo?`<button class="ico" title="Undo pasalo" onclick="undoPasalo('${b.id}')">↩</button>`:''}
+        <button class="ico ${(!b.returned&&(b.played||b.pasalo))?'primary':''}" title="${b.returned?'Edit return details':'Reconcile return'}" onclick="openReconcile('${b.id}')">💵</button>
+        ${receiptBtn(b.receiptBooking,'📎','Booking receipt')}
+        ${receiptBtn(b.receiptReturn,'🧾','Return receipt')}
+        <button class="ico" title="Edit" onclick="openBooking('${b.id}')">✎</button>
+        <button class="ico" title="Delete" onclick="del('${b.id}')">🗑</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+/* ---- expenses view ---- */
+function renderExpenses(){
+  const q=($('#eq')?$('#eq').value.trim().toLowerCase():'');
+  const cat=$('#expCatFilter')?$('#expCatFilter').value:'all';
+  let rows=EXPENSES.slice();
+  if(cat!=='all')rows=rows.filter(e=>e.category===cat);
+  if(q)rows=rows.filter(e=>((e.category||'')+' '+(e.desc||'')).toLowerCase().includes(q));
+
+  const total=EXPENSES.reduce((s,e)=>s+Number(e.amount||0),0);
+  if($('#exp-total'))$('#exp-total').textContent=peso(total);
+
+  // by category mini-bars
+  const byCat={};EXPENSES.forEach(e=>{const c=e.category||'Other';byCat[c]=(byCat[c]||0)+Number(e.amount||0);});
+  const maxC=Math.max(1,...Object.values(byCat));
+  if($('#exp-bycat'))$('#exp-bycat').innerHTML=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>
+    `<div class="mbar-row loss"><div class="k">${c}</div><div class="t"><i style="width:${v/maxC*100}%"></i></div><div class="v" style="color:var(--danger)">${peso(v)}</div></div>`).join('')||'<div style="color:var(--muted);font-size:13px">No expenses yet.</div>';
+
+  const cf=$('#expCatFilter');
+  if(cf){const cur=cf.value;cf.innerHTML='<option value="all">All categories</option>'+EXP_CATS.map(c=>`<option>${c}</option>`).join('');cf.value=cur||'all';}
+
+  if($('#eempty'))$('#eempty').style.display=rows.length?'none':'block';
+  if($('#erows'))$('#erows').innerHTML=rows.map(e=>`
+    <tr>
+      <td data-l="Date">${dateCell(e.date)}</td>
+      <td data-l="Category"><span class="chip booked">${e.category||'—'}</span></td>
+      <td data-l="Description">${e.desc?esc(e.desc):'<span style="color:var(--faint)">—</span>'}</td>
+      <td data-l="Amount" class="r"><span class="mono" style="color:var(--danger)">${peso(e.amount)}</span></td>
+      <td data-l="" class="r"><div class="rowacts">
+        ${receiptBtn(e.receipt,'📎','Receipt')}
+        <button class="ico" title="Edit" onclick="openExpense('${e.id}')">✎</button>
+        <button class="ico" title="Delete" onclick="delExpense('${e.id}')">🗑</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function openExpense(id){
+  const e=id?EXPENSES.find(x=>x.id===id):{date:phToday(),category:'Grocery',amount:''};
+  const isNewCat=e.category&&!EXP_CATS.includes(e.category);
+  modal.innerHTML=`
+    <div class="modal-h"><div><div class="ttl">${id?'Edit expense':'New expense'}</div>
+      <div class="sub">General operating cost — not tied to one game.</div></div>
+      <button class="x" onclick="closeModal()">×</button></div>
+    <div class="modal-b">
+      <div class="frow">
+        <div class="field"><label>Date</label><input type="date" id="e-date" value="${e.date||''}"></div>
+        <div class="field"><label>Amount</label><div class="pre"><input type="number" id="e-amount" value="${e.amount!=null?e.amount:''}" placeholder="0"></div></div>
+      </div>
+      <div class="field"><label>Category</label>
+        <select id="e-cat-sel" onchange="pickOrNew(this,'e-cat')">
+          ${EXP_CATS.map(c=>`<option ${e.category===c?'selected':''}>${c}</option>`).join('')}
+          <option value="__new__" ${isNewCat?'selected':''}>＋ New category…</option>
+        </select>
+        <input id="e-cat" value="${esc(e.category||'')}" placeholder="Type new category" style="margin-top:8px;display:${isNewCat?'block':'none'}"></div>
+      <div class="field"><label>Description <span class="opt">(optional)</span></label>
+        <input id="e-desc" value="${esc(e.desc||'')}" placeholder="e.g. 3 packs chips + softdrinks"></div>
+      <div class="field"><label>Receipts <span class="opt">(optional — you can attach several)</span></label>
+        ${uploadField('e-receipt',id?'Tap to add more photos or PDF':'Tap to attach photos or PDF',e.receipt)}</div>
+    </div>
+    <div class="modal-f"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-lime" onclick="saveExpense('${id||''}')">${id?'Save changes':'Add expense'}</button></div>`;
+  scrim.classList.add('on');
+}
+async function saveExpense(id){
+  const e={date:$('#e-date').value,amount:+$('#e-amount').value||0,
+    category:selVal('e-cat-sel','e-cat'),desc:$('#e-desc').value.trim()};
+  if(!e.date||!e.category){toast('Fill in date and category','!');return;}
+  if(e.amount<=0){toast('Enter an amount','!');return;}
+  const done=busy();
+  try{
+    e.receipt=await readReceipts('e-receipt');
+    if(id){e.id=id;e.keepReceipts=keptReceipts('e-receipt');}
+    await API.saveExpense(e);closeModal();await load();toast(id?'Expense updated':'Expense added');
+  }finally{done();}
+}
+async function delExpense(id){
+  const e=EXPENSES.find(x=>x.id===id);
+  if(!confirm('Delete this '+(e.category||'expense')+' of '+peso(e.amount)+'?'))return;
+  await API.deleteExpense(id);await load();toast('Expense deleted');
+}
+
+/* ---- report (date-span) ---- */
+let rpFrom='', rpTo='';
+function rpDefault(){
+  // default range: this month (Philippine time)
+  const today=phToday();
+  rpFrom=today.slice(0,8)+'01';
+  rpTo=today;
+  if($('#rp-from'))$('#rp-from').value=rpFrom;
+  if($('#rp-to'))$('#rp-to').value=rpTo;
+}
+function renderReport(){
+  if(!$('#rprows'))return;
+  const from=$('#rp-from').value||'', to=$('#rp-to').value||'';
+  const inRange=d=>{if(!d)return false;if(from&&d<from)return false;if(to&&d>to)return false;return true;};
+
+  // games in range (bookings, sorted newest first)
+  let rows=DATA.filter(b=>inRange(b.date)).sort((a,b)=>b.date.localeCompare(a.date));
+
+  // summary
+  const plays=rows.length;
+  const cap=rows.reduce((s,b)=>s+Number(b.capital||0),0);
+  const sales=rows.filter(b=>b.played).reduce((s,b)=>s+Number(b.sales||0),0);
+  const rev=rows.filter(b=>b.played).reduce((s,b)=>s+Number(b.revenue||0),0);
+  const players=rows.filter(b=>b.played).reduce((s,b)=>s+Number(b.players||0),0);
+  const exp=EXPENSES.filter(e=>inRange(e.date)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const net=rev-exp;
+  const markup=rows.reduce((s,b)=>s+Number(b.markup||0),0);
+
+  $('#rp-plays').textContent=plays;
+  $('#rp-cap').textContent=peso(cap);
+  $('#rp-sales').textContent=peso(sales);
+  $('#rp-players').textContent=players.toLocaleString('en');
+  $('#rp-rev').textContent=peso(rev);
+  $('#rp-exp').textContent=peso(exp);
+  $('#rp-net').textContent=peso(net);
+  $('#rp-net').style.color=net<0?'var(--danger)':'var(--ink)';
+  if($('#rp-markup'))$('#rp-markup').textContent=peso(markup);
+  $('#rp-count').textContent=(from||'start')+'  →  '+(to||'today');
+
+  $('#rpempty').style.display=rows.length?'none':'block';
+  $('#rprows').innerHTML=rows.map(b=>`
+    <tr>
+      <td data-l="Date">${dateCell(b.date)}</td>
+      <td data-l="Court" class="court"><b>${b.court}</b><span>${b.courts}C ${b.hours}H</span></td>
+      <td data-l="Slot">${b.time||'<span style="color:var(--faint)">—</span>'}</td>
+      <td data-l="Account"><span class="acct-pill"><i>${initials(b.acct)}</i>${b.acct}</span></td>
+      <td data-l="Capital" class="r"><span class="mono">${peso(b.capital)}</span></td>
+      <td data-l="Players" class="r">${b.played?`<span class="mono">${b.players}</span>`:'<span style="color:var(--faint)">—</span>'}</td>
+      <td data-l="Sales" class="r">${b.played?`<span class="mono">${peso(b.sales)}</span>`:'<span style="color:var(--faint)">—</span>'}</td>
+      <td data-l="Revenue" class="r">${b.played?`<span class="${b.revenue<0?'rev-neg':'rev-pos'}">${b.revenue<0?'-':'+'}${peso(Math.abs(b.revenue))}</span>`:'<span style="color:var(--faint)">—</span>'}</td>
+      <td data-l="Status"><span class="chip ${b.status}">${b.status}</span>${(b.pasalo||b.partial)?'<span class="chip pasalo" style="margin-left:4px;font-size:9.5px;padding:2px 6px">pasalo</span>':''}${!b.returned?'<span class="chip pending" style="margin-left:4px;font-size:9.5px;padding:2px 6px">not returned</span>':''}</td>
+    </tr>`).join('');
+}
+function rpQuick(q){
+  const today=phToday();let from,to=today;
+  if(q==='all'){from='';to='';}
+  else if(q==='month'){from=today.slice(0,8)+'01';}
+  else{from=addDays(today,-(+q-1));}
+  $('#rp-from').value=from;$('#rp-to').value=to;renderReport();
+}
+
+/* ---- modals ---- */
+const scrim=$('#scrim'),modal=$('#modal');
+function closeModal(){scrim.classList.remove('on');modal.innerHTML='';}
+scrim.addEventListener('click',e=>{if(e.target===scrim)closeModal();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+
+function openBooking(id){
+  const b=id?DATA.find(x=>x.id===id):{courts:1,hours:3,fee:0,acct:'BDO',date:phToday()};
+  modal.innerHTML=`
+    <div class="modal-h"><div><div class="ttl">${id?'Edit booking':'New booking'}</div>
+      <div class="sub">Court details you reserved and paid the capital for.</div></div>
+      <button class="x" onclick="closeModal()">×</button></div>
+    <div class="modal-b">
+      <div class="frow">
+        <div class="field"><label>Game date</label><input type="date" id="f-date" value="${b.date||''}"></div>
+        <div class="field"><label>Court name</label>
+          <select id="f-court-sel" onchange="pickOrNew(this,'f-court')">
+            ${COURTS.map(c=>`<option ${b.court===c?'selected':''}>${c}</option>`).join('')}
+            <option value="__new__" ${b.court&&!COURTS.includes(b.court)?'selected':''}>＋ New court…</option>
+          </select>
+          <input id="f-court" value="${esc(b.court||'')}" placeholder="Type new court name" style="margin-top:8px;display:${b.court&&!COURTS.includes(b.court)?'block':'none'}"></div>
+      </div>
+      <div class="frow3">
+        <div class="field"><label>Courts</label><input type="number" id="f-courts" min="1" value="${b.courts||1}"></div>
+        <div class="field"><label>Hours</label><input type="number" id="f-hours" min="1" value="${b.hours||3}"></div>
+        <div class="field"><label>Time <span class="opt">(optional)</span></label><input id="f-time" value="${esc(b.time||'')}" placeholder="7-10PM"></div>
+      </div>
+      <div class="frow">
+        <div class="field"><label>Total price booked (capital)</label><div class="pre"><input type="number" id="f-cap" value="${b.capital!=null?b.capital:''}" placeholder="0"></div></div>
+        <div class="field"><label>Transfer fee</label><div class="pre"><input type="number" id="f-fee" value="${b.fee!=null?b.fee:0}"></div></div>
+      </div>
+      <div class="field"><label>Used account <span class="opt">(who fronted the money)</span></label>
+        <select id="f-acct-sel" onchange="pickOrNew(this,'f-acct')">
+          ${ACCOUNTS.map(a=>`<option ${b.acct===a?'selected':''}>${a}</option>`).join('')}
+          <option value="__new__" ${b.acct&&!ACCOUNTS.includes(b.acct)?'selected':''}>＋ New account…</option>
+        </select>
+        <input id="f-acct" value="${esc(b.acct||'')}" placeholder="Type new account name" style="margin-top:8px;display:${b.acct&&!ACCOUNTS.includes(b.acct)?'block':'none'}"></div>
+      <div class="field"><label>Booking receipts <span style="color:var(--danger)">*</span> <span class="opt">— attach every transaction (e.g. 10PM-12AM and 12AM-1AM)</span></label>
+        ${uploadField('f-receipt',id?'Tap to add more photos or PDF':'Tap to attach photos or PDF',b.receiptBooking)}</div>
+      <div class="calc"><div class="calc-row big"><span class="cl">Amount to return <span id="f-ret-note" style="font-size:11px;color:#a9c4cc;font-weight:600"></span></span><span class="cv" id="f-ret">₱0</span></div></div>
+    </div>
+    <div class="modal-f"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-lime" onclick="saveBooking('${id||''}')">${id?'Save changes':'Add booking'}</button></div>`;
+  const curAcct=()=>{const inp=$('#f-acct');return (inp&&inp.style.display!=='none'&&inp.value.trim())?inp.value.trim():($('#f-acct-sel')?$('#f-acct-sel').value:'');};
+  const upd=()=>{const cap=+$('#f-cap').value||0,fee=+$('#f-fee').value||0;
+    const bdo=marks(curAcct());$('#f-ret').textContent=peso((bdo?cap*MARKUP:cap)+fee);
+    $('#f-ret-note').textContent=bdo?'+5% (BDO)':'no markup';};
+  $('#f-cap').oninput=upd;$('#f-fee').oninput=upd;
+  if($('#f-acct-sel'))$('#f-acct-sel').addEventListener('change',upd);
+  const ai=$('#f-acct');if(ai)ai.addEventListener('input',upd);
+  upd();
+  scrim.classList.add('on');
+}
+/* dropdown helper: when "＋ New…" is picked, reveal the text box; otherwise copy the picked value */
+function pickOrNew(sel,inputId){
+  const inp=document.getElementById(inputId);
+  if(sel.value==='__new__'){inp.style.display='block';inp.value='';inp.focus();}
+  else{inp.style.display='none';inp.value=sel.value;}
+  inp.dispatchEvent(new Event('input'));
+}
+/* read a select+text pair: if the text box is visible use it, else use the dropdown value */
+function selVal(selId,inputId){
+  const inp=document.getElementById(inputId);
+  if(inp&&inp.style.display!=='none'&&inp.value.trim())return inp.value.trim();
+  const sel=document.getElementById(selId);
+  const v=sel?sel.value:'';
+  return v==='__new__'?'':v;
+}
+async function saveBooking(id){
+  const b={court:selVal('f-court-sel','f-court'),date:$('#f-date').value,courts:+$('#f-courts').value||1,hours:+$('#f-hours').value||1,
+    time:$('#f-time').value.trim(),capital:+$('#f-cap').value||0,fee:+$('#f-fee').value||0,acct:selVal('f-acct-sel','f-acct')};
+  if(!b.court||!b.date||!b.acct){toast('Fill in date, court, and account','!');return;}
+  const keep=id?keptReceipts('f-receipt'):[];
+  if(!(PICKED['f-receipt']||[]).length&&!keep.length){toast('Attach the booking receipt','!');return;}
+  const done=busy();
+  try{
+    b.receipt=await readReceipts('f-receipt');
+    if(id){b.id=id;b.keepReceipts=keep;}else{b.players=null;b.rate=null;b.returned=false;b.paid='';}
+    await API.saveBooking(b);closeModal();await load();toast(id?'Booking updated':'Booking added');
+  }finally{done();}
+}
+
+function openResult(id){
+  const b=DATA.find(x=>x.id===id);
+  modal.innerHTML=`
+    <div class="modal-h"><div><div class="ttl">${b.played?'Edit game result':'Log game result'}</div>
+      <div class="sub">${b.court} · ${fmtDate(b.date)} · ${b.courts}C ${b.hours}H</div></div>
+      <button class="x" onclick="closeModal()">×</button></div>
+    <div class="modal-b">
+      ${b.returned
+        ? '<div class="hint" style="background:var(--amber-soft);color:#8a5e0f">The capital for this booking is already marked returned. You can still correct the players and rate — the return amount and its receipt stay as they are.</div>'
+        : '<div class="hint">On game day, enter how many players actually showed up and the rate each one paid. Sales and revenue compute automatically.</div>'}
+      <div class="frow">
+        <div class="field"><label># of confirmed players</label><input type="number" id="r-players" min="0" value="${b.players!=null?b.players:''}" placeholder="0"></div>
+        <div class="field"><label>Rate per player</label><div class="pre"><input type="number" id="r-rate" value="${b.rate!=null?b.rate:''}" placeholder="0"></div></div>
+      </div>
+      <div class="calc">
+        <div class="calc-row"><span class="cl">Total sales</span><span class="cv" id="r-sales">₱0</span></div>
+        <div class="calc-row"><span class="cl">Capital + fee</span><span class="cv">${peso(Number(b.capital)+Number(b.fee))}</span></div>
+        <div class="calc-row big"><span class="cl">Revenue (your profit)</span><span class="cv" id="r-rev">₱0</span></div>
+      </div>
+    </div>
+    <div class="modal-f"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-lime" onclick="saveResult('${id}')">${b.played?'Save changes':'Save result'}</button></div>`;
+  const upd=()=>{const p=+$('#r-players').value||0,rt=+$('#r-rate').value||0,s=p*rt,rev=s-(Number(b.capital)+Number(b.fee));
+    $('#r-sales').textContent=peso(s);const el=$('#r-rev');el.textContent=(rev<0?'-':'')+peso(Math.abs(rev));el.classList.toggle('neg',rev<0);};
+  $('#r-players').oninput=upd;$('#r-rate').oninput=upd;upd();
+  scrim.classList.add('on');
+}
+async function saveResult(id){
+  const p=$('#r-players').value,rt=$('#r-rate').value;
+  if(p===''||rt===''){toast('Enter players and rate','!');return;}
+  await API.logResult(id,+p,+rt);closeModal();await load();toast('Game result saved');
+}
+
+function openReconcile(id){
+  const b=DATA.find(x=>x.id===id);let ret=true;
+  modal.innerHTML=`
+    <div class="modal-h"><div><div class="ttl">Reconcile return</div>
+      <div class="sub">${b.court} · ${fmtDate(b.date)} · Account: ${b.acct}</div></div>
+      <button class="x" onclick="closeModal()">×</button></div>
+    <div class="modal-b">
+      <div class="calc">
+        <div class="calc-row"><span class="cl">Capital</span><span class="cv">${peso(b.capital)}</span></div>
+        ${b.pasalo
+          ? '<div class="calc-row"><span class="cl">Court transferred (Pasalo)</span><span class="cv" style="font-size:13px;color:#c9b2ff">no +5%</span></div>'
+          : b.partial
+            ? `<div class="calc-row"><span class="cl">Passed on (no +5%)</span><span class="cv">${peso(Math.min(b.partAmt,b.capital))}</span></div>
+               <div class="calc-row"><span class="cl">Remaining${b.bdo?' +5% (BDO)':' (no markup)'}</span><span class="cv">${peso((b.bdo?(b.capital-Math.min(b.partAmt,b.capital))*MARKUP:(b.capital-Math.min(b.partAmt,b.capital))))}</span></div>`
+            : `<div class="calc-row"><span class="cl">${b.bdo?'+5% markup (BDO)':'no markup'}${b.fee?' + fee':''}</span><span class="cv">${peso(b.toReturn-Number(b.capital))}</span></div>`}
+        ${b.fee?`<div class="calc-row"><span class="cl">Transfer fee</span><span class="cv">${peso(b.fee)}</span></div>`:''}
+        <div class="calc-row big"><span class="cl">Return to ${b.acct}</span><span class="cv">${peso(b.toReturn)}</span></div>
+      </div>
+      <div class="field"><label>Capital returned?</label>
+        <div class="toggle" id="r-tog">
+          <button class="on yes" data-v="yes">Yes, paid</button>
+          <button data-v="no">Not yet</button></div></div>
+      <div class="field" id="paidWrap"><label>Date paid</label><input type="date" id="r-paid" value="${b.paid||phToday()}"></div>
+      <div class="field" id="rcWrap"><label>Return receipts <span style="color:var(--danger)">*</span> <span class="opt">(you can attach several)</span></label>
+        ${uploadField('rc-receipt','Tap to attach proof of return',b.receiptReturn)}</div>
+      <div class="field" id="noteWrap"><label>Note <span class="opt">(optional — your own reference)</span></label>
+        <textarea id="r-note" rows="4" placeholder="e.g.&#10;• GCash ref 12345&#10;• Handed to Nard&#10;• Balance carried over">${esc(b.note||'')}</textarea></div>
+    </div>
+    <div class="modal-f"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-lime" onclick="saveReconcile('${id}')">Save</button></div>`;
+  $('#r-tog').addEventListener('click',e=>{const btn=e.target.closest('button');if(!btn)return;
+    ret=btn.dataset.v==='yes';$$('#r-tog button').forEach(x=>x.className='');
+    btn.classList.add('on',ret?'yes':'no');$('#paidWrap').style.opacity=ret?'1':'.4';$('#r-paid').disabled=!ret;
+    $('#rcWrap').style.display=ret?'block':'none';
+    $('#noteWrap').style.display=ret?'block':'none';});
+  scrim.classList.add('on');window._ret=()=>ret;
+}
+async function saveReconcile(id){
+  const ret=window._ret();
+  if(ret){
+    const keep=keptReceipts('rc-receipt');
+    if(!(PICKED['rc-receipt']||[]).length&&!keep.length){toast('Attach the return receipt','!');return;}
+    const note=$('#r-note')?$('#r-note').value.trim():'';
+    const done=busy();
+    try{
+      const rc=await readReceipts('rc-receipt');
+      await API.reconcile(id,true,$('#r-paid').value,rc,note,keep);
+      closeModal();await load();toast('Marked as returned');
+    }finally{done();}
+  }else{
+    await API.reconcile(id,false,'',null,'');
+    closeModal();await load();toast('Updated');
+  }
+}
+
+async function del(id){
+  const b=DATA.find(x=>x.id===id);
+  if(!confirm('Delete '+b.court+' on '+fmtDate(b.date)+'?'))return;
+  await API.deleteBooking(id);await load();toast('Booking deleted');
+}
+
+/* ---- Court Pasalo (transfer, no +5%) ---- */
+function openPasalo(id){
+  const b=DATA.find(x=>x.id===id);
+  let mode='full'; // 'full' or 'partial'
+  modal.innerHTML=`
+    <div class="modal-h"><div><div class="ttl">Court Pasalo (transfer)</div>
+      <div class="sub">${b.court} · ${fmtDate(b.date)} · ${b.courts}C ${b.hours}H · Account: ${b.acct}</div></div>
+      <button class="x" onclick="closeModal()">×</button></div>
+    <div class="modal-b">
+      <div class="field"><label>How much was passed on?</label>
+        <div class="toggle" id="ps-tog">
+          <button class="on yes" data-v="full">Whole booking</button>
+          <button data-v="partial">Part only</button></div></div>
+
+      <div class="hint" id="ps-hint">The whole slot was passed on. Since nobody from your group played, only the exact capital + fee goes back to ${b.acct} — no +5%.</div>
+
+      <div id="ps-partial-wrap" style="display:none">
+        <div class="hint">Only part of the booking was passed on — the rest of your group still played. Pick how many courts were passed on (the amount is worked out from the capital), or type an exact amount.</div>
+        <div class="frow">
+          <div class="field"><label>Courts passed on</label>
+            <select id="ps-courts">
+              ${(function(){var o='';for(var c=1;c<Math.max(2,b.courts);c++)o+='<option value="'+c+'">'+c+' of '+b.courts+' courts</option>';return o;})()}
+              <option value="custom">Custom amount…</option>
+            </select></div>
+          <div class="field" id="ps-amt-wrap"><label>Amount passed on</label>
+            <div class="pre"><input type="number" id="ps-amt" placeholder="0" value="${b.partAmt!=null?b.partAmt:''}" readonly></div></div>
+        </div>
+      </div>
+
+      <div class="calc">
+        <div class="calc-row"><span class="cl">Capital</span><span class="cv">${peso(b.capital)}</span></div>
+        <div class="calc-row" id="ps-passed" style="display:none"><span class="cl">Passed on (no +5%)</span><span class="cv" id="ps-passed-v">₱0</span></div>
+        <div class="calc-row" id="ps-remain" style="display:none"><span class="cl" id="ps-remain-l">Remaining</span><span class="cv" id="ps-remain-v">₱0</span></div>
+        ${b.fee?`<div class="calc-row"><span class="cl">Transfer fee</span><span class="cv">${peso(b.fee)}</span></div>`:''}
+        <div class="calc-row big"><span class="cl">Return to ${b.acct}</span><span class="cv" id="ps-total">₱0</span></div>
+      </div>
+    </div>
+    <div class="modal-f"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-lime" onclick="savePasalo('${id}')">Save pasalo</button></div>`;
+
+  const cap=Number(b.capital||0),fee=Number(b.fee||0),bdo=marks(b.acct),courts=Math.max(1,b.courts||1);
+  // proportional capital for N passed-on courts
+  const perCourt=courts>0?cap/courts:cap;
+  const upd=()=>{
+    if(mode==='full'){
+      $('#ps-passed').style.display='none';$('#ps-remain').style.display='none';
+      $('#ps-total').textContent=peso(cap+fee);
+    }else{
+      const passed=Math.min(Math.max(+$('#ps-amt').value||0,0),cap);
+      const remaining=cap-passed;
+      const remReturn=bdo?remaining*MARKUP:remaining;
+      $('#ps-passed').style.display='flex';$('#ps-remain').style.display='flex';
+      $('#ps-passed-v').textContent=peso(passed);
+      $('#ps-remain-l').textContent='Remaining'+(bdo?' (+5% BDO)':' (no markup)');
+      $('#ps-remain-v').textContent=peso(remReturn);
+      $('#ps-total').textContent=peso(passed+remReturn+fee);
+    }
+  };
+  // when courts dropdown changes: fill amount (or make it editable for custom)
+  const syncCourts=()=>{
+    const sel=$('#ps-courts');if(!sel)return;
+    const amtInp=$('#ps-amt');
+    if(sel.value==='custom'){
+      amtInp.readOnly=false;amtInp.focus();
+    }else{
+      const n=+sel.value||1;
+      amtInp.readOnly=true;
+      amtInp.value=Math.round(perCourt*n*100)/100;
+    }
+    upd();
+  };
+  $('#ps-tog').addEventListener('click',e=>{const btn=e.target.closest('button');if(!btn)return;
+    mode=btn.dataset.v;$$('#ps-tog button').forEach(x=>x.className='');
+    btn.classList.add('on',mode==='full'?'yes':'no');
+    $('#ps-partial-wrap').style.display=mode==='partial'?'block':'none';
+    $('#ps-hint').style.display=mode==='full'?'block':'none';
+    if(mode==='partial')syncCourts();else upd();});
+  const sc=$('#ps-courts');if(sc)sc.addEventListener('change',syncCourts);
+  const ai=$('#ps-amt');if(ai)ai.addEventListener('input',upd);
+  // if it's already a partial pasalo, open in partial mode as custom (keep the saved amount)
+  if(b.partial){$('#ps-tog button[data-v="partial"]').click();
+    if($('#ps-courts'))$('#ps-courts').value='custom';
+    if($('#ps-amt')){$('#ps-amt').readOnly=false;$('#ps-amt').value=b.partAmt;}upd();}
+  else{upd();}
+  scrim.classList.add('on');
+  window._psMode=()=>mode;
+}
+async function savePasalo(id){
+  const mode=window._psMode?window._psMode():'full';
+  if(mode==='partial'){
+    const amt=+$('#ps-amt').value||0;
+    if(amt<=0){toast('Enter the amount passed on','!');return;}
+    await API.setPasalo(id,false,amt);closeModal();await load();toast('Partial pasalo saved');
+  }else{
+    await API.setPasalo(id,true);closeModal();await load();toast('Court marked as Pasalo');
+  }
+}
+async function undoPasalo(id){ await API.setPasalo(id,false);await load();toast('Pasalo reverted'); }
+
+/* ---- Update capital return (batch, grouped by account) ---- */
+function openReturns(){
+  const pend=DATA.filter(b=>!b.returned);
+  const byAcct={};
+  pend.forEach(b=>{(byAcct[b.acct]=byAcct[b.acct]||[]).push(b);});
+  const sum=arr=>arr.reduce((s,x)=>s+x.toReturn,0);
+  const today=phToday();
+  const groups=Object.entries(byAcct).sort((a,b)=>sum(b[1])-sum(a[1]));
+  modal.innerHTML=`
+    <div class="modal-h"><div><div class="ttl">Update capital return</div>
+      <div class="sub">Tick what has been paid back, or clear a whole account at once.</div></div>
+      <button class="x" onclick="closeModal()">×</button></div>
+    <div class="modal-b" style="max-height:58vh;overflow:auto">
+      ${pend.length? groups.map(([acct,list])=>`
+        <div class="ret-group">
+          <div class="ret-head"><div class="avatar">${initials(acct)}</div>
+            <div><div class="acct-name">${acct}</div><div style="font-size:12px;color:var(--muted)">${list.length} pending · ${peso(sum(list))}</div></div>
+            <button class="btn btn-ghost" style="margin-left:auto;padding:6px 11px;font-size:12.5px" onclick="markAcct('${acct}')">Mark all paid</button>
+          </div>
+          ${list.slice().sort((a,b)=>a.date.localeCompare(b.date)).map(b=>`
+            <label class="ret-item">
+              <input type="checkbox" class="ret-cb" value="${b.id}">
+              <div class="ret-mid"><b>${b.court}</b>
+                <span>${fmtDate(b.date)} · ${b.courts}C ${b.hours}H · <span class="chip ${b.status}" style="font-size:10px;padding:2px 7px">${b.status}</span>${b.pasalo?' <span style="color:#8a6ff0;font-weight:700">no +5%</span>':''}</span></div>
+              <div class="ret-amt">${peso(b.toReturn)}</div>
+            </label>`).join('')}
+        </div>`).join('')
+        : '<div class="empty"><b>All clear</b>No pending capital to return.</div>'}
+    </div>
+    ${pend.length?`
+      <div style="padding:14px 20px;border-top:1px solid var(--line2)">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <label style="font-size:12px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:8px;white-space:nowrap">Date paid
+            <input type="date" id="ret-date" value="${today}" style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-family:inherit;background:var(--field)"></label>
+          <div style="flex:1;min-width:190px">${uploadField('ret-receipt','Attach return receipts (required)','')}</div>
+        </div>
+        <div style="margin-top:10px">
+          <textarea id="ret-note" rows="3" placeholder="Note (optional) — e.g.&#10;• GCash ref 12345&#10;• One transfer for all"
+            style="width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:13.5px;font-family:inherit;background:var(--field);resize:vertical"></textarea>
+        </div>
+      </div>
+      <div class="modal-f"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-lime" onclick="saveReturns()">Mark selected paid</button></div>`:''}`;
+  scrim.classList.add('on');
+}
+async function markAcct(acct){
+  const de=$('#ret-date');const paid=(de&&de.value)||phToday();
+  if(!(PICKED['ret-receipt']||[]).length){toast('Attach the return receipt first','!');return;}
+  const note=$('#ret-note')?$('#ret-note').value.trim():'';
+  const ids=DATA.filter(b=>!b.returned&&b.acct===acct).map(b=>b.id);
+  const done=busy();
+  try{
+    const rc=await readReceipts('ret-receipt');
+    await API.reconcileMany(ids,paid,rc,note);await load();
+    if(DATA.some(b=>!b.returned))openReturns();else closeModal();
+    toast(acct+' cleared · '+ids.length+' returned');
+  }finally{done();}
+}
+async function saveReturns(){
+  const ids=[...document.querySelectorAll('.ret-cb:checked')].map(cb=>cb.value);
+  if(!ids.length){toast('Tick at least one booking','!');return;}
+  if(!(PICKED['ret-receipt']||[]).length){toast('Attach the return receipt','!');return;}
+  const paid=$('#ret-date').value||phToday();
+  const note=$('#ret-note')?$('#ret-note').value.trim():'';
+  const done=busy();
+  try{
+    const rc=await readReceipts('ret-receipt');
+    await API.reconcileMany(ids,paid,rc,note);await load();
+    if(DATA.some(b=>!b.returned))openReturns();else closeModal();
+    toast(ids.length+' marked returned');
+  }finally{done();}
+}
+
+/* ---- toast + tabs + filters ---- */
+let toastT;
+function toast(msg,icon){$('#toastMsg').textContent=msg;$('#toast').querySelector('.tk').textContent=icon||'✓';
+  $('#toast').classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>$('#toast').classList.remove('on'),2400);}
+$$('.tab').forEach(t=>t.onclick=()=>{
+  if(!BOOTED)return; /* ignore taps until data has loaded */
+  $$('.tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');
+  $$('.view').forEach(v=>{v.classList.remove('on');v.style.display='none';});
+  const el=$('#'+t.dataset.view);el.style.display='block';el.classList.add('on');
+  if(t.dataset.view==='report')renderReport();});
+$('#statusSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  $$('#statusSeg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');fStatus=b.dataset.s;renderTable();});
+$('#q').oninput=renderTable;$('#acctFilter').onchange=renderTable;
+if($('#eq'))$('#eq').oninput=renderExpenses;
+if($('#expCatFilter'))$('#expCatFilter').onchange=renderExpenses;
+if($('#rp-from'))$('#rp-from').onchange=renderReport;
+if($('#rp-to'))$('#rp-to').onchange=renderReport;
+if($('#rpQuick'))$('#rpQuick').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;rpQuick(b.dataset.q);});
+
+load();
+</script>
+</body>
+</html>
