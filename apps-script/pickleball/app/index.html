@@ -1,0 +1,34 @@
+<!doctype html>
+<!--
+  Home-screen launcher for the Nice Game! web app.
+  Google's Apps Script page can't carry an iPhone home-screen icon, so this
+  small page does: it has the logo + app name, and shows the real web app
+  (the /exec link) full screen inside it.
+  Set EXEC_URL below to your web app's Deploy link.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nice Game!</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Nice Game!">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#144252">
+<link rel="apple-touch-icon" href="../icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  html,body{margin:0;height:100%;background:#dce7ea}
+  iframe{position:fixed;inset:0;width:100%;height:100%;border:0;padding-top:env(safe-area-inset-top);box-sizing:border-box;background:#dce7ea}
+</style>
+</head>
+<body>
+<iframe id="app" title="Nice Game! Pickleball Club" allow="clipboard-write"></iframe>
+<script>
+  var EXEC_URL = 'PASTE_YOUR_EXEC_URL_HERE';
+  document.getElementById('app').src = EXEC_URL;
+</script>
+</body>
+</html>
