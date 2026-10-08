@@ -62,10 +62,15 @@ function _marks(acct) {
   return String(acct || '').trim().toUpperCase() === MARKUP_ACCT.toUpperCase();
 }
 
+// Nice Game! logo used as the browser-tab / Android home-screen icon.
+// Served from the public GitHub repo, pinned to a commit so the link never changes.
+var ICON_URL = 'https://raw.githubusercontent.com/genixes/accounting/f071cb62f3badb0b7258664e701bd79324ab8910/apps-script/pickleball/icons/icon-192.png';
+
 // ---------- WEB APP ENTRY ----------
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('Nice Game! Pickleball Club')
+    .setFaviconUrl(ICON_URL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
