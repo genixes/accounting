@@ -45,3 +45,12 @@ The seed script prints each demo user's name and PIN to the console.
 - Every write is audited (`AuditLog`).
 - Role permissions (Encoder / Foreman / Bookkeeper / Owner) are enforced
   server-side only — see `src/lib/roles.ts`.
+
+## Landing page (`/`)
+
+A single scroll-driven "camera journey" (`src/components/landing/`): Lenis +
+GSAP ScrollTrigger drive a Three.js camera through a steel-frame building.
+Only the construction and product sections are pinned. Story state lives in
+one object written by scrubbed tweens, so everything is reversible.
+`prefers-reduced-motion` gets a static composed page; low-end phones
+(`hardwareConcurrency <= 4`) get native scroll.
