@@ -1,0 +1,338 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+:root{--navy:#062B50;--navy2:#0B3B6B;--teal:#0AA3B0;--tealL:#D8F3F5;--bg:#F3F8FB;--ink:#0B2239;--mut:#5A7087;--red:#E8604C}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1080px;height:1350px;overflow:hidden;background:var(--bg);font-family:'Inter',sans-serif;color:var(--ink)}
+#stage{position:relative;width:1080px;height:1350px;overflow:hidden;background:var(--bg)}
+.abs{position:absolute;left:0;top:0}
+.scene{position:absolute;left:0;top:0;width:1080px;height:1350px}
+.flexc{display:flex;align-items:center;justify-content:center}
+.blob{position:absolute;border-radius:50%;filter:blur(90px)}
+.t{position:absolute;left:0;width:1080px;text-align:center;font-weight:800;letter-spacing:-0.02em;line-height:1.05}
+.bubble{position:absolute;padding:34px 44px;border-radius:44px;font-size:54px;font-weight:600;line-height:1.2;max-width:700px}
+.card{position:absolute;background:#fff;border-radius:44px;box-shadow:0 30px 80px rgba(6,43,80,.16)}
+#cap{position:absolute;left:60px;width:960px;bottom:92px;text-align:center}
+#cap span{display:inline-block;background:rgba(6,43,80,.94);color:#fff;font-weight:700;font-size:46px;line-height:1.22;padding:18px 34px;border-radius:30px}
+#bar{position:absolute;left:0;bottom:0;height:10px;background:var(--teal)}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="blob" id="b1" style="width:700px;height:700px;background:rgba(10,163,176,.22)"></div>
+  <div class="blob" id="b2" style="width:640px;height:640px;background:rgba(11,59,107,.16)"></div>
+  <div id="dots" class="abs" style="width:1080px;height:1350px;background-image:radial-gradient(rgba(6,43,80,.10) 2px,transparent 2px);background-size:54px 54px"></div>
+
+  <!-- S1 chat -->
+  <div class="scene" id="s1">
+    <div class="t" id="q1" style="top:170px;font-size:128px;color:var(--navy)">Quick<br>question.</div>
+    <div class="bubble" id="bA" style="left:90px;top:200px;background:#fff;color:var(--ink);box-shadow:0 14px 40px rgba(6,43,80,.12);border-bottom-left-radius:10px">Is that court booked for Saturday?</div>
+    <div class="bubble" id="bB" style="right:90px;top:520px;background:var(--navy);color:#fff;border-bottom-right-radius:10px;min-width:150px"><span id="bBt"></span></div>
+    <svg id="nb" class="abs" width="300" height="340" viewBox="0 0 300 340" style="left:390px;top:760px">
+      <rect x="40" y="20" width="220" height="300" rx="20" fill="#0B3B6B"/>
+      <rect x="62" y="20" width="198" height="300" rx="14" fill="#fff" stroke="#0B3B6B" stroke-width="6"/>
+      <g stroke="#9DB2C6" stroke-width="6" stroke-linecap="round"><path d="M100 90h120M100 130h120M100 170h90M100 210h110M100 250h70"/></g>
+      <g fill="#0AA3B0"><rect x="22" y="60" width="44" height="14" rx="7"/><rect x="22" y="120" width="44" height="14" rx="7"/><rect x="22" y="180" width="44" height="14" rx="7"/><rect x="22" y="240" width="44" height="14" rx="7"/></g>
+    </svg>
+    <div id="miss" class="t" style="top:830px;font-size:112px;color:var(--red);-webkit-text-stroke:0;"><span style="display:inline-block;border:10px solid var(--red);padding:6px 34px;border-radius:20px;background:rgba(255,255,255,.7)">MISSING</span></div>
+  </div>
+
+  <!-- S3 pain -->
+  <div class="scene" id="s3">
+    <div class="t" id="alone" style="top:470px;font-size:120px;color:var(--navy)">You're not<br>alone.</div>
+    <div class="t" id="lot" style="top:110px;font-size:50px;font-weight:700;color:var(--mut)">A lot of businesses still run on…</div>
+    <div class="card" id="c1" style="left:110px;top:230px;width:860px;height:230px"></div>
+    <div class="card" id="c2" style="left:110px;top:520px;width:860px;height:230px"></div>
+    <div class="card" id="c3" style="left:110px;top:810px;width:860px;height:230px"></div>
+    <div class="t" id="exh" style="top:480px;font-size:170px;color:var(--red)">Exhausting.</div>
+  </div>
+
+  <!-- S4 logo -->
+  <div class="scene" id="s4">
+    <div id="ring1" class="abs" style="left:240px;top:130px;width:600px;height:600px;border-radius:50%;border:6px solid var(--teal)"></div>
+    <div id="ring2" class="abs" style="left:240px;top:130px;width:600px;height:600px;border-radius:50%;border:6px solid var(--navy2)"></div>
+    <img id="logo4" class="abs" src="assets/logo.png" style="left:290px;top:180px;width:500px;height:500px">
+    <div class="t" id="wm" style="top:760px;font-size:96px;color:var(--navy);letter-spacing:.06em">LAYAW SYSTEM</div>
+    <div class="t" id="tag" style="top:900px;font-size:50px;font-weight:600;color:var(--mut);letter-spacing:0">Software for real businesses.</div>
+  </div>
+
+  <!-- S5 products -->
+  <div class="scene" id="s5">
+    <div class="card" id="pc0" style="left:80px;top:90px;width:920px;height:870px;overflow:hidden"></div>
+    <div class="card" id="pc1" style="left:80px;top:90px;width:920px;height:870px;overflow:hidden"></div>
+    <div class="card" id="pc2" style="left:80px;top:90px;width:920px;height:870px;overflow:hidden"></div>
+    <div class="card" id="pc3" style="left:80px;top:90px;width:920px;height:870px;overflow:hidden"></div>
+    <div id="pdots" class="abs" style="left:0;top:1000px;width:1080px;height:20px"></div>
+  </div>
+
+  <!-- S6 custom -->
+  <div class="scene" id="s6">
+    <div class="t" id="h6a" style="top:170px;font-size:92px;color:var(--navy)">Doing things a little differently?</div>
+    <div class="t" id="h6b" style="top:300px;font-size:150px;color:var(--teal)">That's fine.</div>
+    <div class="t" id="h6c" style="top:150px;font-size:88px;color:var(--navy)">Just tell us<br>how you work</div>
+    <div class="t" id="h6d" style="top:150px;font-size:88px;color:var(--navy)">We'll build the system <span style="color:var(--teal)">around you</span></div>
+    <svg id="lines6" class="abs" width="1080" height="1350" style="left:0;top:0"></svg>
+    <div id="nodes6"></div>
+    <img id="logo6" class="abs" src="assets/logo.png" style="width:270px;height:270px">
+  </div>
+
+  <!-- S7 outro -->
+  <div class="scene" id="s7">
+    <div class="t" id="w1" style="top:230px;font-size:190px;color:var(--navy);text-align:left;padding-left:110px">Simple<span style="color:var(--teal)">.</span></div>
+    <div class="t" id="w2" style="top:450px;font-size:190px;color:var(--navy);text-align:left;padding-left:110px">Smart<span style="color:var(--teal)">.</span></div>
+    <div class="t" id="w3" style="top:670px;font-size:190px;color:var(--navy);text-align:left;padding-left:110px">Solid<span style="color:var(--teal)">.</span></div>
+    <img id="logo7" class="abs" src="assets/logo.png" style="left:340px;top:110px;width:400px;height:400px">
+    <div class="t" id="wm7" style="top:560px;font-size:92px;color:var(--navy);letter-spacing:.06em">LAYAW SYSTEM</div>
+    <div class="t" id="tg7" style="top:690px;font-size:50px;font-weight:700;color:var(--teal);letter-spacing:.02em">Simple. Smart. Solid.</div>
+    <div id="url" class="abs flexc" style="left:190px;top:810px;width:700px;height:130px;border-radius:65px;background:var(--navy);color:#fff;font-size:60px;font-weight:700;box-shadow:0 24px 60px rgba(6,43,80,.35)">layawsystem.com</div>
+  </div>
+
+  <div id="cap"><span id="capt"></span></div>
+  <div id="bar"></div>
+</div>
+
+<script>
+const DUR=39.13;
+const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+const P=(t,a,b)=>clamp((t-a)/(b-a));
+const eo=x=>1-Math.pow(1-x,3);
+const eio=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
+const eb=x=>{const c1=1.70158,c3=c1+1;return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2)};
+const lerp=(a,b,x)=>a+(b-a)*x;
+const $=id=>document.getElementById(id);
+function set(el,o){ // o: opacity, x,y,s,r
+  const x=o.x||0,y=o.y||0,s=o.s==null?1:o.s,r=o.r||0;
+  el.style.opacity=o.o==null?1:o.o;
+  el.style.transform=`translate(${x}px,${y}px) rotate(${r}deg) scale(${s})`;
+  el.style.display=(o.o!=null&&o.o<=0.001)?'none':'';
+}
+function win(t,a,b,f=.3){return Math.min(P(t,a,a+f),1-P(t,b-f,b))}
+function show(el,t,a,b,f=.3){const o=win(t,a,b,f);el.style.display=o<=0.001?'none':'';el.style.opacity=o;return o}
+// pop-in helper: returns {o,s,y}
+function pop(t,a,d=.45,dy=40){const p=P(t,a,a+d);return {o:clamp(p*3),s:lerp(.6,1,eb(p)),y:lerp(dy,0,eo(p))}}
+
+// ---------- static builders ----------
+const ICON={
+paper:`<svg width="150" height="150" viewBox="0 0 150 150"><path d="M38 14h52l28 28v94H38z" fill="#fff" stroke="#0B3B6B" stroke-width="7" stroke-linejoin="round"/><path d="M90 14v28h28" fill="#D8F3F5" stroke="#0B3B6B" stroke-width="7" stroke-linejoin="round"/><path d="M54 70h48M54 90h48M54 110h30" stroke="#9DB2C6" stroke-width="7" stroke-linecap="round"/></svg>`,
+chat:`<svg width="150" height="150" viewBox="0 0 150 150"><path d="M20 26h110a10 10 0 0 1 10 10v62a10 10 0 0 1-10 10H70l-30 24v-24H20a10 10 0 0 1-10-10V36a10 10 0 0 1 10-10z" fill="#D8F3F5" stroke="#0B3B6B" stroke-width="7" stroke-linejoin="round"/><circle cx="48" cy="67" r="8" fill="#0B3B6B"/><circle cx="75" cy="67" r="8" fill="#0B3B6B"/><circle cx="102" cy="67" r="8" fill="#0B3B6B"/></svg>`,
+sheet:`<svg width="150" height="150" viewBox="0 0 150 150"><rect x="14" y="20" width="122" height="110" rx="12" fill="#fff" stroke="#0B3B6B" stroke-width="7"/><path d="M14 56h122M14 92h122M55 20v110M96 20v110" stroke="#0B3B6B" stroke-width="6"/><rect x="58" y="59" width="35" height="30" fill="#0AA3B0" opacity=".5"/></svg>`
+};
+function painCard(el,icon,title,sub){
+  el.innerHTML=`<div style="position:absolute;left:36px;top:40px">${icon}</div>
+  <div style="position:absolute;left:226px;top:${sub?52:80}px;font-size:74px;font-weight:800;color:#0B2239;letter-spacing:-.02em">${title}</div>
+  ${sub?`<div class="sub" style="position:absolute;left:226px;top:142px;font-size:38px;font-weight:600;color:#E8604C">${sub}</div>`:''}`;
+}
+painCard($('c1'),ICON.paper,'Paper');
+painCard($('c2'),ICON.chat,'Group chats');
+painCard($('c3'),ICON.sheet,'Spreadsheets','Only one person gets it');
+
+// product cards
+const PRODUCTS=[
+ {name:'LAYAW POS',sub:'For cafés, restaurants & retail',tint:'#E6F6F7'},
+ {name:'Booking System',sub:'For courts, rentals & appointments',tint:'#E8EFF8'},
+ {name:'Project Manager',sub:'For construction teams',tint:'#E6F6F7'},
+ {name:'PDF Pro',sub:'Edit, sign & convert documents',tint:'#E8EFF8'}
+];
+PRODUCTS.forEach((p,i)=>{
+  $('pc'+i).innerHTML=`<div id="ill${i}" style="position:absolute;left:0;top:0;width:920px;height:540px;background:${p.tint}"></div>
+  <div style="position:absolute;left:60px;top:590px;font-size:84px;font-weight:800;letter-spacing:-.02em;color:#062B50">${p.name}</div>
+  <div style="position:absolute;left:60px;top:700px;font-size:44px;font-weight:600;color:#5A7087">${p.sub}</div>
+  <div style="position:absolute;left:60px;top:790px;width:120px;height:8px;border-radius:4px;background:#0AA3B0"></div>`;
+});
+$('pdots').innerHTML=[0,1,2,3].map(i=>`<div id="pd${i}" style="position:absolute;top:0;left:${540-81+i*54}px;width:30px;height:16px;border-radius:8px;background:#0AA3B0"></div>`).join('');
+
+// S6 nodes
+const NODES=[{l:'Sales',s:[70,470,-9],e:-90},{l:'Clients',s:[760,430,8],e:-18},{l:'Team',s:[90,760,6],e:54},{l:'Stock',s:[700,880,-7],e:126},{l:'Reports',s:[380,960,10],e:198}];
+const CX=540,CY=770,RAD=340;
+$('nodes6').innerHTML=NODES.map((n,i)=>`<div id="n6${i}" class="abs flexc" style="width:250px;height:104px;border-radius:28px;background:#fff;border:6px solid #0B3B6B;box-shadow:0 16px 40px rgba(6,43,80,.14);font-size:46px;font-weight:800;color:#062B50">${n.l}</div>`).join('');
+function nodeEnd(i){const a=NODES[i].e*Math.PI/180;return [CX+Math.cos(a)*RAD-125,CY+Math.sin(a)*RAD*0.88-52]}
+
+// ---------- captions ----------
+const CAPS=[[.06,.97,"Quick question."],[.99,2.98,"Is that court booked for Saturday?"],[3.01,4.65,"Hold on, let me check the notebook…"],[4.7,6.45,"…and of course, the notebook is missing."],[6.5,8.64,"If that sounds familiar, you're not alone."],[8.66,11.7,"A lot of businesses still run on paper, group chats,"],[11.73,14.6,"and a spreadsheet that only one person understands."],[14.7,15.68,"It's exhausting."],[15.7,17.45,"That's why we built Layaw System."],[17.48,19.56,"We make software for real businesses."],[19.58,21.52,"A POS for your café."],[21.54,23.77,"Online booking for courts and rentals."],[23.78,25.63,"Project management for construction."],[25.65,28.64,"And a PDF editor for all your documents."],[28.65,30.05,"Doing things a little differently?"],[30.08,30.77,"That's fine."],[30.79,33.64,"Just tell us how you work, and we'll build the system around you."],[33.65,35.3,"Simple. Smart. Solid."],[35.38,36.58,"Layaw System."],[36.6,39.13,"Visit layawsystem.com"]];
+
+// ---------- illustrations ----------
+function illoPOS(u){
+  const tiles=[0,1,2,3,4,5].map(i=>{
+    const c=i%3,r=(i/3)|0,p=pop(u,.1+i*.09,.35,20);
+    const sel=(i===1&&u>.9)||(i===4&&u>1.25);
+    return `<g transform="translate(${60+c*190},${80+r*170+p.y}) scale(${p.s})" opacity="${p.o}" style="transform-origin:center">
+      <rect width="170" height="150" rx="22" fill="${sel?'#0AA3B0':'#fff'}" stroke="#0B3B6B" stroke-width="5"/>
+      <path d="M62 52h46l-5 44a10 10 0 0 1-10 9H77a10 10 0 0 1-10-9z" fill="${sel?'#fff':'#0B3B6B'}"/><path d="M108 60h10a10 10 0 0 1 0 22h-12" fill="none" stroke="${sel?'#fff':'#0B3B6B'}" stroke-width="6"/>
+      <rect x="40" y="118" width="90" height="10" rx="5" fill="${sel?'#fff':'#9DB2C6'}"/></g>`}).join('');
+  const lines=[0,1,2].map(i=>{const p=pop(u,.9+i*.3,.3,12);const show=i<2||u>1.25;return show?`<g opacity="${p.o}" transform="translate(0,${p.y})"><rect x="640" y="${110+i*60}" width="${130-i*10}" height="16" rx="8" fill="#0B3B6B"/><rect x="800" y="${110+i*60}" width="60" height="16" rx="8" fill="#9DB2C6"/></g>`:''}).join('');
+  const pay=eb(P(u,1.6,2.0));
+  return `<svg width="920" height="540" viewBox="0 0 920 540">
+   <rect x="30" y="40" width="860" height="470" rx="36" fill="#fff" stroke="#0B3B6B" stroke-width="6"/>${tiles}
+   <rect x="610" y="70" width="250" height="360" rx="22" fill="#F3F8FB"/><text x="640" y="100" font-family="Inter" font-weight="800" font-size="26" fill="#062B50">Order</text>${lines}
+   <g transform="translate(735,455) scale(${lerp(.6,1,pay)})" opacity="${clamp(pay*2)}"><rect x="-110" y="-30" width="220" height="60" rx="30" fill="#0AA3B0"/><text y="11" text-anchor="middle" font-family="Inter" font-weight="800" font-size="30" fill="#fff">Pay ✓</text></g></svg>`;
+}
+function illoBooking(u){
+  const days=['M','T','W','T','F','S','S'];
+  const head=days.map((d,i)=>`<text x="${150+i*90}" y="130" text-anchor="middle" font-family="Inter" font-weight="800" font-size="26" fill="${i===5?'#0AA3B0':'#5A7087'}">${d}</text>`).join('');
+  let cells='';
+  for(let r=0;r<4;r++)for(let c=0;c<7;c++){
+    const booked=[(0+c*3+r*5)%4===0];
+    const sel=(r===1&&c===5);
+    const p=pop(u,.05+(r+c)*.035,.3,10);
+    const on=sel&&u>.8;
+    cells+=`<rect x="${112+c*90}" y="${152+r*72+p.y}" width="76" height="56" rx="14" opacity="${p.o}" fill="${on?'#0AA3B0':(booked[0]&&!sel?'#C9D6E3':'#fff')}" stroke="${on?'#0AA3B0':'#0B3B6B'}" stroke-width="${booked[0]&&!sel?0:4}"/>`;
+  }
+  const tap=P(u,.55,.85);const cur=tap<1?`<circle cx="${lerp(620,590,eo(tap))}" cy="${lerp(300,246,eo(tap))}" r="${lerp(20,10,tap)}" fill="#062B50" opacity=".55"/>`:'';
+  const toast=eb(P(u,1.25,1.65));
+  return `<svg width="920" height="540" viewBox="0 0 920 540">
+   <rect x="60" y="30" width="800" height="480" rx="34" fill="#fff" stroke="#0B3B6B" stroke-width="6"/>
+   <text x="100" y="86" font-family="Inter" font-weight="800" font-size="32" fill="#062B50">Court 1 · Saturday</text>${head}${cells}${cur}
+   <g transform="translate(460,${lerp(570,458,eo(P(u,1.25,1.65)))})" opacity="${clamp(toast*2)}"><rect x="-210" y="-34" width="420" height="68" rx="34" fill="#062B50"/><text y="11" text-anchor="middle" font-family="Inter" font-weight="800" font-size="30" fill="#fff">Booking confirmed ✓</text></g></svg>`;
+}
+function illoPM(u){
+  const rows=[[0,.45,'#0AA3B0'],[.2,.7,'#0B3B6B'],[.35,.9,'#0AA3B0'],[.5,.75,'#0B3B6B'],[.65,1,'#0AA3B0']];
+  const bars=rows.map((r,i)=>{const g=eo(P(u,.1+i*.17,.7+i*.17));const x0=60+r[0]*560,w=(r[1]-r[0])*560*g;return `<rect x="60" y="${150+i*62}" width="560" height="26" rx="13" fill="#fff" opacity=".7"/><rect x="${x0}" y="${150+i*62}" width="${w}" height="26" rx="13" fill="${r[2]}"/>`}).join('');
+  const prog=eo(P(u,.3,1.6))*.72,circ=2*Math.PI*62;
+  const today=60+eo(P(u,.2,1.5))*330;
+  return `<svg width="920" height="540" viewBox="0 0 920 540">
+   <rect x="30" y="30" width="860" height="480" rx="34" fill="#fff" stroke="#0B3B6B" stroke-width="6"/>
+   <text x="60" y="108" font-family="Inter" font-weight="800" font-size="30" fill="#062B50">Project schedule</text>
+   <g transform="translate(0,0)">${bars}</g><line x1="${today+0}" y1="130" x2="${today+0}" y2="470" stroke="#E8604C" stroke-width="5" stroke-dasharray="10 8"/>
+   <g transform="translate(750,230)"><circle r="62" fill="none" stroke="#D8F3F5" stroke-width="22"/><circle r="62" fill="none" stroke="#0AA3B0" stroke-width="22" stroke-linecap="round" stroke-dasharray="${circ*prog} ${circ}" transform="rotate(-90)"/><text y="12" text-anchor="middle" font-family="Inter" font-weight="800" font-size="36" fill="#062B50">${Math.round(prog*100)}%</text></g>
+   <text x="750" y="340" text-anchor="middle" font-family="Inter" font-weight="700" font-size="26" fill="#5A7087">Budget used</text>
+   <rect x="660" y="372" width="180" height="16" rx="8" fill="#D8F3F5"/><rect x="660" y="372" width="${180*eo(P(u,.8,1.6))*.6}" height="16" rx="8" fill="#0B3B6B"/></svg>`;
+}
+function illoPDF(u){
+  const hl=eo(P(u,.4,1.0));
+  const sig=P(u,1.2,2.2);const L=520;
+  const tools=[0,1,2].map(i=>{const p=pop(u,.2+i*.15,.35,0);return `<g opacity="${p.o}" transform="translate(790,${150+i*95}) scale(${p.s})"><circle r="38" fill="#0B3B6B"/><circle r="38" fill="none" stroke="#0AA3B0" stroke-width="0"/>${[
+   '<path d="M-14 14l4-14L8-18l10 10L0 10zM-10 10l-4 4" stroke="#fff" stroke-width="5" fill="none" stroke-linejoin="round"/>',
+   '<path d="M-16-14h32M-16 0h32M-16 14h20" stroke="#fff" stroke-width="6" stroke-linecap="round"/>',
+   '<path d="M-14 0l9 10 19-20" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'][i]}</g>`}).join('');
+  const lines=[0,1,2,3,4,5].map(i=>`<rect x="150" y="${130+i*44}" width="${i===2?340:(i%2?400:440)}" height="16" rx="8" fill="#C9D6E3"/>`).join('');
+  return `<svg width="920" height="540" viewBox="0 0 920 540">
+   <rect x="120" y="40" width="580" height="470" rx="26" fill="#fff" stroke="#0B3B6B" stroke-width="6"/>
+   <rect x="150" y="76" width="200" height="22" rx="11" fill="#062B50"/>${lines}
+   <rect x="146" y="216" width="${360*hl}" height="26" rx="6" fill="#FFD84D" opacity=".75"/>
+   <path d="M180 440c30-70 50-70 60-20s30 40 50-10 40-30 60 0 40 10 60-20" fill="none" stroke="#0B3B6B" stroke-width="7" stroke-linecap="round" stroke-dasharray="${L}" stroke-dashoffset="${L*(1-sig)}"/>
+   <line x1="170" y1="470" x2="560" y2="470" stroke="#9DB2C6" stroke-width="4"/>${tools}</svg>`;
+}
+const ILLO=[illoPOS,illoBooking,illoPM,illoPDF];
+const PSTART=[19.58,21.54,23.78,25.65],PEND=[21.54,23.78,25.65,28.65];
+
+// ---------- main render ----------
+function render(t){
+  // background motion
+  set($('b1'),{x:-150+Math.sin(t*.5)*80,y:-120+Math.cos(t*.4)*60});
+  set($('b2'),{x:620+Math.cos(t*.45)*70,y:820+Math.sin(t*.35)*70});
+  $('dots').style.backgroundPosition=`${t*8}px ${t*5}px`;
+
+  // ---- S1 ----
+  const o1=show($('s1'),t,0,6.5,.35);
+  if(o1>0){
+    const q=$('q1');const qo=Math.min(P(t,.06,.35),1-P(t,.85,1.1));
+    set(q,{o:qo,s:lerp(.85,1,eb(P(t,.06,.5))),y:lerp(0,-20,P(t,.85,1.1))});
+    const a=pop(t,.99,.5,40);set($('bA'),{o:a.o,s:a.s,y:a.y});
+    const bt=t>=2.55;const b=pop(t,2.55,.4,40);set($('bB'),{o:bt?b.o:0,s:b.s,y:b.y});
+    const full="Hold on, let me check the notebook…";
+    let txt;
+    if(t<3.0)txt=['•','••','•••'][Math.floor((t*4)%3)];
+    else txt=full.slice(0,Math.ceil(full.length*P(t,3.0,4.55)));
+    $('bBt').textContent=txt;
+    const nbIn=eo(P(t,3.3,4.0));
+    const fly=eio(P(t,4.7,5.5));
+    set($('nb'),{o:clamp(nbIn*2)*(1-fly),x:fly*500,y:lerp(60,0,nbIn)-fly*260+Math.sin(t*14)*(t>4.2&&t<4.7?6:0),r:fly*40+(t>4.2&&t<4.7?Math.sin(t*30)*3:0)});
+    const m=pop(t,5.15,.5,0);set($('miss'),{o:m.o,s:lerp(2,1,eb(P(t,5.15,5.6))),r:-8});
+  }
+  // ---- S3 ----
+  const o3=show($('s3'),t,6.5,15.7,.3);
+  if(o3>0){
+    const a=Math.min(P(t,6.5,6.9),1-P(t,8.3,8.65));
+    set($('alone'),{o:a,s:lerp(.9,1,eo(P(t,6.5,7))),y:lerp(30,0,eo(P(t,6.5,7)))});
+    set($('lot'),{o:P(t,8.7,9.1)*(1-P(t,14.6,14.8)),y:lerp(-20,0,eo(P(t,8.7,9.1)))});
+    const ts=[10.1,10.8,11.95],rot=[-3,2.5,-2],cards=['c1','c2','c3'];
+    const shake=t>14.7;
+    cards.forEach((id,i)=>{
+      const p=P(t,ts[i],ts[i]+.6);const e=eb(p);
+      const fade=1-.75*P(t,14.7,15.0);
+      set($(id),{o:clamp(p*3)*fade,y:lerp(-260,0,e)+(shake?Math.sin(t*38+i)*5:0),x:shake?Math.cos(t*31+i)*6:0,r:rot[i]*(shake?1.6:1)});
+    });
+    const sub=document.querySelector('#c3 .sub');if(sub)sub.style.opacity=P(t,13.0,13.4);
+    const ex=pop(t,14.74,.45,0);set($('exh'),{o:ex.o,s:lerp(1.5,1,eb(P(t,14.74,15.2))),r:-4});
+  }
+  // ---- S4 ----
+  const o4=show($('s4'),t,15.7,19.6,.3);
+  if(o4>0){
+    const p=P(t,15.7,16.45);
+    set($('logo4'),{o:clamp(p*3),s:lerp(.4,1,eb(p)),r:lerp(-25,0,eo(p))});
+    [['ring1',0],['ring2',.35]].forEach(([id,d])=>{const q=((t-15.9-d)%1.4+1.4)%1.4/1.4;const on=t>15.9+d;set($(id),{o:on?(1-q)*.55:0,s:lerp(.7,1.5,q)})});
+    const w=pop(t,16.5,.5,30);set($('wm'),{o:w.o,y:w.y});
+    const g=pop(t,17.5,.5,24);set($('tag'),{o:g.o,y:g.y});
+  }
+  // ---- S5 ----
+  const o5=show($('s5'),t,19.55,28.65,.2);
+  if(o5>0){
+    for(let i=0;i<4;i++){
+      const a=PSTART[i],b=PEND[i];
+      const inP=P(t,a-.05,a+.4),outP=i<3?P(t,b-.05,b+.3):P(t,b-.3,b);
+      const vis=t>a-.06&&t<b+.32;
+      const el=$('pc'+i);
+      if(!vis){el.style.display='none';continue}
+      const x=(i===0&&t<a+.4?lerp(0,0,0):lerp(1200,0,eo(inP)))+lerp(0,-1200,eio(outP));
+      set(el,{o:1,x:i===0?lerp(0,0,0)+lerp(0,-1200,eio(outP))+lerp(60,0,eo(inP)):x,y:i===0?lerp(60,0,eo(inP)):0,s:1});
+      if(i===0)el.style.opacity=clamp(inP*2.5);
+      $('ill'+i).innerHTML=ILLO[i](Math.max(0,t-a));
+    }
+    const cur=t<PEND[0]?0:t<PEND[1]?1:t<PEND[2]?2:3;
+    for(let i=0;i<4;i++){const d=$('pd'+i);d.style.width=(i===cur?'54px':'16px');d.style.opacity=i===cur?1:.3;d.style.left=(540-(4*16+3*14)/2-20+i*30+(i>cur?38:0))+'px'}
+    $('pdots').style.opacity=1;
+  }
+  // ---- S6 ----
+  const o6=show($('s6'),t,28.65,33.65,.25);
+  if(o6>0){
+    // headings
+    set($('h6a'),{o:Math.min(P(t,28.65,28.95),1-P(t,29.85,30.05)),y:lerp(30,0,eo(P(t,28.65,29)))});
+    const hb=pop(t,30.08,.4,0);set($('h6b'),{o:Math.min(hb.o,1-P(t,30.6,30.78)),s:lerp(.8,1,eb(P(t,30.08,30.5)))});
+    set($('h6c'),{o:Math.min(P(t,30.79,31.1),1-P(t,31.8,31.98)),y:lerp(30,0,eo(P(t,30.79,31.2)))});
+    set($('h6d'),{o:P(t,32.0,32.3),y:lerp(30,0,eo(P(t,32.0,32.4)))});
+    // nodes
+    const appear=P(t,29.2,29.9),snap=eio(P(t,32.0,32.9));
+    let lines='';
+    NODES.forEach((n,i)=>{
+      const s=n.s,e=nodeEnd(i);
+      const wob=(1-snap)*Math.sin(t*2+i*1.7)*14;
+      const x=lerp(s[0],e[0],snap),y=lerp(s[1],e[1],snap)+wob;
+      const r=lerp(s[2],0,snap);
+      const pp=clamp(appear*1.4-i*.12);
+      set($('n6'+i),{o:pp,x:x,y:y,r:r,s:lerp(.7,1,eb(pp))});
+      const ld=P(t,32.8+i*.08,33.3+i*.08);
+      if(ld>0){const cx=x+125,cy=y+52;lines+=`<line x1="${CX}" y1="${CY}" x2="${lerp(CX,cx,ld)}" y2="${lerp(CY,cy,ld)}" stroke="#0AA3B0" stroke-width="7" stroke-linecap="round"/>`}
+    });
+    $('lines6').innerHTML=lines;
+    const lp=P(t,32.3,32.9);
+    set($('logo6'),{o:clamp(lp*3),x:CX-135,y:CY-135,s:lerp(.3,1,eb(lp))});
+  }
+  // ---- S7 ----
+  const o7=show($('s7'),t,33.6,DUR+1,.2);
+  if(o7>0){
+    const T=[33.65,34.24,34.79];
+    ['w1','w2','w3'].forEach((id,i)=>{
+      const p=pop(t,T[i],.45,60);const out=P(t,35.38,35.8);
+      set($(id),{o:p.o*(1-out),s:lerp(.85,1,eb(P(t,T[i],T[i]+.5))),x:lerp(-60,0,eo(P(t,T[i],T[i]+.4)))+out*-120,y:p.y});
+    });
+    const lp=P(t,35.38,36.0);
+    set($('logo7'),{o:clamp(lp*3),s:lerp(.4,1,eb(lp)),r:lerp(-20,0,eo(lp))});
+    const w=pop(t,35.7,.5,30);set($('wm7'),{o:w.o,y:w.y});
+    const g=pop(t,36.1,.5,24);set($('tg7'),{o:g.o,y:g.y});
+    const u=pop(t,36.6,.55,50);
+    set($('url'),{o:u.o,s:u.s*(1+(t>37.3?Math.sin((t-37.3)*5)*.015:0)),y:u.y});
+  }
+  // captions
+  let c=null;for(const k of CAPS){if(t>=k[0]&&t<k[1]){c=k;break}}
+  const cap=$('cap');
+  if(c){$('capt').textContent=c[2];const p=P(t,c[0],c[0]+.12);cap.style.opacity=p;cap.style.transform=`translateY(${(1-p)*14}px)`}
+  else cap.style.opacity=0;
+  $('bar').style.width=(t/DUR*1080)+'px';
+}
+window.render=render;
+render(0);
+</script>
+</body>
+</html>
