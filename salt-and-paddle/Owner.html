@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<?!= include('Styles') ?>
+<style>
+  .wrap{max-width:600px;margin:0 auto;padding:12px 14px 60px;min-height:100vh}
+  .nav .tag{font-size:10.5px;letter-spacing:.14em;font-weight:800;color:var(--sand-d);background:rgba(176,93,120,.2);padding:7px 12px;border-radius:99px;white-space:nowrap}
+  .hint{color:var(--muted);font-size:12.5px;font-weight:600;margin:0 0 12px}
+  .ok{display:none;background:var(--ok-bg);border:1px solid rgba(34,170,120,.25);color:var(--ok-ink);border-radius:var(--r-sm);padding:11px 14px;font-size:13px;font-weight:700;margin-top:12px;animation:rise .4s var(--ease) both}
+  .card h3.t{font-family:var(--serif);font-size:20px;font-weight:600;margin-bottom:4px}
+
+  /* tabs */
+  .tabs{position:relative;display:flex;gap:4px;margin-top:16px;padding:5px;border-radius:20px}
+  .tabs button{position:relative;z-index:1;flex:1;padding:12px 6px;border:none;background:transparent;border-radius:15px;font-weight:800;font-size:13px;color:var(--muted);cursor:pointer;transition:color .3s var(--ease),background .3s var(--ease),box-shadow .3s var(--ease)}
+  .tabs button:hover{color:var(--ink)}
+  .tabs button.on{background:var(--ink);color:#fff;box-shadow:0 10px 20px -10px rgba(23,50,65,.8)}
+  .pane{display:none}
+  .pane.on{display:block;animation:rise .55s var(--ease) both}
+
+  /* pricing */
+  .tierRow{display:flex;align-items:center;gap:6px;margin-top:10px;animation:rise .4s var(--ease) both}
+  .tierRow input[type=time]{width:auto;flex:1.3 1 0;min-width:0;padding:11px 8px;font-size:13px}
+  .tierRow input[type=time]::-webkit-calendar-picker-indicator{display:none}
+  .tierRow .tRate{flex:1 1 0;min-width:0;padding:11px 8px;font-size:14px}
+  .tierRow .tdash{color:var(--muted);flex:none}
+  .tierRow .tDel{display:flex;align-items:center;justify-content:center;flex:none;background:var(--bad-bg);color:var(--bad-ink);border:none;width:38px;height:38px;border-radius:12px;cursor:pointer;transition:transform .25s var(--ease)}
+  .tierRow .tDel:hover{transform:rotate(90deg) scale(1.08)}
+  .toggleRow{display:flex;align-items:center;justify-content:space-between;margin-top:8px;font-weight:700;font-size:14px}
+  .switch{position:relative;display:inline-block;width:52px;height:30px;flex:none}
+  .switch input{opacity:0;width:0;height:0}
+  .slider{position:absolute;inset:0;background:rgba(23,50,65,.18);border-radius:99px;transition:background .3s var(--ease);cursor:pointer}
+  .slider:before{content:"";position:absolute;width:24px;height:24px;left:3px;top:3px;background:#fff;border-radius:50%;box-shadow:0 3px 8px rgba(23,50,65,.3);transition:transform .35s var(--ease)}
+  .switch input:checked+.slider{background:var(--grad)}
+  .switch input:checked+.slider:before{transform:translateX(22px)}
+  .switch input:focus-visible+.slider{box-shadow:0 0 0 4px rgba(176,93,120,.25)}
+  .seg{display:flex;gap:6px;margin-top:4px;padding:4px;border-radius:16px;background:rgba(23,50,65,.06)}
+  .segBtn{flex:1;padding:11px 6px;border:none;background:transparent;border-radius:12px;font-weight:800;font-size:12.5px;color:var(--muted);cursor:pointer;transition:all .3s var(--ease)}
+  .segBtn.on{background:#fff;color:var(--brand-d);box-shadow:0 6px 14px -6px rgba(23,50,65,.4)}
+  #memFields{animation:rise .4s var(--ease) both}
+
+  /* members */
+  .mItem{display:flex;align-items:center;gap:12px;padding:13px 6px;border-bottom:1px dashed var(--line-2);cursor:pointer;border-radius:14px;transition:background .25s}
+  .mItem:hover{background:rgba(255,255,255,.6)}
+  .mItem:last-child{border:none}
+  .m-av{width:40px;height:40px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;background:var(--grad)}
+  .m-main{flex:1;min-width:0}
+  .m-name{font-weight:800;font-size:14px}
+  .m-em{font-size:12px;color:var(--muted);word-break:break-all;font-weight:600}
+  .mbadge{font-weight:800;font-size:10.5px;letter-spacing:.06em;padding:5px 11px;border-radius:99px;flex:none}
+  .mbadge.on{background:var(--ok-bg);color:var(--ok-ink)} .mbadge.off{background:rgba(23,50,65,.07);color:var(--muted)}
+  .badge.on{background:var(--ok-bg);color:var(--ok-ink)} .badge.off{background:rgba(23,50,65,.07);color:var(--muted)}
+
+  @media (min-width:768px){
+    .wrap{max-width:820px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="nav glass fx">
+    <div class="brand">
+      <div class="logo svg"><svg class="i"><use href="#i-paddle"/></svg></div>
+      <div class="wordmark"><b id="hdr"><?= businessName ?></b><span>OWNER DASHBOARD</span></div>
+    </div>
+    <span class="tag" id="ownTag" style="display:none">OWNER</span>
+  </header>
+
+  <div class="card gate fx d1" id="gate">
+    <div class="lockic"><svg class="i"><use href="#i-lock"/></svg></div>
+    <h2>Enter owner PIN</h2>
+    <p class="sub">This page is for the owner only — it controls pricing and membership.</p>
+    <input type="password" id="pin" inputmode="numeric" placeholder="••••" autocomplete="off">
+    <div class="err" id="gateErr"></div>
+    <button class="btn btn-navy" id="enterBtn" style="margin-top:14px">Enter</button>
+  </div>
+
+  <div id="dash" style="display:none">
+    <div class="tabs glass">
+      <button id="tabSchedule" class="on" onclick="switchTab('Schedule')">Schedule</button>
+      <button id="tabMembers" onclick="switchTab('Members')">Members</button>
+      <button id="tabPricing" onclick="switchTab('Pricing')">Court Price</button>
+    </div>
+
+    <!-- SCHEDULE -->
+    <div class="pane on" id="paneSchedule">
+      <div class="card">
+        <div class="calnav"><button id="prevM" aria-label="Previous month"><svg class="i"><use href="#i-left"/></svg></button><div class="today" id="todayBtn">Today</div><button id="nextM" aria-label="Next month"><svg class="i"><use href="#i-right"/></svg></button></div>
+        <div class="calLabel" id="calLabel"></div>
+        <div class="dow"><span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span></div>
+        <div class="days" id="days"></div>
+      </div>
+      <div class="summary">
+        <div class="stat glass c"><div class="ico"><svg class="i"><use href="#i-check"/></svg></div><b id="cntConf">0</b><small>Confirmed</small></div>
+        <div class="stat glass p"><div class="ico"><svg class="i"><use href="#i-clock"/></svg></div><b id="cntPend">0</b><small>Pending</small></div>
+        <div class="stat glass r"><div class="ico"><svg class="i"><use href="#i-peso"/></svg></div><b id="cntRev">₱0</b><small>Day total</small></div>
+      </div>
+      <div class="card">
+        <div class="cardhead"><h3 id="dayTitle">Schedule</h3><button class="rfr" id="refreshBtn"><svg class="i"><use href="#i-refresh"/></svg>Refresh</button></div>
+        <div class="gridwrap" id="gridwrap"></div>
+        <div class="legend2"><span><i style="background:var(--ok-bg);border:1px solid rgba(34,170,120,.4)"></i>Confirmed</span><span><i style="background:var(--warn-bg);border:1px solid rgba(240,176,60,.5)"></i>Pending</span><span><i style="background:var(--past-bg);border:1px solid var(--line)"></i>Open</span></div>
+      </div>
+    </div>
+
+    <!-- MEMBERS -->
+    <div class="pane" id="paneMembers">
+      <div class="card">
+        <h3 class="t">Add a member</h3>
+        <p class="hint">Members get the member rate and can book further in advance.</p>
+        <label class="fld">Email</label><input type="email" id="mEmail" placeholder="member@example.com">
+        <label class="fld">Name</label><input type="text" id="mName" placeholder="Full name">
+        <div class="err" id="mErr"></div><div class="ok" id="mOk"></div>
+        <button class="btn btn-navy" id="addMemberBtn" style="margin-top:16px">Add Member</button>
+      </div>
+      <div class="card">
+        <div class="cardhead"><h3>Club members</h3><button class="rfr" id="refreshMembers"><svg class="i"><use href="#i-refresh"/></svg>Refresh</button></div>
+        <div id="memberList"><p class="hint">Loading…</p></div>
+      </div>
+    </div>
+
+    <!-- PRICING -->
+    <div class="pane" id="panePricing">
+      <div class="card">
+        <h3 class="t">Court rates by time</h3>
+        <p class="hint">Set your hourly rate for each time range (same for all courts). Add as many ranges as you need, e.g. morning vs evening.</p>
+        <div id="tierList"></div>
+        <button class="btn btn-ghost" id="addTierBtn" style="margin-top:14px"><svg class="i"><use href="#i-plus"/></svg>Add time range</button>
+        <div class="err" id="tErr"></div><div class="ok" id="tOk"></div>
+        <button class="btn btn-navy" id="saveTiersBtn" style="margin-top:10px">Save Rates</button>
+      </div>
+      <div class="card">
+        <h3 class="t">Membership</h3>
+        <p class="hint">Turn membership on to offer special member rates. When off, the booking page won't show any member options.</p>
+        <div class="toggleRow"><span>Enable membership</span><label class="switch"><input type="checkbox" id="memOn"><span class="slider"></span></label></div>
+        <div id="memFields">
+          <label class="fld">Member rate type</label>
+          <div class="seg">
+            <button type="button" class="segBtn on" id="memTypePercent" onclick="setMemType('PERCENT')">% off guest rate</button>
+            <button type="button" class="segBtn" id="memTypeExact" onclick="setMemType('EXACT')">Exact ₱ rate</button>
+          </div>
+          <label class="fld" id="memValLabel">Percent off (%)</label>
+          <input type="number" id="memValue" inputmode="numeric" min="0" placeholder="0">
+        </div>
+        <div class="err" id="mpErr"></div><div class="ok" id="mpOk"></div>
+        <button class="btn btn-navy" id="saveMemBtn" style="margin-top:16px">Save Membership</button>
+      </div>
+      <div class="card">
+        <h3 class="t">Sale / discount</h3>
+        <p class="hint">Set a temporary discount that applies automatically to bookings within the date range (e.g. an opening sale). Set 0% to turn it off.</p>
+        <label class="fld">Discount (%)</label><input type="number" id="salePct" inputmode="numeric" min="0" max="100" placeholder="0">
+        <label class="fld">Start date</label><input type="date" id="saleStart">
+        <label class="fld">End date</label><input type="date" id="saleEnd">
+        <div class="err" id="sErr"></div><div class="ok" id="sOk"></div>
+        <button class="btn btn-navy" id="saveSaleBtn" style="margin-top:16px">Save Sale</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay"><div class="sheet glass" id="sheet"></div></div>
+<div class="overlay rcpt" id="rcptOverlay"><div class="rcptBox"><button class="rcptX" onclick="closeRcpt()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button><div id="rcptMsg" class="rcptMsg"></div><img id="rcptImg" class="rcptImg" alt="Receipt"></div></div>
+<div class="overlay" id="cfOverlay"><div class="sheet glass"><div class="warnic"><svg class="i"><use href="#i-info"/></svg></div><h3 id="cfTitle" style="font-size:24px">Are you sure?</h3><p id="cfMsg"></p><button class="btn btn-danger" id="cfOk" style="margin-top:14px">Yes</button><button class="btn btn-ghost" id="cfNo">Keep booking</button></div></div>
+
+<script>
+var PIN='',calY,calM,today=new Date();today.setHours(0,0,0,0);
+var courts=[],slots=[],cells={},selDate=null,CURB=null,CURM=null,MEMBERS=[];
+var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+function el(id){return document.getElementById(id);}
+function pad(n){return ('0'+n).slice(-2);}
+function ymd(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function pretty(ds){var p=ds.split('-'),d=new Date(p[0],p[1]-1,p[2]);var dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];return dn+', '+MONTHS[d.getMonth()].slice(0,3)+' '+(+p[2])+', '+p[0];}
+function showMsg(node,msg){node.textContent=msg;node.style.animation='none';void node.offsetWidth;node.style.animation='';node.style.display='block';}
+
+/* ---------- GATE (owner PIN only) ---------- */
+el('enterBtn').onclick=function(){
+  var p=el('pin').value.trim(),er=el('gateErr');
+  if(!p){showMsg(er,'Please enter your PIN.');return;}
+  er.style.display='none';var btn=this;btn.innerHTML='<span class="spin"></span>Checking…';btn.disabled=true;
+  google.script.run.withSuccessHandler(function(r){
+    btn.innerHTML='Enter';btn.disabled=false;
+    if(!r.ok){showMsg(er,'Incorrect owner PIN. Please try again.');return;}
+    PIN=p;el('gate').style.display='none';el('dash').style.display='block';el('ownTag').style.display='';fx(el('dash'));
+    renderTiers(r.tiers||[]);
+    el('memOn').checked=!!r.membershipEnabled;setMemType(r.memberType||'PERCENT');el('memValue').value=r.memberValue||0;updateMemFields();
+    el('salePct').value=r.salePct||0;el('saleStart').value=r.saleStart||'';el('saleEnd').value=r.saleEnd||'';
+    calY=today.getFullYear();calM=today.getMonth();selDate=ymd(today);
+    loadSchedule(selDate);loadMembers();
+  }).withFailureHandler(function(e){btn.innerHTML='Enter';btn.disabled=false;showMsg(er,'Error: '+e.message);}).getRates(p);
+};
+el('pin').addEventListener('keydown',function(e){if(e.key==='Enter')el('enterBtn').click();});
+
+function switchTab(t){
+  ['Schedule','Members','Pricing'].forEach(function(x){
+    el('pane'+x).classList.toggle('on',x===t);
+    el('tab'+x).classList.toggle('on',x===t);
+  });
+}
+
+/* ---------- SCHEDULE ---------- */
+function loadSchedule(ds){
+  selDate=ds;renderCal();
+  var rb=el('refreshBtn');rb.classList.add('spinning');
+  el('gridwrap').innerHTML='<div style="padding:12px"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>';
+  google.script.run.withSuccessHandler(function(r){rb.classList.remove('spinning');if(r.ok&&ds===selDate){courts=r.courts;slots=r.slots;cells=r.cells||{};renderGrid();}else if(!r.ok){toast('Session expired. Please reload and enter your PIN again.','bad');}})
+    .withFailureHandler(function(){rb.classList.remove('spinning');toast('Could not load the schedule.','bad');}).getDaySchedule(ds,PIN);
+}
+function renderCal(){
+  el('calLabel').textContent=MONTHS[calM]+' '+calY;
+  var first=new Date(calY,calM,1).getDay(),dim=new Date(calY,calM+1,0).getDate(),html='';
+  for(var i=0;i<first;i++)html+='<div class="day empty"></div>';
+  for(var d=1;d<=dim;d++){var ds=calY+'-'+pad(calM+1)+'-'+pad(d);var s=(ds===selDate)?' sel':'';var now=(ds===ymd(today))?' now':'';html+='<div class="day'+s+now+'" data-d="'+ds+'">'+d+'</div>';}
+  var dz=el('days');dz.innerHTML=html;dz.classList.remove('swap');void dz.offsetWidth;dz.classList.add('swap');
+  dz.querySelectorAll('[data-d]').forEach(function(x){x.onclick=function(){loadSchedule(this.getAttribute('data-d'));};});
+}
+el('prevM').onclick=function(){calM--;if(calM<0){calM=11;calY--;}renderCal();};
+el('nextM').onclick=function(){calM++;if(calM>11){calM=0;calY++;}renderCal();};
+el('todayBtn').onclick=function(){calY=today.getFullYear();calM=today.getMonth();loadSchedule(ymd(today));};
+el('refreshBtn').onclick=function(){if(selDate&&PIN)loadSchedule(selDate);};
+
+function renderGrid(){
+  el('dayTitle').textContent=pretty(selDate);
+  var seen={},conf=0,pend=0,rev=0;
+  Object.keys(cells).forEach(function(k){var b=cells[k];if(seen[b.bookingId])return;seen[b.bookingId]=1;if(b.status==='Confirmed')conf++;else pend++;rev+=Number(b.amount)||0;});
+  el('cntConf').textContent=conf;el('cntPend').textContent=pend;el('cntRev').textContent='₱'+rev.toLocaleString();
+  var n=slots.length,plan=[];for(var i=0;i<n;i++){var rp=[];for(var c=0;c<courts.length;c++)rp.push(null);plan.push(rp);}
+  for(var c=0;c<courts.length;c++){
+    var i=0;
+    while(i<n){
+      var key=courts[c].id+'|'+slots[i].start,b=cells[key];
+      if(b){var j=i;while(j+1<n){var nx=cells[courts[c].id+'|'+slots[j+1].start];if(nx&&nx.bookingId===b.bookingId){j++;}else break;}plan[i][c]={type:'book',span:(j-i+1),info:b,key:key};for(var sps=i+1;sps<=j;sps++)plan[sps][c]={type:'skip'};i=j+1;}
+      else{plan[i][c]={type:'open'};i++;}
+    }
+  }
+  var h='<table class="grid"><thead><tr><th class="tcol">Time</th>';
+  courts.forEach(function(co){h+='<th>'+esc(co.name)+'</th>';});
+  h+='</tr></thead><tbody>';
+  for(var r=0;r<n;r++){
+    h+='<tr><td class="tcol">'+esc(slots[r].label)+'</td>';
+    for(var c2=0;c2<courts.length;c2++){
+      var p=plan[r][c2];if(!p||p.type==='skip')continue;
+      if(p.type==='open'){h+='<td class="cell open">Open</td>';}
+      else{var b2=p.info,cl=b2.status==='Confirmed'?'conf':'pend',st=b2.status==='Confirmed'?'c':'p';h+='<td class="cell book '+cl+'" rowspan="'+p.span+'" data-k="'+esc(p.key)+'"><div class="bk"><div class="nm">'+esc(b2.name)+'</div><div class="st '+st+'">'+esc(b2.status.toUpperCase())+'</div></div></td>';}
+    }
+    h+='</tr>';
+  }
+  h+='</tbody></table>';
+  var gw=el('gridwrap');gw.innerHTML=h;fx(gw);
+  gw.querySelectorAll('td.book').forEach(function(td){td.onclick=function(){detail(cells[this.getAttribute('data-k')]);};});
+}
+
+/* ---------- BOOKING DETAIL + RECEIPT + CONFIRM ---------- */
+function detail(b){
+  if(!b)return;CURB=b;
+  var st=b.status==='Confirmed'?'c':'p',btns='';
+  if(b.status!=='Confirmed')btns+='<button class="btn btn-ok" id="confBtn" onclick="confirmDash()">'+ic('check')+'Confirm Booking</button>';
+  btns+='<button class="btn btn-ghost" onclick="viewReceipt()">'+ic('receipt')+'View Receipt</button>';
+  if(b.status!=='Cancelled')btns+='<button class="btn btn-danger" id="cancelBtn" onclick="cancelDash()">Cancel Booking</button>';
+  btns+='<button class="btn btn-ghost" onclick="closeSheet()">Close</button>';
+  el('sheet').innerHTML='<h3>'+esc(b.name)+'</h3><span class="badge '+st+'">'+esc(b.status.toUpperCase())+'</span>'+
+    '<div style="margin-top:14px">'+drow('Booking ID',esc(b.bookingId))+drow('Time',esc(b.start)+' – '+esc(b.end))+drow('Courts',esc(b.courts))+
+    drow('Contact','<a class="calllink" href="tel:'+esc(b.contact)+'">'+ic('phone')+' '+esc(b.contact)+'</a>')+drow('Email',esc(b.email))+
+    '<div class="drow total"><span>Amount</span><b>₱'+Number(b.amount).toLocaleString()+'</b></div></div>'+btns;
+  el('overlay').classList.add('on');
+}
+function confirmDash(){
+  if(!CURB)return;var btn=el('confBtn');if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>Confirming…';}
+  function reset(){if(btn){btn.disabled=false;btn.innerHTML=ic('check')+'Confirm Booking';}}
+  google.script.run.withSuccessHandler(function(r){
+    if(r&&r.ok){closeSheet();toast('Booking confirmed');loadSchedule(selDate);}
+    else{toast('Could not confirm. Please try again.','bad');reset();}
+  }).withFailureHandler(function(e){toast('Error: '+e.message,'bad');reset();}).confirmFromDashboard(CURB.bookingId,PIN);
+}
+function cancelDash(){
+  if(!CURB)return;var b=CURB;
+  askConfirm('Cancel this booking?','Cancel the booking for '+b.name+'? The slot will reopen for others. This cannot be undone.','Yes, cancel it',function(){
+    var btn=el('cancelBtn');if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>Cancelling…';}
+    function reset(){if(btn){btn.disabled=false;btn.textContent='Cancel Booking';}}
+    google.script.run.withSuccessHandler(function(r){
+      if(r&&r.ok){closeSheet();toast('Booking cancelled');loadSchedule(selDate);}
+      else{toast('Could not cancel. Please try again.','bad');reset();}
+    }).withFailureHandler(function(e){toast('Error: '+e.message,'bad');reset();}).cancelFromDashboard(b.bookingId,PIN);
+  });
+}
+function viewReceipt(){
+  if(!CURB)return;
+  el('rcptImg').style.display='none';el('rcptImg').src='';el('rcptMsg').innerHTML='<span class="spin" style="color:var(--brand);width:26px;height:26px"></span><div style="margin-top:12px">Loading receipt…</div>';el('rcptOverlay').classList.add('on');
+  google.script.run.withSuccessHandler(function(r){
+    if(r&&r.ok){el('rcptMsg').textContent='';el('rcptImg').src=r.dataUri;el('rcptImg').style.display='block';}
+    else{el('rcptMsg').textContent=(r&&r.empty)?'No receipt was uploaded for this booking.':'Could not load the receipt.';}
+  }).withFailureHandler(function(){el('rcptMsg').textContent='Error loading receipt.';}).getReceiptDataUri(CURB.bookingId,PIN);
+}
+function closeRcpt(){el('rcptOverlay').classList.remove('on');}
+function drow(a,b){return '<div class="drow"><span>'+a+'</span><b>'+b+'</b></div>';}
+function closeSheet(){el('overlay').classList.remove('on');}
+var CF_CB=null;
+function askConfirm(title,msg,okLabel,cb){el('cfTitle').textContent=title;el('cfMsg').textContent=msg;el('cfOk').textContent=okLabel;CF_CB=cb;el('cfOverlay').classList.add('on');}
+function closeConfirm(){el('cfOverlay').classList.remove('on');CF_CB=null;}
+el('cfOk').onclick=function(){var cb=CF_CB;closeConfirm();if(cb)cb();};
+el('cfNo').onclick=closeConfirm;
+el('cfOverlay').onclick=function(e){if(e.target===this)closeConfirm();};
+el('overlay').onclick=function(e){if(e.target===this)closeSheet();};
+el('rcptOverlay').onclick=function(e){if(e.target===this)closeRcpt();};
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeConfirm();closeRcpt();closeSheet();}});
+
+/* ---------- MEMBERS ---------- */
+function loadMembers(){
+  var rb=el('refreshMembers');rb.classList.add('spinning');
+  el('memberList').innerHTML='<p class="hint">Loading…</p>';
+  google.script.run.withSuccessHandler(function(r){
+    rb.classList.remove('spinning');
+    if(!r||!r.ok){el('memberList').innerHTML='<p class="hint">Could not load members.</p>';return;}
+    MEMBERS=r.members||[];renderMembers();
+  }).withFailureHandler(function(){rb.classList.remove('spinning');el('memberList').innerHTML='<p class="hint">Could not load members.</p>';}).getMembers(PIN);
+}
+function renderMembers(){
+  if(!MEMBERS.length){el('memberList').innerHTML='<p class="hint">No members yet. Add one above.</p>';return;}
+  var h='';
+  MEMBERS.forEach(function(m){
+    var ini=String(m.name||m.email||'?').trim().charAt(0).toUpperCase();
+    h+='<div class="mItem" data-em="'+esc(m.email)+'"><div class="m-av">'+esc(ini)+'</div><div class="m-main"><div class="m-name">'+esc(m.name||'(no name)')+'</div><div class="m-em">'+esc(m.email)+'</div></div><span class="mbadge '+(m.active?'on':'off')+'">'+(m.active?'ACTIVE':'INACTIVE')+'</span></div>';
+  });
+  var ml=el('memberList');ml.innerHTML=h;
+  ml.querySelectorAll('.mItem').forEach(function(it){it.onclick=function(){memberDetail(this.getAttribute('data-em'));};});
+}
+function memberDetail(email){
+  var m=MEMBERS.filter(function(x){return x.email===email;})[0];if(!m)return;CURM=m;
+  el('sheet').innerHTML='<h3>'+esc(m.name||'(no name)')+'</h3><span class="badge '+(m.active?'on':'off')+'">'+(m.active?'ACTIVE':'INACTIVE')+'</span>'+
+    '<div style="margin-top:14px">'+drow('Email',esc(m.email))+drow('Status',m.active?'Active':'Inactive')+'</div>'+
+    '<button class="btn '+(m.active?'btn-danger':'btn-ok')+'" id="toggleBtn" onclick="toggleMember()">'+(m.active?'Set as Inactive':'Set as Active')+'</button>'+
+    '<button class="btn btn-ghost" onclick="closeSheet()">Close</button>';
+  el('overlay').classList.add('on');
+}
+function toggleMember(){
+  if(!CURM)return;var btn=el('toggleBtn'),old=btn?btn.textContent:'';if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>Saving…';}
+  function reset(){if(btn){btn.disabled=false;btn.textContent=old;}}
+  google.script.run.withSuccessHandler(function(r){
+    if(r&&r.ok){closeSheet();toast('Member updated');loadMembers();}
+    else{toast('Could not update. Please try again.','bad');reset();}
+  }).withFailureHandler(function(e){toast('Error: '+e.message,'bad');reset();}).setMemberActive(CURM.email,!CURM.active,PIN);
+}
+el('addMemberBtn').onclick=function(){
+  var email=el('mEmail').value.trim(),name=el('mName').value.trim(),er=el('mErr'),ok=el('mOk');
+  er.style.display='none';ok.style.display='none';
+  if(!email){showMsg(er,'Please enter an email.');return;}
+  var btn=this;btn.innerHTML='<span class="spin"></span>Adding…';btn.disabled=true;
+  google.script.run.withSuccessHandler(function(r){
+    btn.innerHTML='Add Member';btn.disabled=false;
+    if(!r.ok){showMsg(er,r.msg||'Could not add member.');return;}
+    showMsg(ok,'Member added!');el('mEmail').value='';el('mName').value='';loadMembers();
+  }).withFailureHandler(function(e){btn.innerHTML='Add Member';btn.disabled=false;showMsg(er,'Error: '+e.message);}).addMember(email,name,PIN);
+};
+el('refreshMembers').onclick=loadMembers;
+
+/* ---------- PRICING ---------- */
+var MEMTYPE='PERCENT';
+function tierRowHTML(start,end,rate){
+  return '<div class="tierRow"><input type="time" class="tStart" value="'+esc(start||'06:00')+'"><span class="tdash">–</span><input type="time" class="tEnd" value="'+esc(end||'22:00')+'"><input type="number" class="tRate" inputmode="numeric" min="0" placeholder="₱/hr" value="'+(rate!=null?esc(rate):'')+'"><button class="tDel" type="button" aria-label="Remove range" onclick="this.parentNode.remove()">'+ic('x')+'</button></div>';
+}
+function renderTiers(tiers){
+  if(!tiers||!tiers.length){tiers=[{start:'06:00',end:'22:00',rate:''}];}
+  el('tierList').innerHTML=tiers.map(function(t){return tierRowHTML(t.start,t.end,t.rate);}).join('');
+}
+el('addTierBtn').onclick=function(){el('tierList').insertAdjacentHTML('beforeend',tierRowHTML('','',''));};
+function collectTiers(){
+  var rows=el('tierList').querySelectorAll('.tierRow'),out=[];
+  rows.forEach(function(r){
+    var st=r.querySelector('.tStart').value,en=r.querySelector('.tEnd').value,rt=r.querySelector('.tRate').value;
+    if(st&&en&&rt!=='')out.push({start:st,end:en,rate:parseFloat(rt)});
+  });
+  return out;
+}
+el('saveTiersBtn').onclick=function(){
+  var tiers=collectTiers(),er=el('tErr'),ok=el('tOk');er.style.display='none';ok.style.display='none';
+  if(!tiers.length){showMsg(er,'Please add at least one complete time range.');return;}
+  var btn=this;btn.innerHTML='<span class="spin"></span>Saving…';btn.disabled=true;
+  google.script.run.withSuccessHandler(function(r){
+    btn.innerHTML='Save Rates';btn.disabled=false;
+    if(!r.ok){showMsg(er,r.msg||'Could not save.');return;}
+    showMsg(ok,'Rates saved!');
+  }).withFailureHandler(function(e){btn.innerHTML='Save Rates';btn.disabled=false;showMsg(er,'Error: '+e.message);}).setTiers(tiers,PIN);
+};
+function setMemType(t){
+  MEMTYPE=(t==='EXACT')?'EXACT':'PERCENT';
+  el('memTypePercent').classList.toggle('on',MEMTYPE==='PERCENT');
+  el('memTypeExact').classList.toggle('on',MEMTYPE==='EXACT');
+  el('memValLabel').textContent=(MEMTYPE==='EXACT')?'Member rate (₱ per court-hour)':'Percent off (%)';
+}
+function updateMemFields(){var f=el('memFields'),on=el('memOn').checked;if(on&&f.style.display==='none')fx(f);f.style.display=on?'block':'none';}
+el('memOn').onchange=updateMemFields;
+el('saveMemBtn').onclick=function(){
+  var on=el('memOn').checked,val=el('memValue').value,er=el('mpErr'),ok=el('mpOk');er.style.display='none';ok.style.display='none';
+  var btn=this;btn.innerHTML='<span class="spin"></span>Saving…';btn.disabled=true;
+  google.script.run.withSuccessHandler(function(r){
+    btn.innerHTML='Save Membership';btn.disabled=false;
+    if(!r.ok){showMsg(er,r.msg||'Could not save.');return;}
+    showMsg(ok,on?'Membership saved!':'Membership turned off.');
+  }).withFailureHandler(function(e){btn.innerHTML='Save Membership';btn.disabled=false;showMsg(er,'Error: '+e.message);}).setMembership(on,MEMTYPE,val,PIN);
+};
+el('saveSaleBtn').onclick=function(){
+  var pct=el('salePct').value,st=el('saleStart').value,en=el('saleEnd').value,er=el('sErr'),ok=el('sOk');
+  er.style.display='none';ok.style.display='none';
+  var btn=this;btn.innerHTML='<span class="spin"></span>Saving…';btn.disabled=true;
+  google.script.run.withSuccessHandler(function(r){
+    btn.innerHTML='Save Sale';btn.disabled=false;
+    if(!r.ok){showMsg(er,r.msg||'Could not save.');return;}
+    showMsg(ok,(Number(pct)>0)?('Sale saved — '+pct+'% off applied for the selected dates.'):'Sale turned off.');
+  }).withFailureHandler(function(e){btn.innerHTML='Save Sale';btn.disabled=false;showMsg(er,'Error: '+e.message);}).setSale(pct,st,en,PIN);
+};
+</script>
+</body>
+</html>
