@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<?!= include('Styles') ?>
+<style>
+  .wrap{max-width:460px;margin:0 auto;padding:12px 14px 0;min-height:100vh}
+  .screen{display:none;padding:0 0 140px}
+  .screen.active{display:block;animation:rise .6s var(--ease) both}
+
+  /* intro */
+  .intro{padding:30px 6px 6px;text-align:center}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:10.5px;letter-spacing:.3em;font-weight:800;color:var(--sand-d);text-transform:uppercase}
+  .eyebrow::before,.eyebrow::after{content:"";width:22px;height:1px;background:linear-gradient(90deg,transparent,var(--sand))}
+  .eyebrow::after{transform:scaleX(-1)}
+  .intro h1{font-size:clamp(28px,7.4vw,40px);line-height:1.12;margin-top:12px}
+  .hero{position:relative;height:170px;margin-top:20px;border-radius:var(--r-lg);overflow:hidden;background:var(--grad) center/cover no-repeat;box-shadow:var(--shadow);border:1px solid var(--glass-edge)}
+  .hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,42,60,0) 40%,rgba(11,42,60,.45))}
+
+  /* member badge row */
+  .rowtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+
+  /* grid cells */
+  td.cell{padding:13px 12px;font-weight:800;cursor:pointer;min-width:68px;font-size:11px;letter-spacing:.02em;transition:transform .25s var(--ease),background .25s,box-shadow .25s,color .25s}
+  td.open{background:var(--ok-bg);color:var(--ok-ink)}
+  td.open:hover{transform:translateY(-2px) scale(1.04);background:rgba(34,170,120,.28);box-shadow:0 10px 18px -10px rgba(23,105,75,.7)}
+  td.sel{background:var(--grad);color:#fff;box-shadow:0 10px 20px -8px rgba(20,83,116,.85);animation:pop .35s var(--ease)}
+  td.sel .i{width:15px;height:15px;stroke-width:3}
+  td.booked{background:var(--bad-bg);color:var(--bad-ink);cursor:not-allowed}
+  td.pend{background:var(--warn-bg);color:var(--warn-ink);cursor:not-allowed}
+  td.past{background:var(--past-bg);color:var(--past-ink);cursor:not-allowed;font-weight:700}
+  @keyframes pop{0%{transform:scale(.8)}60%{transform:scale(1.1)}100%{transform:scale(1)}}
+  .gridhint{align-items:flex-start}
+  .dots{display:flex;justify-content:center;gap:7px;margin-top:12px}
+  .dots i{width:7px;height:7px;border-radius:99px;background:rgba(11,42,60,.18);display:block;transition:all .35s var(--ease)}
+  .dots i.on{width:22px;background:var(--brand)}
+
+  /* floating checkout bar */
+  .bar{position:fixed;left:50%;bottom:14px;z-index:60;width:calc(100% - 28px);max-width:432px;transform:translate(-50%,0);display:flex;align-items:center;gap:18px;padding:12px 12px 12px 22px;border-radius:24px;color:#fff;background:rgba(11,42,60,.82);-webkit-backdrop-filter:blur(22px) saturate(160%);backdrop-filter:blur(22px) saturate(160%);border:1px solid rgba(255,255,255,.18);box-shadow:0 24px 50px -14px rgba(11,42,60,.7);transition:transform .6s var(--ease),opacity .4s}
+  .bar.hidden{transform:translate(-50%,170%);opacity:0;pointer-events:none}
+  .bar .k{font-size:9.5px;color:#9FC3CF;letter-spacing:.16em;font-weight:800}
+  .bar .v{font-family:var(--serif);font-weight:700;font-size:20px;line-height:1.2}
+  .bar .go{margin-left:auto;display:flex;align-items:center;gap:8px;border:none;cursor:pointer;color:var(--ink);font-weight:800;font-size:14px;padding:13px 18px;border-radius:16px;background:linear-gradient(135deg,#F6E7C6,#DDBE86);box-shadow:0 8px 18px -8px rgba(212,180,131,.9);transition:transform .25s var(--ease)}
+  .bar .go:hover{transform:translateY(-2px)}
+  .bar .go:active{transform:scale(.96)}
+
+  /* summary rows */
+  .row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;font-size:14px;font-weight:600}
+  .row > span:first-child{display:flex;align-items:center;gap:9px;color:var(--ink-2)}
+  .row > span:first-child .i{color:var(--brand)}
+  .row.div{border-top:1px dashed var(--line-2);margin-top:6px;padding-top:13px}
+  .row .amt{font-family:var(--serif);font-weight:700;color:var(--brand-d);font-size:22px}
+
+  /* cart */
+  .cartItem{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px dashed var(--line-2);animation:rise .45s var(--ease) both}
+  .cartItem:first-child{padding-top:0}
+  .ci-main{flex:1;min-width:0}
+  .ci-date{font-weight:800;font-size:14px}
+  .ci-sub{font-size:12px;color:var(--muted);margin-top:2px;font-weight:600}
+  .ci-x{display:flex;align-items:center;justify-content:center;background:var(--bad-bg);border:none;color:var(--bad-ink);width:30px;height:30px;border-radius:10px;cursor:pointer;flex:none;transition:transform .25s var(--ease)}
+  .ci-x:hover{transform:rotate(90deg) scale(1.1)}
+  .cdot{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--brand)}
+  .day.sel .cdot{background:#fff}
+  .card.flash{animation:flashRing 1.3s ease}
+  @keyframes flashRing{0%{box-shadow:0 0 0 0 rgba(15,139,141,.55)}40%{box-shadow:0 0 0 7px rgba(15,139,141,.18)}100%{box-shadow:var(--shadow)}}
+  .sideField{padding:9px 0}
+  .sideTotal{display:flex;justify-content:space-between;align-items:center;padding:16px 0 4px;border-top:1px dashed var(--line-2);margin-top:8px}
+  .sideTotal span{font-size:10.5px;letter-spacing:.14em;color:var(--muted);font-weight:800}
+  .sideTotal b{font-family:var(--serif);font-weight:700;font-size:28px;color:var(--brand-d)}
+  .bookSide{display:none}
+
+  /* payment */
+  .top2{display:flex;align-items:center;gap:10px;padding:22px 0 4px}
+  .top2 .back{display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:50%;border:1.5px solid var(--line);background:rgba(255,255,255,.7);color:var(--brand-d);cursor:pointer;transition:all .25s var(--ease)}
+  .top2 .back:hover{background:#fff;transform:translateX(-3px)}
+  .top2 h2{flex:1;font-size:26px}
+  .pm{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:10px;margin:6px 0 14px}
+  .pm button{position:relative;padding:15px 6px 13px;border:1.5px solid var(--line);background:rgba(255,255,255,.6);border-radius:var(--r-md);font-weight:800;color:var(--ink);cursor:pointer;font-size:12.5px;display:flex;flex-direction:column;align-items:center;gap:9px;transition:all .3s var(--ease)}
+  .pm button:hover{transform:translateY(-3px);background:#fff;box-shadow:0 14px 24px -14px rgba(11,42,60,.5)}
+  .pm button.on{border-color:var(--brand);background:#fff;box-shadow:0 0 0 4px rgba(15,139,141,.15),0 14px 24px -14px rgba(11,42,60,.5)}
+  .pm button.on::after{content:"";position:absolute;top:8px;right:8px;width:18px;height:18px;border-radius:50%;background:var(--grad) center/11px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");animation:pop .35s var(--ease)}
+  .pm .ic{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:17px;color:#fff;font-weight:800}
+  .pmbox{text-align:center;padding:6px 0 2px;animation:rise .5s var(--ease) both}
+  .pmbox .sp{color:var(--muted);font-size:12.5px;font-weight:700;margin-bottom:10px}
+  .pmbox .qr{display:inline-block;padding:12px;border-radius:22px;background:#fff;box-shadow:0 18px 36px -16px rgba(11,42,60,.5);margin-bottom:14px}
+  .pmbox .qr img{width:190px;max-width:62vw;border-radius:12px;display:block}
+  .acct{display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;border-top:1px dashed var(--line-2);padding-top:14px;margin-top:6px}
+  .acct .nm{font-size:12px;color:var(--muted);font-weight:700}
+  .acct .no{font-family:var(--serif);font-weight:700;font-size:21px;letter-spacing:.02em;word-break:break-all}
+  .copy{display:inline-flex;align-items:center;gap:7px;background:rgba(15,139,141,.12);border:none;color:var(--brand-d);font-weight:800;padding:10px 15px;border-radius:12px;cursor:pointer;font-size:13px;flex:none;transition:all .25s var(--ease)}
+  .copy:hover{background:rgba(15,139,141,.22);transform:translateY(-1px)}
+  .copy.done{background:var(--ok-bg);color:var(--ok-ink)}
+  .pmnote{color:var(--muted);font-size:12px;font-weight:600;margin-top:12px;text-align:center}
+  .up{border:2px dashed rgba(15,139,141,.4);border-radius:var(--r-md);padding:28px 14px;text-align:center;cursor:pointer;display:block;background:rgba(15,139,141,.05);transition:all .3s var(--ease)}
+  .up:hover,.up.drag{border-color:var(--brand);background:rgba(15,139,141,.12);transform:translateY(-2px)}
+  .up .cl{width:52px;height:52px;margin:0 auto;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--grad);color:#fff;box-shadow:0 12px 22px -10px rgba(20,83,116,.8)}
+  .up .cl .i{width:24px;height:24px}
+  .up .t1{font-weight:800;color:var(--brand-d);margin-top:12px}
+  .up .t2{color:var(--muted);font-size:12px;margin-top:2px;font-weight:600}
+  .preview{display:none;align-items:center;gap:12px;border:1px solid var(--line);background:rgba(255,255,255,.7);border-radius:var(--r-md);padding:10px;margin-top:4px;animation:rise .45s var(--ease) both}
+  .preview img{width:54px;height:54px;border-radius:12px;object-fit:cover;flex:none}
+  .preview .nm{flex:1;min-width:0;font-size:13px;font-weight:800;word-break:break-all}
+  .preview .sz{color:var(--muted);font-size:11.5px;font-weight:600}
+  .preview .x{display:flex;background:var(--bad-bg);border:none;color:var(--bad-ink);width:34px;height:34px;border-radius:11px;cursor:pointer;align-items:center;justify-content:center}
+
+  /* success */
+  .ok-wrap{text-align:center;padding-top:50px}
+  .ok-ic{width:104px;height:104px;margin:0 auto 18px;position:relative}
+  .ok-ic::before{content:"";position:absolute;inset:-10px;border-radius:50%;background:radial-gradient(circle,rgba(34,170,120,.35),transparent 70%);animation:halo 2.4s ease-in-out infinite}
+  @keyframes halo{50%{transform:scale(1.18);opacity:.5}}
+  .ok-ic svg{position:relative;width:100%;height:100%;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .ok-ic .c{stroke:#27B084;stroke-width:2.5;stroke-dasharray:152;stroke-dashoffset:152;animation:draw .8s .1s var(--ease) forwards}
+  .ok-ic .p{stroke:#17694B;stroke-width:3.5;stroke-dasharray:44;stroke-dashoffset:44;animation:draw .5s .7s var(--ease) forwards}
+  @keyframes draw{to{stroke-dashoffset:0}}
+  .ok-wrap h2{font-size:32px}
+  .pill{display:inline-flex;align-items:center;gap:10px;background:rgba(255,255,255,.75);border:1px solid var(--glass-edge);color:var(--ink);font-family:var(--serif);font-weight:700;padding:11px 22px;border-radius:99px;font-size:19px;letter-spacing:.04em;box-shadow:var(--shadow)}
+
+  /* footer */
+  footer{padding:22px 6px 30px;color:var(--ink-2);font-size:13.5px;font-weight:600}
+  footer .addr{display:flex;align-items:center;gap:9px}
+  footer .addr .i{color:var(--brand)}
+  footer a{color:var(--brand-d);text-decoration:none;font-weight:700}
+  footer a:hover{text-decoration:underline}
+  .soc{display:flex;align-items:center;gap:10px;margin-top:12px}
+  .soc a{display:inline-flex;width:38px;height:38px;align-items:center;justify-content:center;border-radius:50%;transition:transform .3s var(--ease),box-shadow .3s}
+  .soc a:hover{transform:translateY(-3px) scale(1.06);box-shadow:0 12px 20px -8px rgba(11,42,60,.5);text-decoration:none}
+  .fb{background:#1877F2}.ig{background:radial-gradient(circle at 30% 110%,#fdf497,#fd5949,#d6249f,#285AEB)}
+
+  @media (min-width:768px){
+    .wrap{max-width:640px}
+    .card{padding:26px}
+    .hero{height:210px}
+    .bar{max-width:600px;bottom:20px}
+    td.cell{min-width:82px;padding:14px}
+  }
+  @media (min-width:980px){
+    .wrap{max-width:1180px;padding:16px 30px 0}
+    .intro{padding-top:42px}
+    .hero{height:230px}
+    #emailCard{max-width:480px;margin-left:auto;margin-right:auto}
+    .bookGrid{display:grid;grid-template-columns:300px 1fr 330px;gap:20px;align-items:start;margin-top:18px}
+    .colDate,.colSlots{min-width:0}
+    .colDate .card:first-child,.colSlots .card,.sideCard{margin-top:0}
+    .bookSide{display:block;position:sticky;top:96px}
+    #gridCard{display:block !important}
+    .bar{display:none !important}
+    #scPay,#scOk{max-width:660px;margin:0 auto}
+    td.cell{min-width:104px;padding:15px;font-size:12px}
+    table.grid th,table.grid td{font-size:12.5px}
+    .mobileCart{display:none !important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="nav glass fx">
+    <div class="brand">
+      <div id="logoSlot"></div>
+      <div class="wordmark"><b id="bizName">Loading…</b><span id="bizSub">COURT RESERVATIONS</span></div>
+    </div>
+    <ol class="steps" id="steps">
+      <li class="on" data-s="1"><i>1</i><span>Schedule</span></li>
+      <li data-s="2"><i>2</i><span>Details</span></li>
+      <li data-s="3"><i>3</i><span>Done</span></li>
+    </ol>
+  </header>
+
+  <!-- ============ STEP 1 · SCHEDULE ============ -->
+  <div class="screen active" id="scHome">
+    <section class="intro fx d1">
+      <span class="eyebrow">Reserve your court</span>
+      <h1 id="tagline">Book a court fast and easy</h1>
+    </section>
+    <div class="hero fx d2" id="hero" style="display:none"></div>
+
+    <div class="card fx d2" id="emailCard">
+      <h3>Let's get started</h3>
+      <p class="sub">Enter your email to check member rates and unlock more booking days.</p>
+      <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+      <div class="err" id="emailErr"></div>
+      <button class="btn btn-navy" id="emailBtn" style="margin-top:14px">Continue</button>
+      <div class="infobox"><svg class="i"><use href="#i-star"/></svg><span>Members get better rates and can book further ahead.</span></div>
+    </div>
+
+    <div id="bookArea" style="display:none">
+      <div class="bookGrid">
+        <div class="colDate">
+          <div class="card">
+            <div class="rowtop">
+              <span id="statusBadge" class="badge guest">Guest</span>
+              <button class="link" id="changeEmail">change email</button>
+            </div>
+            <h3>Select a date</h3>
+            <div class="calnav"><button id="prevM" aria-label="Previous month"><svg class="i"><use href="#i-left"/></svg></button><div class="today" id="todayBtn">Today</div><button id="nextM" aria-label="Next month"><svg class="i"><use href="#i-right"/></svg></button></div>
+            <div class="calLabel" id="calLabel"></div>
+            <div class="dow"><span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span></div>
+            <div class="days" id="days"></div>
+            <p class="sub" id="availNote" style="margin:14px 0 0;text-align:center"></p>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-bottom:13px">Slot legend</h3>
+            <div class="legend">
+              <div class="lg"><span class="sq" style="background:var(--ok-bg)"></span><span><b>Open</b><small>Available</small></span></div>
+              <div class="lg"><span class="sq" style="background:var(--grad)"></span><span><b>Selected</b><small>You selected</small></span></div>
+              <div class="lg"><span class="sq" style="background:var(--bad-bg)"></span><span><b>Booked</b><small>Not available</small></span></div>
+              <div class="lg"><span class="sq" style="background:var(--warn-bg)"></span><span><b>Pending</b><small>On hold</small></span></div>
+              <div class="lg"><span class="sq" style="background:var(--past-bg);border:1px solid var(--line)"></span><span><b>Past</b><small>Unavailable</small></span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="colSlots">
+          <div class="card" id="gridCard" style="display:none">
+            <h3>Select your slots</h3>
+            <div class="infobox gridhint" id="gridHint" style="display:none;margin:10px 0 12px"><svg class="i"><use href="#i-info"/></svg><span>Tap a cell to select. Tap multiple courts and hours to select more.</span></div>
+            <div class="gridwrap" id="gridwrap" style="margin-top:12px"><p class="sub" style="padding:22px;margin:0;text-align:center">Pick a date to see available slots.</p></div>
+            <div class="dots" id="dots"></div>
+          </div>
+          <div class="card mobileCart" id="mobileCartCard" style="display:none">
+            <h3 style="margin-bottom:12px">Your booking</h3>
+            <div id="cartMobile"></div>
+            <button class="btn btn-ghost" id="addDateMobile" style="margin-top:14px"><svg class="i"><use href="#i-plus"/></svg>Add another date</button>
+          </div>
+        </div>
+
+        <aside class="bookSide" id="bookSide">
+          <div class="card sideCard">
+            <h3 style="font-family:var(--serif);font-size:22px;font-weight:600;margin-bottom:14px">Reservation Summary</h3>
+            <div id="cartSide"></div>
+            <div class="sideTotal"><span>ESTIMATED TOTAL</span><b id="sumTotal">₱0</b></div>
+            <button class="btn btn-ghost" id="addDateSide" style="margin-top:14px"><svg class="i"><use href="#i-plus"/></svg>Add another date</button>
+            <button class="btn btn-navy" id="sideGo" style="margin-top:10px">Continue to Details</button>
+            <p class="sub" style="margin:12px 0 0;font-size:11.5px;text-align:center">Rates follow member/guest and length-of-stay rules.</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+    <footer id="footer1"></footer>
+  </div>
+
+  <!-- ============ STEP 2 · DETAILS & PAYMENT ============ -->
+  <div class="screen" id="scPay">
+    <div class="top2"><button class="back" id="backHome" aria-label="Back"><svg class="i"><use href="#i-left"/></svg></button><h2>Booking Details</h2></div>
+    <div class="card fx d1"><h3 style="margin-bottom:10px">Your selection</h3><div id="paySummary"></div></div>
+    <div class="card fx d2">
+      <h3>Booker information</h3>
+      <label class="fld">Full name</label><input type="text" id="name" placeholder="Enter your full name" autocomplete="name">
+      <label class="fld">Mobile number</label><input type="tel" id="contact" placeholder="0917 123 4567" autocomplete="tel">
+      <label class="fld">Email</label><input type="email" id="email2" readonly>
+    </div>
+    <div class="card fx d3">
+      <h3>Select a payment method</h3><p class="sub">Choose one option below.</p>
+      <div class="pm" id="pmBtns"></div><div id="pmDetail"></div>
+    </div>
+    <div class="card fx d4">
+      <h3>Upload receipt</h3><p class="sub">Upload your payment proof.</p>
+      <label class="up" id="upLabel"><input type="file" id="receipt" accept="image/*" style="display:none"><div class="cl"><svg class="i"><use href="#i-upload"/></svg></div><div class="t1">Tap to upload image</div><div class="t2">JPG or PNG, max 5MB</div></label>
+      <div class="preview" id="preview"><img id="pvImg" alt="Receipt preview"><div class="nm"><span id="pvName"></span><div class="sz" id="pvSize"></div></div><button class="x" id="pvX" aria-label="Remove"><svg class="i"><use href="#i-x"/></svg></button></div>
+    </div>
+    <div class="err" id="payErr"></div>
+    <button class="btn btn-navy" id="submitBtn" style="margin-top:16px">Submit Booking</button>
+    <div class="infobox"><svg class="i"><use href="#i-lock"/></svg><span>Your slot is held as <b>Pending</b>. We'll confirm it shortly after verifying your payment.</span></div>
+    <footer id="footer2"></footer>
+  </div>
+
+  <!-- ============ STEP 3 · DONE ============ -->
+  <div class="screen" id="scOk">
+    <div class="ok-wrap">
+      <div class="ok-ic"><svg viewBox="0 0 52 52"><circle class="c" cx="26" cy="26" r="24"/><path class="p" d="M15 27l7.5 7.5L38 18.5"/></svg></div>
+      <h2>Booking received!</h2>
+      <p class="sub" style="margin-top:14px">Booking ID</p>
+      <div class="pill" id="okId">—</div>
+      <p class="sub" style="margin-top:20px;max-width:310px;margin-left:auto;margin-right:auto">Your payment is being verified. You'll get a confirmation shortly. Your slot is on hold.</p>
+      <a class="btn btn-navy" id="okStatus" style="margin-top:22px" target="_top">View Booking Status</a>
+      <button class="btn btn-ghost" id="okNew" style="margin-top:10px">Make another booking</button>
+    </div>
+  </div>
+
+  <!-- floating checkout bar (mobile / tablet) -->
+  <div class="bar hidden" id="bar">
+    <div><div class="k">SLOTS</div><div class="v" id="barSlots">0</div></div>
+    <div><div class="k">TOTAL</div><div class="v" id="barTotal">₱0</div></div>
+    <button class="go" id="barGo">Continue<svg class="i"><use href="#i-right"/></svg></button>
+  </div>
+</div>
+
+<script>
+var CFG=null,PAY=null,MEMBER=false,ADV=7,EMAIL='',TIERS=[];
+var calY,calM,today=new Date();today.setHours(0,0,0,0);
+var selDate=null,slots=[],courts=[],taken={},selByDate={},RCPT=null,chosenPM=null;
+function curSel(){if(!selByDate[selDate])selByDate[selDate]={};return selByDate[selDate];}
+var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+function money(n){return '₱'+(Math.round(n*100)/100).toLocaleString();}
+function hm2min(s){var p=String(s).split(':');return (parseInt(p[0],10)||0)*60+(parseInt(p[1],10)||0);}
+function tierRate(hhmm){var t=hm2min(hhmm);for(var i=0;i<TIERS.length;i++){var a=hm2min(TIERS[i].start),b=hm2min(TIERS[i].end);if(b<=a)b+=1440;if(t>=a&&t<b)return TIERS[i].rate;}return TIERS.length?TIERS[0].rate:0;}
+function priceCells(cells,withSale){var memOn=!!(CFG&&CFG.membershipEnabled),mt=(CFG&&CFG.memberRateType)||'PERCENT',mv=(CFG&&CFG.memberRateValue)||0,pct=(CFG&&CFG.salePct)||0,st=(CFG&&CFG.saleStart)||'',en=(CFG&&CFG.saleEnd)||'',t=0;cells.forEach(function(c){var p=tierRate(c.start);if(MEMBER&&memOn)p=(mt==='EXACT')?mv:p*(1-mv/100);if(withSale&&pct>0&&st&&en&&c.date>=st&&c.date<=en)p=p*(1-pct/100);t+=p;});return Math.round(t*100)/100;}
+function calcTotal(cells){return priceCells(cells,true);}
+function pad(n){return ('0'+n).slice(-2);}
+function ymd(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function el(id){return document.getElementById(id);}
+
+google.script.run.withSuccessHandler(function(c){
+  CFG=c;slots=c.slots;courts=c.courts;TIERS=c.tiers||[];
+  el('bizName').textContent=c.businessName;el('tagline').textContent=c.tagline;
+  if(c.logoUrl)el('logoSlot').innerHTML='<img class="logo" alt="" src="'+esc(c.logoUrl)+'">';
+  else el('logoSlot').innerHTML='<div class="logo svg">'+ic('paddle')+'</div>';
+  if(c.heroUrl){el('hero').style.backgroundImage='url("'+c.heroUrl+'")';el('hero').style.display='';}
+  else{el('hero').style.display='none';}
+  buildFooter('footer1');buildFooter('footer2');
+}).withFailureHandler(function(e){toast('Could not load the booking page. Please refresh.','bad');}).getPageConfig();
+
+function rememberGet(){try{return localStorage.getItem('ng_email')||'';}catch(e){return '';}}
+function rememberSet(v){try{localStorage.setItem('ng_email',v);}catch(e){}}
+function rememberClear(){try{localStorage.removeItem('ng_email');}catch(e){}}
+function proceedWithEmail(e,btn){
+  EMAIL=e;if(btn){btn.innerHTML='<span class="spin"></span>Checking…';btn.disabled=true;}
+  google.script.run.withSuccessHandler(function(r){
+    MEMBER=r.member;ADV=r.advanceDays;
+    var b=el('statusBadge');
+    if(CFG&&CFG.membershipEnabled===false){b.style.display='none';}
+    else if(MEMBER){b.style.display='';b.className='badge member';b.innerHTML=ic('star')+'Member';}
+    else{b.style.display='';b.className='badge guest';b.textContent='Guest';}
+    el('emailCard').style.display='none';el('bookArea').style.display='block';fx(el('bookArea'));el('email2').value=EMAIL;
+    calY=today.getFullYear();calM=today.getMonth();renderCal();showAvailNote();
+    rememberSet(e);if(btn){btn.innerHTML='Continue';btn.disabled=false;}
+  }).withFailureHandler(function(x){el('emailCard').style.display='block';if(btn){btn.innerHTML='Continue';btn.disabled=false;}var er=el('emailErr');er.textContent='Error: '+x.message;er.style.display='block';}).checkEmail(e);
+}
+el('emailBtn').onclick=function(){
+  var e=el('email').value.trim(),er=el('emailErr');
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)){er.style.animation='none';void er.offsetWidth;er.style.animation='';er.textContent='Please enter a valid email.';er.style.display='block';return;}
+  er.style.display='none';proceedWithEmail(e,this);
+};
+el('email').addEventListener('keydown',function(e){if(e.key==='Enter')el('emailBtn').click();});
+el('changeEmail').onclick=function(){rememberClear();el('email').value='';el('emailCard').style.display='block';fx(el('emailCard'));el('bookArea').style.display='none';el('gridCard').style.display='none';selDate=null;selByDate={};updateBar();};
+// Remember this device: if an email was used here before, skip the email step.
+(function(){var s=rememberGet();if(s&&/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s)){el('email').value=s;el('emailCard').style.display='none';proceedWithEmail(s,null);}})();
+
+function maxDate(){var d=new Date(today);d.setDate(d.getDate()+ADV);return d;}
+function showAvailNote(){var m=maxDate();el('availNote').innerHTML='Bookings available until <b>'+MONTHS[m.getMonth()].slice(0,3)+' '+m.getDate()+', '+m.getFullYear()+'</b> ('+ADV+' days from today).';}
+function renderCal(){
+  el('calLabel').textContent=MONTHS[calM]+' '+calY;
+  var first=new Date(calY,calM,1).getDay(),dim=new Date(calY,calM+1,0).getDate(),max=maxDate(),html='';
+  for(var i=0;i<first;i++)html+='<div class="day empty"></div>';
+  for(var d=1;d<=dim;d++){var dt=new Date(calY,calM,d);dt.setHours(0,0,0,0);var ds=ymd(dt);var off=dt<today||dt>max;var sc=(selDate&&ds===selDate)?' sel':'';var now=(+dt===+today)?' now':'';var has=selByDate[ds]&&Object.keys(selByDate[ds]).length;html+='<div class="day'+(off?' off':'')+sc+now+'" '+(off?'':'data-d="'+ds+'"')+'>'+d+(has?'<i class="cdot"></i>':'')+'</div>';}
+  var dz=el('days');dz.innerHTML=html;dz.classList.remove('swap');void dz.offsetWidth;dz.classList.add('swap');
+  dz.querySelectorAll('[data-d]').forEach(function(x){x.onclick=function(){pickDate(this.getAttribute('data-d'));};});
+}
+el('prevM').onclick=function(){calM--;if(calM<0){calM=11;calY--;}renderCal();};
+el('nextM').onclick=function(){calM++;if(calM>11){calM=0;calY++;}renderCal();};
+el('todayBtn').onclick=function(){calY=today.getFullYear();calM=today.getMonth();renderCal();};
+
+function skeleton(){return '<div style="padding:10px 12px"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>';}
+function pickDate(ds){
+  selDate=ds;if(!selByDate[ds])selByDate[ds]={};renderCal();updateBar();
+  var gc=el('gridCard');if(gc.style.display!=='block'){gc.style.display='block';fx(gc);}
+  el('gridwrap').innerHTML=skeleton();
+  google.script.run.withSuccessHandler(function(a){
+    if(a.date!==selDate)return; // a newer date was picked meanwhile
+    taken=a.taken;buildGrid();
+  }).withFailureHandler(function(){
+    el('gridwrap').innerHTML='<p class="sub" style="padding:22px;margin:0;text-align:center">Could not load availability. <button class="link" onclick="pickDate(\''+ds+'\')">Try again</button></p>';
+  }).getAvailability(ds);
+  if(window.innerWidth<980)setTimeout(function(){gc.scrollIntoView({behavior:'smooth',block:'start'});},120);
+}
+
+function isPast(s){if(selDate!==ymd(today))return false;var n=new Date();return s<=pad(n.getHours())+':'+pad(n.getMinutes());}
+function buildGrid(){
+  var cur=curSel();
+  var h='<table class="grid"><thead><tr><th class="tcol">Time</th>';
+  courts.forEach(function(c){h+='<th>'+esc(c.name)+'</th>';});
+  h+='</tr></thead><tbody>';
+  slots.forEach(function(sl){
+    h+='<tr><td class="tcol">'+esc(sl.label)+'</td>';
+    courts.forEach(function(c){
+      var k=c.id+'|'+sl.start,cls='cell ',txt='Open';
+      if(taken[k]==='Confirmed'){cls+='booked';txt='Booked';}
+      else if(taken[k]==='Pending'){cls+='pend';txt='Pending';}
+      else if(isPast(sl.start)){cls+='past';txt='Past';}
+      else if(cur[k]){cls+='sel';txt=ic('check');}
+      else{cls+='open';txt='Open';}
+      h+='<td class="'+cls+'" data-k="'+esc(k)+'" data-c="'+esc(c.id)+'" data-s="'+esc(sl.start)+'" data-e="'+esc(sl.end)+'">'+txt+'</td>';
+    });
+    h+='</tr>';
+  });
+  h+='</tbody></table>';
+  var w=el('gridwrap');w.innerHTML=h;fx(w);
+  w.querySelectorAll('td.open,td.sel').forEach(function(td){td.onclick=function(){var cur=curSel(),k=this.getAttribute('data-k');if(cur[k]){delete cur[k];this.className='cell open';this.textContent='Open';}else{cur[k]={date:selDate,court:this.getAttribute('data-c'),start:this.getAttribute('data-s'),end:this.getAttribute('data-e')};this.className='cell sel';this.innerHTML=ic('check');}updateBar();};});
+  var pages=Math.ceil(courts.length/3),dh='';for(var i=0;i<pages;i++)dh+='<i class="'+(i===0?'on':'')+'"></i>';el('dots').innerHTML=pages>1?dh:'';
+  el('gridHint').style.display=courts.length>3?'flex':'none';
+  w.onscroll=function(){var p=Math.round(w.scrollLeft/(w.scrollWidth-w.clientWidth+1)*(pages-1));el('dots').querySelectorAll('i').forEach(function(d,ix){d.className=ix===p?'on':'';});};
+}
+
+function selList(){var out=[];Object.keys(selByDate).forEach(function(d){var o=selByDate[d];Object.keys(o).forEach(function(k){out.push(o[k]);});});return out;}
+function datesInCart(){return Object.keys(selByDate).filter(function(d){return Object.keys(selByDate[d]).length;}).sort();}
+function prettyDateShort(ds){var p=ds.split('-'),d=new Date(p[0],p[1]-1,p[2]);var dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];return dn+', '+MONTHS[d.getMonth()].slice(0,3)+' '+d.getDate();}
+function updateBar(){
+  var a=selList(),bar=el('bar');
+  if(!a.length){bar.classList.add('hidden');}else{bar.classList.remove('hidden');el('barSlots').textContent=a.length;el('barTotal').textContent=money(calcTotal(a));}
+  if(el('sumTotal'))el('sumTotal').textContent=money(calcTotal(a));
+  var mc=el('mobileCartCard');if(mc){var show=!!a.length;if(show&&mc.style.display==='none'){mc.style.display='block';fx(mc);}else if(!show)mc.style.display='none';}
+  renderCart();
+}
+function cartHTML(){
+  var dates=datesInCart();
+  if(!dates.length)return '<p class="sub" style="margin:0">No slots selected yet. Pick a date, then tap open slots.</p>';
+  var h='';
+  dates.forEach(function(d){
+    var cells=Object.keys(selByDate[d]).map(function(k){return selByDate[d][k];});
+    var cN={};cells.forEach(function(x){cN[x.court]=1;});
+    var names=courts.filter(function(c){return cN[c.id];}).map(function(c){return c.name;}).join(', ');
+    var st=cells.map(function(x){return x.start;}).sort(),en=cells.map(function(x){return x.end;}).sort();
+    h+='<div class="cartItem"><div class="ci-main"><div class="ci-date">'+prettyDateShort(d)+'</div><div class="ci-sub">'+to12(st[0])+' – '+to12(en[en.length-1])+' · '+esc(names)+' · '+cells.length+'h</div></div><button class="ci-x" data-rm="'+d+'" aria-label="Remove">'+ic('x')+'</button></div>';
+  });
+  return h;
+}
+function renderCart(){
+  var html=cartHTML();
+  ['cartSide','cartMobile'].forEach(function(id){var e=el(id);if(!e)return;e.innerHTML=html;e.querySelectorAll('[data-rm]').forEach(function(b){b.onclick=function(){removeDate(this.getAttribute('data-rm'));};});});
+}
+function removeDate(d){delete selByDate[d];if(selDate===d)buildGrid();renderCal();updateBar();}
+function scrollToCal(){var c=document.querySelector('.colDate');if(!c)return;c.scrollIntoView({behavior:'smooth',block:'start'});var card=c.querySelector('.card');if(card){card.classList.remove('flash');void card.offsetWidth;card.classList.add('flash');setTimeout(function(){card.classList.remove('flash');},1300);}}
+el('barGo').onclick=goPay;
+el('sideGo').onclick=goPay;
+el('addDateSide').onclick=scrollToCal;
+el('addDateMobile').onclick=scrollToCal;
+
+var STEP={scHome:1,scPay:2,scOk:3};
+function setStep(n){document.querySelectorAll('#steps li').forEach(function(li){var s=+li.getAttribute('data-s');li.classList.toggle('on',s===n);li.classList.toggle('done',s<n);li.querySelector('i').innerHTML=s<n?ic('check'):s;});}
+function show(id){['scHome','scPay','scOk'].forEach(function(s){el(s).classList.remove('active');});el(id).classList.add('active');setStep(STEP[id]);window.scrollTo({top:0,behavior:'smooth'});}
+function rowHTML(a,b,cls,icon){return '<div class="row '+(cls||'')+'"><span>'+(icon?ic(icon):'')+a+'</span><span class="'+(cls==='div'?'amt':'')+'">'+b+'</span></div>';}
+function prettyDate(ds){var p=ds.split('-'),d=new Date(p[0],p[1]-1,p[2]);var dn=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];return dn+', '+MONTHS[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear();}
+function to12(hhmm){var p=hhmm.split(':'),h=+p[0],ap=h<12?'AM':'PM',hh=h%12;if(hh===0)hh=12;if(h===24){hh=12;ap='AM';}return hh+':'+p[1]+' '+ap;}
+function goPay(){
+  var a=selList();
+  if(!a.length)return;
+  var html='';
+  datesInCart().forEach(function(d){
+    var cells=Object.keys(selByDate[d]).map(function(k){return selByDate[d][k];});
+    var cN={};cells.forEach(function(x){cN[x.court]=1;});
+    var names=courts.filter(function(c){return cN[c.id];}).map(function(c){return c.name;}).join(', ');
+    var st=cells.map(function(x){return x.start;}).sort(),en=cells.map(function(x){return x.end;}).sort();
+    html+=rowHTML(prettyDateShort(d),to12(st[0])+' – '+to12(en[en.length-1]),'','cal');
+    html+=rowHTML(esc(names),cells.length+'h','','court');
+  });
+  html+=rowHTML('Total hours',a.length+' hours','div');
+  var full=priceCells(a,false),disc=priceCells(a,true);
+  if(disc<full){html+=rowHTML('Subtotal',money(full),'div')+rowHTML((CFG.salePct||0)+'% sale discount','− '+money(full-disc),'div');}
+  html+=rowHTML('Total amount',money(disc),'div');
+  el('paySummary').innerHTML=html;
+  el('bar').classList.add('hidden');
+  if(!PAY){google.script.run.withSuccessHandler(function(p){PAY=p;buildPay();}).withFailureHandler(function(){toast('Could not load payment methods.','bad');}).getPaymentInfo();}else buildPay();
+  show('scPay');
+}
+function pmIcon(k){if(k==='GCash')return '<span class="ic" style="background:linear-gradient(135deg,#2D8CFF,#0A57D6)">G</span>';if(k==='Maya')return '<span class="ic" style="background:linear-gradient(135deg,#1FA971,#0B5A3A)">M</span>';return '<span class="ic" style="background:var(--grad)">'+ic('bank')+'</span>';}
+function buildPay(){
+  var b='';PAY.forEach(function(m){b+='<button data-k="'+esc(m.key)+'">'+pmIcon(m.key)+esc(m.label)+'</button>';});
+  if(!PAY.length)b='<p class="sub">No payment method configured.</p>';
+  el('pmBtns').innerHTML=b;
+  el('pmBtns').querySelectorAll('button').forEach(function(btn){btn.onclick=function(){chosenPM=this.getAttribute('data-k');document.querySelectorAll('#pmBtns button').forEach(function(x){x.classList.remove('on');});this.classList.add('on');renderPM();};});
+}
+function renderPM(){
+  var m=PAY.filter(function(x){return x.key===chosenPM;})[0];if(!m)return;
+  var num=m.number,nm=m.type==='bank'?m.bankName+' · '+m.name:m.name,h='<div class="pmbox">';
+  if(m.qr)h+='<div class="sp">Scan to pay with '+esc(m.label)+'</div><div class="qr"><img alt="'+esc(m.label)+' QR" src="'+esc(m.qr)+'"></div>';
+  h+='<div class="acct"><div><div class="nm">'+esc(nm)+'</div><div class="no">'+esc(num)+'</div></div><button class="copy" data-n="'+esc(num)+'">'+ic('copy')+'Copy</button></div><div class="pmnote">Please send the exact amount.</div></div>';
+  el('pmDetail').innerHTML=h;
+  el('pmDetail').querySelector('.copy').onclick=function(){var n=this.getAttribute('data-n'),b=this;try{navigator.clipboard.writeText(n);b.classList.add('done');b.innerHTML=ic('check')+'Copied';toast('Account number copied');setTimeout(function(){b.classList.remove('done');b.innerHTML=ic('copy')+'Copy';},1600);}catch(e){}};
+}
+function setReceipt(f){
+  if(!f)return;
+  if(f.size>5*1024*1024){toast('Image too large (max 5MB).','bad');el('receipt').value='';return;}
+  var r=new FileReader();r.onload=function(){RCPT={data:r.result.split(',')[1],name:f.name,mimeType:f.type};el('pvImg').src=r.result;el('pvName').textContent=f.name;el('pvSize').textContent=(f.size/1024/1024).toFixed(2)+' MB';el('preview').style.display='flex';el('upLabel').style.display='none';};r.readAsDataURL(f);
+}
+el('receipt').onchange=function(){setReceipt(this.files[0]);};
+(function(){var u=el('upLabel');
+  ['dragenter','dragover'].forEach(function(t){u.addEventListener(t,function(e){e.preventDefault();u.classList.add('drag');});});
+  ['dragleave','drop'].forEach(function(t){u.addEventListener(t,function(e){e.preventDefault();u.classList.remove('drag');});});
+  u.addEventListener('drop',function(e){var f=e.dataTransfer&&e.dataTransfer.files[0];if(f&&/^image\//.test(f.type))setReceipt(f);});
+})();
+el('pvX').onclick=function(){RCPT=null;el('receipt').value='';el('preview').style.display='none';el('upLabel').style.display='block';};
+el('backHome').onclick=function(){show('scHome');updateBar();};
+
+el('submitBtn').onclick=function(){
+  var er=el('payErr');er.style.display='none';
+  var name=el('name').value.trim(),contact=el('contact').value.trim();
+  function fail(m){er.style.animation='none';void er.offsetWidth;er.style.animation='';er.textContent=m;er.style.display='block';er.scrollIntoView({behavior:'smooth',block:'center'});}
+  if(!name)return fail('Please enter your name.');
+  if(!contact)return fail('Please enter your contact number.');
+  if(!chosenPM)return fail('Please select a payment method.');
+  if(!RCPT)return fail('Please upload your payment receipt.');
+  var btn=this;btn.innerHTML='<span class="spin"></span>Submitting…';btn.disabled=true;
+  var payload={name:name,contact:contact,email:EMAIL,date:selDate,cells:selList(),paymentMethod:chosenPM,receipt:RCPT};
+  google.script.run.withSuccessHandler(function(res){
+    btn.innerHTML='Submit Booking';btn.disabled=false;
+    if(!res.ok)return fail(res.error||'Submission failed. Please try again.');
+    el('okId').textContent=res.bookingId;el('okStatus').href=CFG.webUrl+'?page=status&id='+encodeURIComponent(res.bookingId);show('scOk');
+  }).withFailureHandler(function(e){btn.innerHTML='Submit Booking';btn.disabled=false;fail('Error: '+e.message);}).submitBooking(payload);
+};
+el('okNew').onclick=function(){location.reload();};
+
+function buildFooter(id){
+  var f='';
+  if(CFG.mapsLink||CFG.address)f+='<div class="addr">'+ic('pin')+'<a href="'+esc(CFG.mapsLink||'#')+'" target="_blank" rel="noopener">'+esc(CFG.address||'Open in Google Maps')+'</a></div>';
+  if(CFG.facebook||CFG.instagram){f+='<div style="margin-top:14px;font-size:12px;letter-spacing:.14em;font-weight:800;color:var(--muted)">FOLLOW US</div><div class="soc">';
+    if(CFG.facebook)f+='<a class="fb" href="'+esc(CFG.facebook)+'" target="_blank" rel="noopener" aria-label="Facebook"><svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M13 10h3l.5-3H13V5.5c0-.9.3-1.5 1.6-1.5H16V1.4C15.6 1.3 14.7 1.2 13.6 1.2 11.3 1.2 9.8 2.6 9.8 5.2V7H7v3h2.8v8H13z"/></svg></a>';
+    if(CFG.instagram)f+='<a class="ig" href="'+esc(CFG.instagram)+'" target="_blank" rel="noopener" aria-label="Instagram"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17" cy="7" r="1" fill="#fff" stroke="none"/></svg></a>';
+    f+='</div>';}
+  el(id).innerHTML=f;
+}
+</script>
+</body>
+</html>
