@@ -91,7 +91,10 @@ var S = {
   acc: { q: '', type: '', archived: false },
   rec: null, recv: null, report: { from: '', to: '', html: '', busy: '' }, imp: null, theme: 'auto', fromCache: false
 };
-var MULTI = !!window.MT_MULTI, RESET_TOKEN = window.MT_RESET || '';
+var CFG = window.MT_CONFIG || {};
+var API_URL = CFG.api || '';
+var MULTI = !!(window.MT_MULTI || CFG.multi);
+var RESET_TOKEN = window.MT_RESET || (function () { try { var m = (location.search || '').match(/[?&]reset=([A-Za-z0-9]{30,64})/); return m ? m[1] : ''; } catch (e) { return ''; } })();
 S.token = ''; S.user = null; S.uid = ''; S.auth = { mode: '', msg: '', email: '' }; S.users = null;
 /** Storage keys are per user so several medreps can share a phone without mixing data. */
 function uk(base) { return base + '_' + (S.uid || 'single'); }
@@ -130,23 +133,32 @@ function pillHtml(days) {
 function grayPill(txt) { return '<span class="pill gray">' + esc(txt) + '</span>'; }
 
 /* ------------------------------ Server calls ------------------------------ */
+/** Sends one request: through fetch() to the web app API (stand-alone website) or google.script.run (Apps Script page). */
+function transport(action, json, token) {
+  return new Promise(function (resolve, reject) {
+    if (API_URL) {
+      if (/PASTE/i.test(API_URL)) { reject(new Error('Setup needed: put your Web app link in config.js')); return; }
+      fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: action, json: json, token: token }), redirect: 'follow' })
+        .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.text(); }).then(resolve, reject);
+      return;
+    }
+    try {
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(function (e) { reject(e || new Error('failed')); }).api(action, json, token);
+    } catch (e) { reject(e); }
+  });
+}
 function server(action, payload, timeoutMs) {
   return new Promise(function (resolve, reject) {
     var done = false;
     var timer = setTimeout(function () { if (!done) { done = true; reject(new Error('timeout')); } }, timeoutMs || (action === 'loadAll' ? 60000 : 100000));
-    try {
-      google.script.run
-        .withSuccessHandler(function (r) {
-          if (done) return; done = true; clearTimeout(timer);
-          var o = null;
-          try { o = typeof r === 'string' ? JSON.parse(r) : r; } catch (e) { reject(new Error('bad response')); return; }
-          if (o && o.code === 'AUTH' && action !== 'login') { authLost(); reject(new Error('auth')); return; }
-          if (o && o.code === 'CHANGE') { S.auth = { mode: 'change', msg: o.error }; renderAll(); reject(new Error('change')); return; }
-          resolve(o || { ok: false, error: 'The server sent an empty answer. Please try again.' });
-        })
-        .withFailureHandler(function (e) { if (done) return; done = true; clearTimeout(timer); reject(e || new Error('failed')); })
-        .api(action, payload ? JSON.stringify(payload) : '', S.token || '');
-    } catch (e) { clearTimeout(timer); if (!done) { done = true; reject(e); } }
+    transport(action, payload ? JSON.stringify(payload) : '', S.token || '').then(function (r) {
+      if (done) return; done = true; clearTimeout(timer);
+      var o = null;
+      try { o = typeof r === 'string' ? JSON.parse(r) : r; } catch (e) { reject(new Error('bad response')); return; }
+      if (o && o.code === 'AUTH' && action !== 'login') { authLost(); reject(new Error('auth')); return; }
+      if (o && o.code === 'CHANGE') { S.auth = { mode: 'change', msg: o.error }; renderAll(); reject(new Error('change')); return; }
+      resolve(o || { ok: false, error: 'The server sent an empty answer. Please try again.' });
+    }, function (e) { if (done) return; done = true; clearTimeout(timer); reject(e || new Error('failed')); });
   });
 }
 
@@ -1607,7 +1619,7 @@ function loadUsers() {
     var box = $('#userList'); if (!box) return;
     if (!res.ok) { box.innerHTML = emptyState('users', 'Could not load users', res.error); return; }
     S.users = res.users; S.flags.appUrl = res.appUrl || S.flags.appUrl;
-    $('#appLinkCard').innerHTML = '<div><b>Link your medreps open</b><p class="muted" style="margin-top:4px">This is the address in password-reset emails and in the details you send. It must be the Web app link that ends with <b>/exec</b>.</p></div>' + fld('al_url', 'Web app link', { value: res.appUrl || '', attrs: 'inputmode="url" autocapitalize="off" placeholder="https://script.google.com/macros/s/.../exec"' }) + '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-a="saveAppUrl">Save link</button><button class="btn sm ghost" data-a="copyAppUrl">Copy link</button></div>' + (/\/exec$/.test(res.appUrl || '') ? '' : '<div class="banner warn">' + ico('alert') + '<span>The link is not set yet, or it is a test link. Paste your Web app link (Deploy > Manage deployments) and tap Save link, or open the real link once.</span></div>');
+    $('#appLinkCard').innerHTML = '<div><b>Link your medreps open</b><p class="muted" style="margin-top:4px">This is the address in password-reset emails and in the details you send. Use your website (for example <b>https://medtrack.yourdomain.com</b>) or the Web app link that ends with <b>/exec</b>.</p></div>' + fld('al_url', 'Web app link', { value: res.appUrl || '', attrs: 'inputmode="url" autocapitalize="off" placeholder="https://medtrack.yourdomain.com"' }) + '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-a="saveAppUrl">Save link</button><button class="btn sm ghost" data-a="copyAppUrl">Copy link</button></div>' + (res.appUrl && !/\/dev(\?.*)?$/.test(res.appUrl) ? '' : '<div class="banner warn">' + ico('alert') + '<span>The link is not set yet, or it is a test link. Paste your Web app link (Deploy > Manage deployments) and tap Save link, or open the real link once.</span></div>');
     box.innerHTML = res.users.map(function (u) {
       return '<button class="item" data-a="openUser" data-id="' + esc(u.uid) + '"><span class="avatar">' + esc(u.name.charAt(0).toUpperCase()) + '</span><div class="main"><div class="t">' + esc(u.name) + (u.role === 'Admin' ? ' <span class="tag">Admin</span>' : '') + (u.active ? '' : ' <span class="tag" style="color:var(--gray);background:var(--gray-bg)">Off</span>') + '</div><div class="s">' + esc(u.email) + '</div><div class="s">' + (u.lastLogin ? 'Last sign-in ' + esc(fmtDate(String(u.lastLogin).slice(0, 10))) : 'Has not signed in yet') + '</div></div><div class="e">' + (u.mustChange ? '<span class="pill amber">Temp password</span>' : u.active ? '<span class="pill green">Active</span>' : grayPill('Off')) + '</div></button>';
     }).join('') || emptyState('users', 'No users yet', 'Add your first medrep.');
@@ -1687,7 +1699,7 @@ function boot() {
     if (tk && us) {
       try { S.user = JSON.parse(us); S.token = tk; S.uid = S.user.uid; } catch (e) { S.token = ''; }
     }
-    if (!S.token) { S.auth = { mode: 'login', msg: '' }; renderAll(); return; }
+    if (!S.token) { S.auth = { mode: 'login', msg: (API_URL && /PASTE/i.test(API_URL)) ? 'Setup needed: open config.js and paste your Web app link, then upload the site again.' : '' }; renderAll(); return; }
     if (S.user.mustChange) { S.auth = { mode: 'change', msg: 'Please choose your own password to continue.' }; renderAll(); return; }
   }
   startSession();

@@ -96,18 +96,15 @@ function authError_() { var e = new Error('Please sign in again.'); e.isUser = t
 function appUrl_() {
   var props = PropertiesService.getScriptProperties(), cur = '';
   try { cur = ScriptApp.getService().getUrl() || ''; } catch (e) { cur = ''; }
-  if (/\/exec$/.test(cur)) {
-    if (props.getProperty('APP_URL') !== cur) props.setProperty('APP_URL', cur);
-    return cur;
-  }
-  return props.getProperty('APP_URL') || cur;
+  if (/\/exec$/.test(cur) && props.getProperty('EXEC_URL') !== cur) props.setProperty('EXEC_URL', cur);
+  return props.getProperty('APP_URL') || props.getProperty('EXEC_URL') || cur;
 }
 
 /** Admin sets the official app link by hand (used when the app was only opened through a test link). */
 function adminSetAppUrl_(p, user) {
   requireAdmin_(user);
   var u = str_(p.url, 300);
-  if (!/^https:\/\/[^\s]+$/.test(u) || /\/dev(\?.*)?$/.test(u)) throw userError_('Please paste the Web app link that ends with /exec. Copy it from Deploy > Manage deployments.');
+  if (!/^https:\/\/[^\s]+$/.test(u) || /\/dev(\?.*)?$/.test(u)) throw userError_('Please paste the address medreps should open: your website (for example https://medtrack.yourdomain.com) or the Web app link ending with /exec. A test link (/dev) will not work.');
   PropertiesService.getScriptProperties().setProperty('APP_URL', u);
   return { url: u };
 }

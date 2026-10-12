@@ -52,6 +52,8 @@ No access to any spreadsheet is needed. In MedTrack: **More → Import**.
 - **Where reports are saved (single-user mode only):** More → Settings → **Where to save reports**. In Google Drive open your folder, copy its address from the browser and paste it. From then on every PDF or Excel report is saved in that folder automatically (you still get the download). The folder must be in the same Google account that owns MedTrack.
 - After updating the files, redeploy: **Deploy → Manage deployments → ✏ → Version: New version → Deploy**.
 
+> **Recommended for medreps:** host the screen as your own website (see `WEBSITE_GUIDE.md`). It works in every browser even when a Google account is signed in.
+
 ## 10. Selling to several medreps (own login for each)
 This turns MedTrack into a multi-user system. Everyone signs in with their email and a password; each medrep gets their **own private spreadsheet**, created automatically inside a Drive folder called **MedTrack Clients** in *your* account.
 

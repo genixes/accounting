@@ -19,6 +19,21 @@ function doGet(e) {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
+/**
+ * JSON API for the stand-alone website (web/ folder). The site calls this with fetch(), so it works in any browser
+ * whether or not a Google account is signed in. Body: {action, json, token}. Always answers JSON text.
+ */
+function doPost(e) {
+  var out;
+  try {
+    var b = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    out = api(String(b.action || ''), typeof b.json === 'string' ? b.json : (b.json ? JSON.stringify(b.json) : ''), String(b.token || ''));
+  } catch (err) {
+    out = JSON.stringify({ ok: false, error: 'The request could not be read. Please try again.' });
+  }
+  return ContentService.createTextOutput(out).setMimeType(ContentService.MimeType.JSON);
+}
+
 /** Template helper: <?!= include('Styles') ?> pastes another HTML file in place. */
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
