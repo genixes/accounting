@@ -6,6 +6,8 @@
 
 /** Serves the single-page app. Access is restricted by the deployment ("Only myself"). */
 function doGet(e) {
+  // Connection check: open <web app link>?ping=1 to confirm the deployment itself is reachable (shows plain text, no data).
+  if (e && e.parameter && e.parameter.ping) return ContentService.createTextOutput('MedTrack is online. Version ' + APP.VERSION + (isMulti_() ? ' (multi-user)' : ' (single-user)'));
   var tpl = HtmlService.createTemplateFromFile('Index');
   var reset = e && e.parameter && /^[A-Za-z0-9]{30,64}$/.test(e.parameter.reset || '') ? e.parameter.reset : '';
   try { appUrl_(); } catch (err) { /* remembering the live link is best-effort */ }
