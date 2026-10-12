@@ -413,6 +413,20 @@ function runMultiUserSetup() {
   notify_(msg);
 }
 
+/**
+ * Gives the owner (admin) a NEW temporary password. Run this from the editor if the admin password is lost.
+ * The password is shown in the Execution log; the admin must choose their own at the next sign-in.
+ */
+function resetAdminPassword() {
+  var m = masterSS_(), email = normEmail_(Session.getEffectiveUser().getEmail());
+  var u = readTable_(USERS, m).rows.filter(function (x) { return x.Email === email; })[0];
+  if (!u) { notify_('No admin account found for ' + email + '. Run runMultiUserSetup first.'); return; }
+  var temp = tempPassword_();
+  setPassword_(u.UserID, temp, true);
+  dropSessions_(u.UserID);
+  notify_('New admin password ready.\n\nEmail: ' + email + '\nTemporary password: ' + temp + '\n\nSign in with these. You will be asked to choose your own password.');
+}
+
 /** Turns multi-user mode off again (back to the single-user app). Data of the medreps is kept in Drive. */
 function stopMultiUser() {
   PropertiesService.getScriptProperties().deleteProperty('MULTI_USER');
