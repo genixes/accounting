@@ -76,7 +76,7 @@ function rateHit_(key, seconds) {
 }
 
 /** Safe public view of a user record. */
-function publicUser_(u) { return { uid: u.UserID, name: u.Name, email: u.Email, role: u.Role, mustChange: !!u.MustChange }; }
+function publicUser_(u) { return { uid: u.UserID, name: u.Name, email: u.Email, role: u.Role, mustChange: !!u.MustChange, sub: subInfo_(u) }; }
 
 /** Points all data functions at one medrep's spreadsheet, cache and secrets. */
 function setTenant_(user) {
@@ -131,6 +131,7 @@ function authenticate_(token) {
   if (!s) throw authError_();
   var u = readTable_(USERS, m).rows.filter(function (x) { return x.UserID === s.UserID; })[0];
   if (!u || !u.Active) throw authError_();
+  assertAccess_(u);
   setTenant_(u);
   return u;
 }
@@ -161,6 +162,7 @@ function login_(p) {
   else hashPw_(pw, 'x'); // similar timing for unknown emails
   if (!ok) { rateHit_(rk, 900); throw userError_('The email or password is not correct.'); }
   CacheService.getScriptCache().remove(rk);
+  assertAccess_(u);
   var token = createSession_(u.UserID);
   withLock_(function () {
     var row = readTable_(USERS, m).rows.filter(function (x) { return x.UserID === u.UserID; })[0];
@@ -267,15 +269,40 @@ function resetPassword_(p) {
 
 function requireAdmin_(user) { if (!user || user.Role !== 'Admin') throw userError_('Only the administrator can do that.'); }
 
-/** Lists all users (admin). */
+/** Lists all users with their subscription, plus the dashboard numbers (admin). */
 function adminListUsers_(p, user) {
   requireAdmin_(user);
   var owner = '';
   try { owner = normEmail_(Session.getEffectiveUser().getEmail()); } catch (e) { owner = ''; }
   var isOwner = !!owner && normEmail_(user.Email) === owner;
-  var rows = readTable_(USERS, masterSS_()).rows.map(function (u) { return { uid: u.UserID, name: u.Name, email: u.Email, role: u.Role, active: u.Active, mustChange: u.MustChange, lastLogin: u.LastLoginAt, created: u.CreatedAt, sheetUrl: isOwner && u.SpreadsheetID ? 'https://docs.google.com/spreadsheets/d/' + u.SpreadsheetID + '/edit' : '' }; });
-  rows.sort(function (a, b) { return a.name.localeCompare(b.name); });
-  return { users: rows, appUrl: appUrl_() };
+  var m = masterSS_(), bill = getBilling_(), today = todayYMD_();
+  var s = { total: 0, trial: 0, paying: 0, soon: 0, expired: 0, off: 0, free: 0, mrr: 0, month: 0, year: 0 };
+  var rows = readTable_(USERS, m).rows.map(function (u) {
+    var a = accessState_(u, bill, today), rep = u.Role !== 'Admin';
+    var price = u.Plan === 'Yearly' ? (u.Amount || bill.yearlyPrice) / 12 : (u.Amount || bill.monthlyPrice);
+    if (rep) {
+      s.total++;
+      if (!u.Active) s.off++;
+      else if (a.state === 'expired') s.expired++;
+      else if (a.state === 'free') s.free++;
+      else {
+        if (a.plan === 'Trial') s.trial++; else { s.paying++; s.mrr += price; }
+        if (a.daysLeft != null && a.daysLeft <= (a.plan === 'Trial' ? bill.trialRemindDays : bill.remindDays)) s.soon++;
+      }
+    }
+    return { uid: u.UserID, name: u.Name, email: u.Email, role: u.Role, active: u.Active, mustChange: u.MustChange, lastLogin: u.LastLoginAt, created: u.CreatedAt,
+      plan: a.plan, state: a.state, endsOn: a.endsOn, daysLeft: a.daysLeft, amount: u.Amount || (u.Plan === 'Yearly' ? bill.yearlyPrice : u.Plan === 'Monthly' ? bill.monthlyPrice : 0),
+      sheetUrl: isOwner && u.SpreadsheetID ? 'https://docs.google.com/spreadsheets/d/' + u.SpreadsheetID + '/edit' : '' };
+  });
+  rows.sort(function (x, y) { return x.name.localeCompare(y.name); });
+  var names = {}; rows.forEach(function (r) { names[r.uid] = r.name; });
+  var ym = today.slice(0, 7), yy = today.slice(0, 4);
+  var pays = readTable_(PAYMENTS, m).rows;
+  pays.forEach(function (x) { if (String(x.PaidOn).slice(0, 7) === ym) s.month += x.Amount; if (String(x.PaidOn).slice(0, 4) === yy) s.year += x.Amount; });
+  pays.sort(function (x, y) { return String(y.RecordedAt).localeCompare(String(x.RecordedAt)); });
+  var recent = pays.slice(0, 15).map(function (x) { return { id: x.PaymentID, uid: x.UserID, name: names[x.UserID] || '', paidOn: x.PaidOn, plan: x.Plan, amount: x.Amount, until: x.PeriodEnd, method: x.Method, note: x.Note }; });
+  s.mrr = Math.round(s.mrr * 100) / 100;
+  return { users: rows, appUrl: appUrl_(), summary: s, billing: bill, payments: recent, qrReady: !!driveFileId_(bill.qrUrl) };
 }
 
 /** Creates the medrep's private spreadsheet inside the owner's "MedTrack Clients" folder and sets it up. */
@@ -293,7 +320,7 @@ function createTenantSpreadsheet_(name, email, id) {
  * Branded welcome / new-password email with the sign-in details. Returns true when it was sent.
  * kind: 'welcome' (new account) or 'reset' (admin issued a new temporary password).
  */
-function sendCredentialEmail_(name, email, temp, url, kind) {
+function sendCredentialEmail_(name, email, temp, url, kind, trialEnds) {
   try {
     var s = (typeof getSettings_ === 'function') ? getSettings_() : {};
     var brand = /^#[0-9A-Fa-f]{6}$/.test(String(s.BrandColor || '')) ? s.BrandColor : '#0F2A44';
@@ -307,7 +334,7 @@ function sendCredentialEmail_(name, email, temp, url, kind) {
       '<div style="background:' + brand + ';padding:26px 28px"><div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:.2px">MedTrack</div><div style="color:' + accent + ';font-size:12px;font-weight:700;letter-spacing:.12em;margin-top:2px">INVENTORY &amp; EXPIRY MONITORING</div></div>' +
       '<div style="padding:28px">' +
       '<h2 style="margin:0 0 8px;color:#0F2A44;font-size:20px">' + title + '</h2>' +
-      '<p style="margin:0 0 18px;color:#334A60;font-size:14.5px;line-height:1.55">Hi ' + esc_(name) + ', ' + intro + '</p>' +
+      '<p style="margin:0 0 18px;color:#334A60;font-size:14.5px;line-height:1.55">Hi ' + esc_(name) + ', ' + intro + (trialEnds ? ' Your <b>free trial</b> runs until <b>' + esc_(fmtDate_(trialEnds)) + '</b>.' : '') + '</p>' +
       '<table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border:1px solid #E6ECF2;border-radius:12px;border-collapse:separate;overflow:hidden">' +
       row('Sign-in email', esc_(email)) + row('Temporary password', esc_(temp), true) + '</table>' +
       '<p style="margin:24px 0"><a href="' + esc_(url) + '" style="background:' + accent + ';color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:12px;display:inline-block">Open MedTrack</a></p>' +
@@ -324,7 +351,7 @@ function sendCredentialEmail_(name, email, temp, url, kind) {
 /** Creates a medrep account with a temporary password (shown once to the admin). */
 function adminCreateUser_(p, user) {
   requireAdmin_(user);
-  var name = str_(p.name, 80), email = normEmail_(p.email), role = p.role === 'Admin' ? 'Admin' : 'Rep';
+  var name = str_(p.name, 80), email = normEmail_(p.email), role = p.role === 'Admin' ? 'Admin' : 'Rep', free = role === 'Admin' || p.plan === 'Free';
   if (!name) throw userError_('Please enter the medrep\'s name.');
   if (!validEmail_(email)) throw userError_('Please enter a valid email address.');
   var m = masterSS_();
@@ -335,10 +362,10 @@ function adminCreateUser_(p, user) {
   var saved = { SS_MEMO_: SS_MEMO_, T: TENANT_ID_, C: CACHE_PFX_ };
   var tenantSS = createTenantSpreadsheet_(name, email, id);
   SS_MEMO_ = saved.SS_MEMO_; TENANT_ID_ = saved.T; CACHE_PFX_ = saved.C;
-  var row = { UserID: id, Email: email, Name: name, Role: role, Active: true, PasswordHash: hashPw_(temp, salt), Salt: salt, MustChange: true, SpreadsheetID: tenantSS.getId(), CreatedAt: nowISO_(), LastLoginAt: '', AlertHour: 7, LastAlertDate: '' };
+  var row = { UserID: id, Email: email, Name: name, Role: role, Active: true, PasswordHash: hashPw_(temp, salt), Salt: salt, MustChange: true, SpreadsheetID: tenantSS.getId(), CreatedAt: nowISO_(), LastLoginAt: '', AlertHour: 7, LastAlertDate: '', Plan: free ? 'Free' : 'Trial', TrialEnds: free ? '' : addDaysYMD_(todayYMD_(), getBilling_().trialDays) };
   withLock_(function () { appendRows_(USERS, [row], m); });
-  var url = appUrl_(), emailed = p.notify === false ? false : sendCredentialEmail_(name, email, temp, url, 'welcome');
-  return { user: { uid: id, name: name, email: email, role: role }, temp: temp, url: url, emailed: emailed };
+  var url = appUrl_(), emailed = p.notify === false ? false : sendCredentialEmail_(name, email, temp, url, 'welcome', row.TrialEnds);
+  return { user: { uid: id, name: name, email: email, role: role }, temp: temp, url: url, emailed: emailed, trialEnds: row.TrialEnds };
 }
 
 /** Admin resets a user's password to a new temporary one. */
@@ -381,8 +408,9 @@ function syncAlertHour_() {
 
 /** Hourly trigger body: for every active medrep whose check time has come and who has not been done today. */
 function multiAlertJob_() {
+  try { subscriptionReminders_(); } catch (e) { console.error('Reminders failed: ' + e); }
   var m = masterSS_(), today = todayYMD_(), hour = parseInt(Utilities.formatDate(new Date(), APP.TZ, 'H'), 10), t0 = Date.now();
-  var users = readTable_(USERS, m).rows.filter(function (u) { return u.Active && u.LastAlertDate !== today && hour >= u.AlertHour; });
+  var users = readTable_(USERS, m).rows.filter(function (u) { return u.Active && u.LastAlertDate !== today && hour >= u.AlertHour && accessState_(u).state !== 'expired'; });
   var done = 0;
   users.forEach(function (u) {
     if (Date.now() - t0 > 270000) return;
@@ -440,7 +468,7 @@ function runMultiUserSetup() {
     var id = uniqueId_('USR', indexBy_(readTable_(USERS, m).rows, 'UserID'), ''), temp = tempPassword_(), salt = randomString_(24);
     var ts = createTenantSpreadsheet_('Admin', email, id);
     SS_MEMO_ = null; TENANT_ID_ = ''; CACHE_PFX_ = 'MT_';
-    appendRows_(USERS, [{ UserID: id, Email: email, Name: 'Administrator', Role: 'Admin', Active: true, PasswordHash: hashPw_(temp, salt), Salt: salt, MustChange: true, SpreadsheetID: ts.getId(), CreatedAt: nowISO_(), LastLoginAt: '', AlertHour: 7, LastAlertDate: '' }], m);
+    appendRows_(USERS, [{ UserID: id, Email: email, Name: 'Administrator', Role: 'Admin', Active: true, PasswordHash: hashPw_(temp, salt), Salt: salt, MustChange: true, SpreadsheetID: ts.getId(), CreatedAt: nowISO_(), LastLoginAt: '', AlertHour: 7, LastAlertDate: '', Plan: 'Free' }], m);
     msg = 'Multi-user mode is ON.\n\nAdmin login\nEmail: ' + email + '\nTemporary password: ' + temp + '\n\nDeploy the web app with "Who has access: Anyone" and sign in. You will be asked to choose your own password.';
   }
   installMultiTrigger_();

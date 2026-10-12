@@ -70,7 +70,11 @@ function actions_() {
     adminCreateUser: adminCreateUser_,
     adminResetPassword: adminResetPassword_,
     adminSetActive: adminSetActive_,
-    adminSetAppUrl: adminSetAppUrl_
+    adminSetAppUrl: adminSetAppUrl_,
+    adminSaveBilling: adminSaveBilling_,
+    adminConfirmPayment: adminConfirmPayment_,
+    adminUpdateSubscription: adminUpdateSubscription_,
+    adminSendReminder: adminSendReminder_
   };
 }
 

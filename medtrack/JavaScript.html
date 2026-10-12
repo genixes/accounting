@@ -156,6 +156,7 @@ function server(action, payload, timeoutMs) {
       var o = null;
       try { o = typeof r === 'string' ? JSON.parse(r) : r; } catch (e) { reject(new Error('bad response')); return; }
       if (o && o.code === 'AUTH' && action !== 'login') { authLost(); reject(new Error('auth')); return; }
+      if (o && o.code === 'EXPIRED' && action !== 'login') { authLost(o.error); reject(new Error('expired')); return; }
       if (o && o.code === 'CHANGE') { S.auth = { mode: 'change', msg: o.error }; renderAll(); reject(new Error('change')); return; }
       resolve(o || { ok: false, error: 'The server sent an empty answer. Please try again.' });
     }, function (e) { if (done) return; done = true; clearTimeout(timer); reject(e || new Error('failed')); });
@@ -312,7 +313,7 @@ function refresh(silent) {
   return server('loadAll').then(function (res) {
     S.refreshing = false;
     if (!res || !res.ok) throw new Error((res && res.error) || 'load failed');
-    applyLoaded(res, false); S.loading = false; S.loadError = ''; persist(); renderAll();
+    applyLoaded(res, false); if (res.user) { S.user = res.user; store.set('mt_user', JSON.stringify(res.user)); } S.loading = false; S.loadError = ''; persist(); renderAll();
   }).catch(function (e) {
     S.refreshing = false;
     if (!S.data) { S.loading = false; S.loadError = (e && e.message && e.message !== 'timeout' && e.message !== 'failed') ? e.message : 'We could not reach the server. Check your connection and try again.'; }
@@ -431,7 +432,7 @@ A.retryLoad = function () { S.loadError = ''; S.loading = true; renderView(false
 /* ---------------------------- Chrome and routing ---------------------------- */
 var NAV = [{ k: 'dashboard', l: 'Dashboard', i: 'dash' }, { k: 'inventory', l: 'Inventory', i: 'box' }, { k: 'record', l: 'Record', i: 'plus' }, { k: 'accounts', l: 'Accounts', i: 'users' }, { k: 'more', l: 'More', i: 'more' }];
 var MORE_ROUTES = { more: 1, receive: 1, reports: 1, import: 1, settings: 1, users: 1 };
-var TITLES = { dashboard: 'Dashboard', inventory: 'Inventory', record: 'Record movement', accounts: 'Accounts', more: 'More', receive: 'Receive delivery', reports: 'Reports', import: 'Import from Excel', settings: 'Settings', users: 'Users' };
+var TITLES = { dashboard: 'Dashboard', inventory: 'Inventory', record: 'Record movement', accounts: 'Accounts', more: 'More', receive: 'Receive delivery', reports: 'Reports', import: 'Import from Excel', settings: 'Settings', users: 'Subscribers' };
 var FORM_ROUTES = { record: 1, receive: 1, reports: 1, import: 1, settings: 1, users: 1 };
 var SIDE = [['dashboard', 'Dashboard', 'dash'], ['inventory', 'Inventory', 'box'], ['record', 'Record movement', 'plus'], ['receive', 'Receive delivery', 'truck'], ['accounts', 'Accounts', 'users'], ['reports', 'Reports', 'file'], ['import', 'Import', 'upload'], ['settings', 'Settings', 'sliders']];
 
@@ -475,7 +476,7 @@ function renderChrome() {
   $('#topbar').innerHTML = left + '<div class="title">' + esc(title) + '</div><button class="sync-badge" id="syncBadge" data-a="openSync"></button>' +
     '<button class="iconbtn" data-a="doRefresh" aria-label="Refresh data" title="Refresh">' + (S.refreshing ? '<span class="spinner"></span>' : ico('sync')) + '</button>';
   $('#sidebar').innerHTML = '<div class="brand"><div class="logo">' + ico('pill') + '</div><div><b>MedTrack</b><small>' + esc(biz || 'Expiry monitoring') + '</small></div></div>' +
-    SIDE.concat(MULTI && S.user && S.user.role === 'Admin' ? [['users', 'Users', 'users']] : []).map(function (s) { var on = s[0] === r || (r === 'accounts' && s[0] === 'accounts'); return '<button class="navlink' + (on ? ' active' : '') + '" data-a="nav" data-to="' + s[0] + '">' + ico(s[2]) + s[1] + '</button>'; }).join('') +
+    SIDE.concat(MULTI && S.user && S.user.role === 'Admin' ? [['users', 'Subscribers', 'users']] : []).map(function (s) { var on = s[0] === r || (r === 'accounts' && s[0] === 'accounts'); return '<button class="navlink' + (on ? ' active' : '') + '" data-a="nav" data-to="' + s[0] + '">' + ico(s[2]) + s[1] + '</button>'; }).join('') +
     '<button class="navlink' + (r === 'more' ? ' active' : '') + '" data-a="nav" data-to="more" style="margin-top:8px">' + ico('more') + (MULTI ? 'Account &amp; style' : 'Style &amp; theme') + '</button>' +
     '<div class="side-foot">Powered by ' + LAYAW_LINK + '<br>v' + esc(S.flags.version || '1.0.0') + '</div>';
   $('#bottomnav').innerHTML = NAV.map(function (n) {
@@ -608,6 +609,7 @@ V.dashboard = function () {
   var st = dashStats(), biz = S.data.settings.BusinessName, h = '<div class="page">';
   h += '<div class="page-head"><div><div class="h1">' + greet() + '</div><div class="sub">' + esc(fmtDateLong(S.today)) + (biz ? ' · ' + esc(biz) : '') + '</div></div><button class="btn primary" data-a="goReceive">' + ico('truck') + ' Receive delivery</button></div>';
   if (S.fromCache && !S.online) h += '<div class="banner info">' + ico('wifi') + '<span>You are offline. Showing the data last saved on this phone.</span></div>';
+  h += subBanner();
   var ex = st.bk.expired;
   if (ex.n) h += '<div class="banner danger">' + ico('alert') + '<span><b>' + ex.n + ' batch' + (ex.n === 1 ? ' has' : 'es have') + ' expired</b> and still ' + (ex.n === 1 ? 'has' : 'have') + ' ' + intf(ex.u) + ' unit' + (ex.u === 1 ? '' : 's') + ' in stock. Pull ' + (ex.n === 1 ? 'it' : 'them') + ' out now.</span><button class="btn sm" data-a="goBucket" data-b="expired">Review</button></div>';
   h += '<div class="grid g-stats">' +
@@ -1185,7 +1187,7 @@ V.more = function () {
   var h = '<div class="page"><div class="page-head"><div><div class="h1">More</div><div class="sub">Deliveries, reports and settings</div></div></div><div class="card list">' +
     link('receive', 'truck', 'Receive delivery', 'Log new stock from your company') + link('reports', 'file', 'Reports', 'Monthly report, PDF and Excel') + link('import', 'upload', 'Import from Excel', 'One-time import of your existing stock') + link('settings', 'sliders', 'Settings', 'Alerts, Telegram, email and SMS') + '</div>' +
     (pend ? '<button class="card item" data-a="openSync" style="border-radius:var(--r)"><span class="avatar">' + ico('sync') + '</span><div class="main"><div class="t">Pending sync</div><div class="s">' + S.queue.length + ' waiting' + (S.failed.length ? ', ' + S.failed.length + ' need attention' : '') + '</div></div>' + ico('chev') + '</button>' : '') +
-    (MULTI && S.user ? '<div class="card list">' + (S.user.role === 'Admin' ? link('users', 'users', 'Manage users', 'Add medreps, reset passwords') : '') + '<div class="item" style="cursor:default"><span class="avatar">' + esc(S.user.name.charAt(0).toUpperCase()) + '</span><div class="main"><div class="t">' + esc(S.user.name) + '</div><div class="s">' + esc(S.user.email) + '</div></div></div><div style="display:flex;gap:8px;padding:0 16px 14px;flex-wrap:wrap"><button class="btn sm" data-a="openChange">Change password</button><button class="btn sm ghost" data-a="logout">Sign out</button></div></div>' : '') +
+    (MULTI && S.user ? '<div class="card list">' + (S.user.role === 'Admin' ? link('users', 'users', 'Subscribers', 'Trials, payments and reminders') : '') + '<div class="item" style="cursor:default"><span class="avatar">' + esc(S.user.name.charAt(0).toUpperCase()) + '</span><div class="main"><div class="t">' + esc(S.user.name) + '</div><div class="s">' + esc(S.user.email) + '</div></div></div><div style="display:flex;gap:8px;padding:0 16px 14px;flex-wrap:wrap"><button class="btn sm" data-a="openChange">Change password</button><button class="btn sm ghost" data-a="logout">Sign out</button></div></div>' : '') +
     '<div class="card pad"><div class="lab" style="margin-bottom:8px">Style</div><div class="seg" style="margin-bottom:14px">' + [['glass', 'Glass'], ['solid', 'Solid']].map(function (t) { return '<button class="' + ((document.documentElement.getAttribute('data-style') || 'glass') === t[0] ? 'on' : '') + '" data-a="setStyle" data-t="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="hint" style="margin:-6px 0 14px">Solid is plainer and easier to read in bright sunlight.</div><div class="lab" style="margin-bottom:8px">Appearance</div><div class="seg">' + [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(function (t) { return '<button class="' + (S.theme === t[0] ? 'on' : '') + '" data-a="setTheme" data-t="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div></div>' +
     '<div class="footer">MedTrack v' + esc(S.flags.version || '1.0.0') + ' · Powered by ' + LAYAW_LINK + '</div></div>';
   return { html: h };
@@ -1584,10 +1586,10 @@ A.doChange = function (el) {
   }, function () { setBusy(el, false); authFail('Could not reach the server. Please try again.'); });
 };
 /** The server says our session is no longer valid: go back to sign-in, keeping unsynced entries safe. */
-function authLost() {
+function authLost(msg) {
   if (!S.token && S.auth.mode === 'login') return;
   S.token = ''; store.del('mt_token'); S.queue = []; S.failed = []; S.data = null; S.idx = null; closeAllSheets();
-  S.auth = { mode: 'login', msg: 'Your session ended. Please sign in again.', email: S.user ? S.user.email : '' }; renderAll();
+  S.auth = { mode: 'login', msg: msg || 'Your session ended. Please sign in again.', email: S.user ? S.user.email : '' }; renderAll();
 }
 A.logout = function () {
   var pend = S.queue.length;
@@ -1609,26 +1611,107 @@ function copyText(t) {
     var ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; } document.body.removeChild(ta); resolve(ok);
   });
 }
+S.subFilter = 'all'; S.sum = null; S.billing = null; S.payments = [];
+function subBanner() {
+  var s = S.user && S.user.sub; if (!MULTI || !s || s.state === 'free' || s.state === 'active') return '';
+  var c = s.contact ? ' ' + esc(s.contact) : '', d = s.daysLeft;
+  if (s.state === 'trial') return '<div class="banner info">' + ico('info') + '<span><b>Free trial: ' + (d <= 0 ? 'ends today' : d + (d === 1 ? ' day left' : ' days left')) + '.</b> It ends on ' + esc(fmtDate(s.endsOn)) + '. To keep using MedTrack, subscribe before then.' + (c ? ' Contact:' + c : '') + '</span></div>';
+  if (s.state === 'due') return '<div class="banner warn">' + ico('alert') + '<span><b>Your ' + esc(s.plan) + ' plan is due ' + (d <= 0 ? 'today' : 'in ' + d + (d === 1 ? ' day' : ' days')) + '</b> (' + esc(fmtDate(s.endsOn)) + '). Please check your email for how to pay.' + (c ? ' Contact:' + c : '') + '</span></div>';
+  if (s.state === 'grace') return '<div class="banner danger">' + ico('alert') + '<span><b>Your payment is overdue.</b> Please pay now to keep your access.' + (c ? ' Contact:' + c : '') + '</span></div>';
+  return '';
+}
 V.users = function () {
-  var h = '<div class="page"><div class="page-head"><div><div class="h1">Users</div><div class="sub">Everyone who can sign in. Each medrep has their own private data.</div></div><button class="btn primary sm" data-a="addUser">' + ico('plus') + ' Add medrep</button></div><div class="card pad form" id="appLinkCard"></div><div class="card list" id="userList">' + skelRows(3) + '</div><div class="footer">Powered by ' + LAYAW_LINK + '</div></div>';
+  var h = '<div class="page"><div class="page-head"><div><div class="h1">Subscribers</div><div class="sub">Who signed up, who is paying and who is due. Each medrep has their own private data.</div></div><button class="btn primary sm" data-a="addUser">' + ico('plus') + ' Add medrep</button></div>' +
+    '<div class="grid g-stats" id="subTiles"></div><div class="chips" id="subChips"></div><div class="card list" id="userList">' + skelRows(3) + '</div>' +
+    '<section><div class="sec-head"><h2 class="h2">Recent payments</h2></div><div class="card list" id="payList"></div></section>' +
+    '<div class="card pad form" id="billCard"></div><div class="card pad form" id="appLinkCard"></div><div class="footer">Powered by ' + LAYAW_LINK + '</div></div>';
   return { html: h, after: loadUsers };
 };
+function subPill(u) {
+  if (!u.active) return grayPill('Off');
+  var d = u.daysLeft;
+  switch (u.state) {
+    case 'free': return grayPill(u.role === 'Admin' ? 'Admin' : 'Free');
+    case 'trial': return '<span class="pill blue">Trial · ' + (d <= 0 ? 'ends today' : d + 'd left') + '</span>';
+    case 'active': return '<span class="pill green">Active</span>';
+    case 'due': return '<span class="pill amber">Due ' + (d <= 0 ? 'today' : 'in ' + d + 'd') + '</span>';
+    case 'grace': return '<span class="pill amber">Overdue ' + Math.abs(d) + 'd</span>';
+    default: return '<span class="pill red">Expired</span>';
+  }
+}
+function subLine(u) {
+  if (u.state === 'free') return u.role === 'Admin' ? 'Administrator' : 'Free account';
+  if (u.plan === 'Trial') return 'Free trial · ends ' + fmtDate(u.endsOn);
+  return u.plan + (u.amount ? ' · ' + peso(u.amount, 0) : '') + ' · ' + (u.state === 'expired' || u.state === 'grace' ? 'was due ' : 'due ') + fmtDate(u.endsOn);
+}
+function subFilterOk(u, f) {
+  var soon = u.daysLeft != null && u.state !== 'expired' && u.daysLeft <= (u.plan === 'Trial' ? (S.billing.trialRemindDays || 2) : (S.billing.remindDays || 5));
+  if (f === 'all') return true;
+  if (u.role === 'Admin') return false;
+  if (f === 'off') return !u.active;
+  if (!u.active) return false;
+  if (f === 'trial') return u.plan === 'Trial' && u.state === 'trial';
+  if (f === 'paying') return (u.plan === 'Monthly' || u.plan === 'Yearly') && u.state !== 'expired';
+  if (f === 'soon') return soon;
+  if (f === 'expired') return u.state === 'expired';
+  return true;
+}
+function drawSubs() {
+  var s = S.sum, tiles = $('#subTiles'); if (!tiles || !s) return;
+  tiles.innerHTML = '<div class="card stat"><div class="lbl">Registered</div><div class="val">' + intf(s.total) + '</div><div class="ssub">' + intf(s.free) + ' free · ' + intf(s.off) + ' off</div></div>' +
+    '<div class="card stat"><div class="lbl">On trial</div><div class="val">' + intf(s.trial) + '</div><div class="ssub">' + (S.billing.trialDays || 7) + '-day free trial</div></div>' +
+    '<div class="card stat"><div class="lbl">Paying</div><div class="val">' + intf(s.paying) + '</div><div class="ssub">' + peso(s.mrr, 0) + ' per month</div></div>' +
+    '<div class="card stat"><div class="lbl">Needs attention</div><div class="val">' + intf(s.soon + s.expired) + '</div><div class="ssub">' + intf(s.soon) + ' due soon · ' + intf(s.expired) + ' expired</div></div>';
+  var cnt = {}; ['all', 'trial', 'paying', 'soon', 'expired', 'off'].forEach(function (f) { cnt[f] = (S.users || []).filter(function (u) { return subFilterOk(u, f); }).length; });
+  $('#subChips').innerHTML = [['all', 'Everyone'], ['trial', 'Trial'], ['paying', 'Paying'], ['soon', 'Due soon'], ['expired', 'Expired'], ['off', 'Off']].map(function (c) { return '<button class="chip' + (S.subFilter === c[0] ? ' on' : '') + '" data-a="subFilter" data-v="' + c[0] + '">' + c[1] + ' · ' + cnt[c[0]] + '</button>'; }).join('');
+  var list = (S.users || []).filter(function (u) { return subFilterOk(u, S.subFilter); });
+  $('#userList').innerHTML = list.map(function (u) {
+    return '<button class="item" data-a="openUser" data-id="' + esc(u.uid) + '"><span class="avatar">' + esc(u.name.charAt(0).toUpperCase()) + '</span><div class="main"><div class="t">' + esc(u.name) + (u.role === 'Admin' ? ' <span class="tag">Admin</span>' : '') + '</div><div class="s">' + esc(u.email) + '</div><div class="s">' + esc(subLine(u)) + ' · ' + (u.lastLogin ? 'last sign-in ' + esc(fmtDate(String(u.lastLogin).slice(0, 10))) : 'not signed in yet') + '</div></div><div class="e">' + subPill(u) + '</div></button>';
+  }).join('') || emptyState('users', 'Nobody here', S.subFilter === 'all' ? 'Add your first medrep.' : 'No one matches this filter.');
+  var pays = S.payments || [];
+  $('#payList').innerHTML = pays.map(function (p) {
+    return '<div class="item" style="cursor:default"><span class="avatar">' + ico('check') + '</span><div class="main"><div class="t">' + esc(p.name || 'Unknown') + ' <span class="tag">' + esc(p.plan) + '</span></div><div class="s">' + esc(fmtDate(p.paidOn)) + (p.method ? ' · ' + esc(p.method) : '') + ' · active until ' + esc(fmtDate(p.until)) + '</div></div><div class="e"><b>' + peso(p.amount, 0) + '</b></div></div>';
+  }).join('') || '<div class="pad muted" style="padding:16px">No payments recorded yet. Collected so far: ' + peso(s.year, 0) + ' this year.</div>';
+  if (pays.length) $('#payList').insertAdjacentHTML('beforeend', '<div class="pad muted" style="padding:12px 16px;font-size:12.5px">Collected: <b>' + peso(s.month, 0) + '</b> this month · <b>' + peso(s.year, 0) + '</b> this year</div>');
+}
+function drawBilling() {
+  var b = S.billing, c = $('#billCard'); if (!c || !b) return;
+  c.innerHTML = '<h2 class="h2">Plans and reminders</h2><p class="muted">Prices, the free trial and the payment reminder email. The email is sent to the medrep with a copy to you.</p>' +
+    '<div class="row2">' + fld('bl_m', 'Monthly price (₱)', { type: 'number', value: b.monthlyPrice, attrs: 'inputmode="decimal" min="0" step="1"' }) + fld('bl_y', 'Yearly price (₱)', { type: 'number', value: b.yearlyPrice, attrs: 'inputmode="decimal" min="0" step="1"' }) + '</div>' +
+    '<div class="row2">' + fld('bl_t', 'Free trial (days)', { type: 'number', value: b.trialDays, attrs: 'inputmode="numeric" min="1" max="90"' }) + fld('bl_r', 'Remind before due (days)', { type: 'number', value: b.remindDays, attrs: 'inputmode="numeric" min="1" max="30"' }) + '</div>' +
+    '<div class="row2">' + fld('bl_tr', 'Trial reminder (days before end)', { type: 'number', value: b.trialRemindDays, attrs: 'inputmode="numeric" min="1" max="30"' }) + fld('bl_g', 'Grace after due date (days)', { type: 'number', value: b.graceDays, attrs: 'inputmode="numeric" min="0" max="60"', hint: 'They can still sign in during the grace days.' }) + '</div>' +
+    fld('bl_pn', 'Name on your payment QR', { value: b.payeeName, attrs: 'maxlength="80" placeholder="LAYAW SYSTEM"' }) +
+    fld('bl_qr', 'Payment QR picture (Google Drive link)', { value: b.qrUrl, attrs: 'inputmode="url" autocapitalize="off" placeholder="https://drive.google.com/file/d/..."', hint: 'Upload your GCash / Maya / bank QR as a picture to your Drive, then Share > Copy link.' + (S.qrReady ? ' <b>QR is ready.</b>' : '') }) +
+    fld('bl_in', 'How to pay (shown in the email)', { html: '<textarea class="input" id="bl_in" rows="3" maxlength="600" placeholder="GCash 0917 000 0000 · Bank transfer details...">' + esc(b.instructions) + '</textarea>' }) +
+    fld('bl_c', 'Your contact (shown to medreps)', { value: b.contact, attrs: 'maxlength="120" placeholder="layawsystem@gmail.com · 0917 000 0000"' }) +
+    '<div><button class="btn primary sm" data-a="saveBilling">Save plans and reminders</button></div>';
+}
+function drawAppLink() {
+  var c = $('#appLinkCard'); if (!c) return; var url = S.flags.appUrl || '';
+  c.innerHTML = '<div><b>Link your medreps open</b><p class="muted" style="margin-top:4px">This is the address in password-reset emails and in the details you send. Use your website (for example <b>https://medtrack.yourdomain.com</b>) or the Web app link that ends with <b>/exec</b>.</p></div>' + fld('al_url', 'Web app link', { value: url, attrs: 'inputmode="url" autocapitalize="off" placeholder="https://medtrack.yourdomain.com"' }) + '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-a="saveAppUrl">Save link</button><button class="btn sm ghost" data-a="copyAppUrl">Copy link</button></div>' + (url && !/\/dev(\?.*)?$/.test(url) ? '' : '<div class="banner warn">' + ico('alert') + '<span>The link is not set yet, or it is a test link. Paste your website or Web app link and tap Save link.</span></div>');
+}
 function loadUsers() {
-  if (!S.user || S.user.role !== 'Admin') { $('#userList').innerHTML = emptyState('users', 'Admins only', 'Only the administrator can manage users.'); return; }
+  if (!S.user || S.user.role !== 'Admin') { var ul = $('#userList'); if (ul) ul.innerHTML = emptyState('users', 'Admins only', 'Only the administrator can manage subscribers.'); return; }
   server('adminListUsers').then(function (res) {
     var box = $('#userList'); if (!box) return;
-    if (!res.ok) { box.innerHTML = emptyState('users', 'Could not load users', res.error); return; }
-    S.users = res.users; S.flags.appUrl = res.appUrl || S.flags.appUrl;
-    $('#appLinkCard').innerHTML = '<div><b>Link your medreps open</b><p class="muted" style="margin-top:4px">This is the address in password-reset emails and in the details you send. Use your website (for example <b>https://medtrack.yourdomain.com</b>) or the Web app link that ends with <b>/exec</b>.</p></div>' + fld('al_url', 'Web app link', { value: res.appUrl || '', attrs: 'inputmode="url" autocapitalize="off" placeholder="https://medtrack.yourdomain.com"' }) + '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-a="saveAppUrl">Save link</button><button class="btn sm ghost" data-a="copyAppUrl">Copy link</button></div>' + (res.appUrl && !/\/dev(\?.*)?$/.test(res.appUrl) ? '' : '<div class="banner warn">' + ico('alert') + '<span>The link is not set yet, or it is a test link. Paste your Web app link (Deploy > Manage deployments) and tap Save link, or open the real link once.</span></div>');
-    box.innerHTML = res.users.map(function (u) {
-      return '<button class="item" data-a="openUser" data-id="' + esc(u.uid) + '"><span class="avatar">' + esc(u.name.charAt(0).toUpperCase()) + '</span><div class="main"><div class="t">' + esc(u.name) + (u.role === 'Admin' ? ' <span class="tag">Admin</span>' : '') + (u.active ? '' : ' <span class="tag" style="color:var(--gray);background:var(--gray-bg)">Off</span>') + '</div><div class="s">' + esc(u.email) + '</div><div class="s">' + (u.lastLogin ? 'Last sign-in ' + esc(fmtDate(String(u.lastLogin).slice(0, 10))) : 'Has not signed in yet') + '</div></div><div class="e">' + (u.mustChange ? '<span class="pill amber">Temp password</span>' : u.active ? '<span class="pill green">Active</span>' : grayPill('Off')) + '</div></button>';
-    }).join('') || emptyState('users', 'No users yet', 'Add your first medrep.');
+    if (!res.ok) { box.innerHTML = emptyState('users', 'Could not load subscribers', res.error); return; }
+    S.users = res.users; S.sum = res.summary; S.billing = res.billing; S.payments = res.payments || []; S.qrReady = !!res.qrReady; S.flags.appUrl = res.appUrl || S.flags.appUrl;
+    drawSubs(); if (!document.getElementById('bl_m')) drawBilling(); if (!document.getElementById('al_url')) drawAppLink();
   }, function () { var box = $('#userList'); if (box) box.innerHTML = emptyState('users', 'No connection', 'Could not reach the server.'); });
 }
-function credentialSheet(title, name, email, temp, url, emailed) {
-  var text = 'MedTrack login for ' + name + '\nLink: ' + url + '\nEmail: ' + email + '\nTemporary password: ' + temp + '\n(You will be asked to choose your own password the first time you sign in.)';
+A.subFilter = function (el) { S.subFilter = el.getAttribute('data-v'); drawSubs(); };
+A.saveBilling = function (el) {
+  var ids = ['bl_m', 'bl_y', 'bl_t', 'bl_r', 'bl_tr', 'bl_g', 'bl_qr']; clearErrs(ids); setBusy(el, true, 'Saving');
+  server('adminSaveBilling', { monthlyPrice: val('bl_m'), yearlyPrice: val('bl_y'), trialDays: val('bl_t'), remindDays: val('bl_r'), trialRemindDays: val('bl_tr'), graceDays: val('bl_g'), payeeName: val('bl_pn').trim(), qrUrl: val('bl_qr').trim(), instructions: val('bl_in').trim(), contact: val('bl_c').trim() }).then(function (res) {
+    setBusy(el, false);
+    if (!res.ok) { var bad = /Monthly/.test(res.error) ? 'bl_m' : /Yearly/.test(res.error) ? 'bl_y' : /Trial reminder/.test(res.error) ? 'bl_tr' : /Trial/.test(res.error) ? 'bl_t' : /Reminder/.test(res.error) ? 'bl_r' : /Grace/.test(res.error) ? 'bl_g' : 'bl_qr'; return setErr(bad, res.error); }
+    S.billing = res.billing; toast('Saved', 'ok'); loadUsers();
+  }, function () { setBusy(el, false); toast('Could not reach the server.', 'err'); });
+};
+function credentialSheet(title, name, email, temp, url, emailed, trialEnds) {
+  var text = 'MedTrack login for ' + name + '\nLink: ' + url + '\nEmail: ' + email + '\nTemporary password: ' + temp + (trialEnds ? '\nFree trial until: ' + fmtDate(trialEnds) : '') + '\n(You will be asked to choose your own password the first time you sign in.)';
   S.cred = text;
-  openSheet({ title: title, html: (emailed ? '<div class="banner ok">' + ico('check') + '<span>A branded email with these details was sent to ' + esc(email) + '.</span></div>' : '') + '<div class="banner warn" style="margin-top:8px">' + ico('alert') + '<span>The temporary password is shown only once. ' + (emailed ? 'You can also copy it below.' : 'Copy it now and send it to ' + esc(name) + '.') + '</span></div><div class="card" style="box-shadow:none;margin-top:12px"><div class="pad" style="padding:6px 16px"><div class="kv"><span>Link</span><b style="word-break:break-all;font-size:12.5px">' + esc(url) + '</b></div><div class="kv"><span>Email</span><b>' + esc(email) + '</b></div><div class="kv"><span>Temporary password</span><b style="font-size:18px;letter-spacing:.04em">' + esc(temp) + '</b></div></div></div>', foot: '<button class="btn primary" data-a="copyCred">Copy all details</button>' });
+  openSheet({ title: title, html: (emailed ? '<div class="banner ok">' + ico('check') + '<span>A branded email with these details was sent to ' + esc(email) + '.</span></div>' : '') + '<div class="banner warn" style="margin-top:8px">' + ico('alert') + '<span>The temporary password is shown only once. ' + (emailed ? 'You can also copy it below.' : 'Copy it now and send it to ' + esc(name) + '.') + '</span></div><div class="card" style="box-shadow:none;margin-top:12px"><div class="pad" style="padding:6px 16px"><div class="kv"><span>Link</span><b style="word-break:break-all;font-size:12.5px">' + esc(url) + '</b></div><div class="kv"><span>Email</span><b>' + esc(email) + '</b></div><div class="kv"><span>Temporary password</span><b style="font-size:18px;letter-spacing:.04em">' + esc(temp) + '</b></div>' + (trialEnds ? '<div class="kv"><span>Free trial until</span><b>' + esc(fmtDate(trialEnds)) + '</b></div>' : '') + '</div></div>', foot: '<button class="btn primary" data-a="copyCred">Copy all details</button>' });
 }
 A.copyCred = function () { copyText(S.cred || '').then(function (ok) { toast(ok ? 'Copied. Paste it into a message.' : 'Could not copy. Please select and copy the text.', ok ? 'ok' : 'warn'); }); };
 A.saveAppUrl = function (el) {
@@ -1637,7 +1720,7 @@ A.saveAppUrl = function (el) {
 };
 A.copyAppUrl = function () { copyText(val('al_url')).then(function (ok) { toast(ok ? 'Link copied' : 'Could not copy', ok ? 'ok' : 'warn'); }); };
 A.addUser = function () {
-  openSheet({ title: 'Add medrep', html: '<div class="form">' + fld('nu_name', 'Full name', { req: 1, attrs: 'maxlength="80" autocomplete="off"' }) + fld('nu_email', 'Email (used to sign in)', { req: 1, type: 'email', attrs: 'autocapitalize="off" autocomplete="off"' }) + fld('nu_role', 'Role', { html: '<select class="select" id="nu_role"><option value="Rep">Medrep</option><option value="Admin">Administrator</option></select>' }) + '<label class="check" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="nu_mail" checked> <span>Email them their login details</span></label><p class="hint">We create their own private spreadsheet in your Drive and a temporary password. The email has the link, their email and the temporary password.</p></div>', foot: '<button class="btn" data-a="sheetCancel">Cancel</button><button class="btn primary" id="nuGo" data-a="saveUser">Create account</button>' });
+  openSheet({ title: 'Add medrep', html: '<div class="form">' + fld('nu_name', 'Full name', { req: 1, attrs: 'maxlength="80" autocomplete="off"' }) + fld('nu_email', 'Email (used to sign in)', { req: 1, type: 'email', attrs: 'autocapitalize="off" autocomplete="off"' }) + fld('nu_role', 'Role', { html: '<select class="select" id="nu_role"><option value="Rep">Medrep</option><option value="Admin">Administrator</option></select>' }) + fld('nu_plan', 'Plan', { html: '<select class="select" id="nu_plan"><option value="Trial">Free trial (' + ((S.billing && S.billing.trialDays) || 7) + ' days)</option><option value="Free">Free account (no expiry)</option></select>' }) + '<label class="check" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="nu_mail" checked> <span>Email them their login details</span></label><p class="hint">We create their own private spreadsheet in your Drive and a temporary password. The email has the link, their email and the temporary password.</p></div>', foot: '<button class="btn" data-a="sheetCancel">Cancel</button><button class="btn primary" id="nuGo" data-a="saveUser">Create account</button>' });
 };
 A.saveUser = function (el) {
   var name = val('nu_name').trim(), email = val('nu_email').trim(); setErr('nu_name', ''); setErr('nu_email', ''); var ok = true;
@@ -1646,17 +1729,78 @@ A.saveUser = function (el) {
   if (!ok) return;
   if (!S.online) return toast('Creating an account needs a connection.', 'warn');
   setBusy(el, true, 'Creating (this takes a few seconds)');
-  server('adminCreateUser', { name: name, email: email, role: val('nu_role'), notify: !!($('#nu_mail') && $('#nu_mail').checked) }, 120000).then(function (res) {
+  server('adminCreateUser', { name: name, email: email, role: val('nu_role'), plan: val('nu_plan'), notify: !!($('#nu_mail') && $('#nu_mail').checked) }, 120000).then(function (res) {
     setBusy(el, false);
     if (!res.ok) return setErr('nu_email', res.error);
-    closeAllSheets(); credentialSheet('Account created', res.user.name, res.user.email, res.temp, res.url, res.emailed); loadUsers();
+    closeAllSheets(); credentialSheet('Account created', res.user.name, res.user.email, res.temp, res.url, res.emailed, res.trialEnds); loadUsers();
   }, function () { setBusy(el, false); toast('Could not reach the server. Check the Users list before trying again.', 'err'); });
 };
+function userById(id) { return (S.users || []).filter(function (x) { return x.uid === id; })[0]; }
 A.openUser = function (el) {
-  var u = (S.users || []).filter(function (x) { return x.uid === el.getAttribute('data-id'); })[0]; if (!u) return;
-  var self = S.user && u.uid === S.user.uid;
-  openSheet({ title: u.name, html: '<div class="card" style="box-shadow:none"><div class="pad" style="padding:6px 16px"><div class="kv"><span>Email</span><b>' + esc(u.email) + '</b></div><div class="kv"><span>Role</span><b>' + (u.role === 'Admin' ? 'Administrator' : 'Medrep') + '</b></div><div class="kv"><span>Status</span><b>' + (u.active ? 'Active' : 'Switched off') + '</b></div><div class="kv"><span>Last sign-in</span><b>' + (u.lastLogin ? esc(fmtDate(String(u.lastLogin).slice(0, 10))) : 'Never') + '</b></div></div></div>' + (u.sheetUrl ? '<p style="margin-top:12px"><a href="' + esc(u.sheetUrl) + '" target="_blank" rel="noopener noreferrer">Open their spreadsheet in Drive</a></p>' : ''),
-    foot: '<button class="btn" data-a="resetUserPw" data-id="' + esc(u.uid) + '">Reset password</button>' + (self ? '' : '<button class="btn ' + (u.active ? 'danger' : 'primary') + '" data-a="toggleUser" data-id="' + esc(u.uid) + '">' + (u.active ? 'Switch off' : 'Switch on') + '</button>') });
+  var u = userById(el.getAttribute('data-id')); if (!u) return;
+  var self = S.user && u.uid === S.user.uid, rep = u.role !== 'Admin', id = esc(u.uid);
+  var pays = (S.payments || []).filter(function (p) { return p.uid === u.uid; });
+  var kv = '<div class="kv"><span>Email</span><b style="word-break:break-all">' + esc(u.email) + '</b></div><div class="kv"><span>Role</span><b>' + (u.role === 'Admin' ? 'Administrator' : 'Medrep') + '</b></div>' +
+    '<div class="kv"><span>Status</span><b>' + subPill(u) + '</b></div>' +
+    (rep ? '<div class="kv"><span>Plan</span><b>' + esc(u.plan === 'Trial' ? 'Free trial' : u.plan) + (u.amount && u.plan !== 'Trial' && u.plan !== 'Free' ? ' · ' + peso(u.amount, 0) : '') + '</b></div>' + (u.endsOn ? '<div class="kv"><span>' + (u.plan === 'Trial' ? 'Trial ends' : 'Paid until') + '</span><b>' + esc(fmtDate(u.endsOn)) + '</b></div>' : '') : '') +
+    '<div class="kv"><span>Signed up</span><b>' + (u.created ? esc(fmtDate(String(u.created).slice(0, 10))) : '') + '</b></div><div class="kv"><span>Last sign-in</span><b>' + (u.lastLogin ? esc(fmtDate(String(u.lastLogin).slice(0, 10))) : 'Never') + '</b></div>';
+  var acts = '';
+  if (rep) acts += '<button class="btn primary" data-a="confirmPay" data-id="' + id + '">Confirm payment</button><button class="btn" data-a="editPlan" data-id="' + id + '">Change plan</button>' + (u.plan === 'Trial' || u.state === 'expired' ? '<button class="btn" data-a="extendTrial" data-id="' + id + '">+7 days trial</button>' : '') + (u.state !== 'free' ? '<button class="btn" data-a="sendRemind" data-id="' + id + '">Send reminder</button>' : '');
+  acts += '<button class="btn" data-a="resetUserPw" data-id="' + id + '">Reset password</button>' + (self ? '' : '<button class="btn ' + (u.active ? 'danger' : 'primary') + '" data-a="toggleUser" data-id="' + id + '">' + (u.active ? 'Switch off' : 'Switch on') + '</button>');
+  openSheet({ title: u.name, html: '<div class="card" style="box-shadow:none"><div class="pad" style="padding:6px 16px">' + kv + '</div></div>' +
+    (pays.length ? '<div class="lab" style="margin:14px 0 6px">Payments</div><div class="card" style="box-shadow:none"><div class="pad" style="padding:4px 16px">' + pays.map(function (p) { return '<div class="kv"><span>' + esc(fmtDate(p.paidOn)) + ' · ' + esc(p.plan) + '</span><b>' + peso(p.amount, 0) + '</b></div>'; }).join('') + '</div></div>' : '') +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">' + acts + '</div>' + (u.sheetUrl ? '<p style="margin-top:12px"><a href="' + esc(u.sheetUrl) + '" target="_blank" rel="noopener noreferrer">Open their spreadsheet in Drive</a></p>' : '') });
+};
+A.confirmPay = function (el) {
+  var u = userById(el.getAttribute('data-id')); if (!u) return; var b = S.billing || {}, plan = u.plan === 'Yearly' ? 'Yearly' : 'Monthly';
+  closeAllSheets();
+  openSheet({ title: 'Confirm payment', html: '<div class="form"><p class="muted">Record that <b>' + esc(u.name) + '</b> paid. Their access is extended and a receipt is emailed.</p>' +
+    fld('cp_plan', 'Plan', { html: '<select class="select" id="cp_plan" data-id="' + esc(u.uid) + '"><option value="Monthly"' + (plan === 'Monthly' ? ' selected' : '') + '>Monthly (1 month)</option><option value="Yearly"' + (plan === 'Yearly' ? ' selected' : '') + '>Yearly (12 months)</option></select>' }) +
+    fld('cp_amt', 'Amount received (₱)', { type: 'number', value: plan === 'Yearly' ? b.yearlyPrice : b.monthlyPrice, attrs: 'inputmode="decimal" min="0" step="0.01"' }) +
+    fld('cp_date', 'Date paid', { type: 'date', value: S.today }) +
+    fld('cp_how', 'Paid through', { html: '<select class="select" id="cp_how"><option>GCash</option><option>Maya</option><option>Bank transfer</option><option>Cash</option><option>Other</option></select>' }) +
+    fld('cp_note', 'Reference / note (optional)', { attrs: 'maxlength="120"' }) +
+    '<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="cp_mail" checked> <span>Email a receipt to them</span></label></div>',
+    foot: '<button class="btn" data-a="sheetCancel">Cancel</button><button class="btn primary" data-a="doConfirmPay" data-id="' + esc(u.uid) + '">Confirm payment</button>' });
+  var sel = document.getElementById('cp_plan'); if (sel) sel.onchange = function () { var a = document.getElementById('cp_amt'); if (a) a.value = sel.value === 'Yearly' ? b.yearlyPrice : b.monthlyPrice; };
+};
+A.doConfirmPay = function (el) {
+  setErr('cp_amt', ''); setErr('cp_date', ''); var amt = val('cp_amt'), d = val('cp_date');
+  if (amt === '' || isNaN(Number(amt)) || Number(amt) < 0) return setErr('cp_amt', 'Please enter the amount received.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return setErr('cp_date', 'Please pick the date paid.');
+  setBusy(el, true, 'Saving');
+  server('adminConfirmPayment', { uid: el.getAttribute('data-id'), plan: val('cp_plan'), amount: amt, paidOn: d, method: val('cp_how'), note: val('cp_note').trim(), receipt: !!document.getElementById('cp_mail').checked }).then(function (res) {
+    setBusy(el, false); if (!res.ok) return setErr('cp_amt', res.error);
+    closeAllSheets(); toast('Payment recorded. Active until ' + fmtDate(res.until) + (res.emailed ? ' · receipt sent' : ''), 'ok'); loadUsers();
+  }, function () { setBusy(el, false); toast('Could not reach the server. Check the list before trying again.', 'err'); });
+};
+A.editPlan = function (el) {
+  var u = userById(el.getAttribute('data-id')); if (!u) return; closeAllSheets();
+  openSheet({ title: 'Change plan', html: '<div class="form"><p class="muted">For ' + esc(u.name) + '. Use this to fix a date, change the plan or make the account free.</p>' +
+    fld('ep_plan', 'Plan', { html: '<select class="select" id="ep_plan">' + [['Trial', 'Free trial'], ['Monthly', 'Monthly'], ['Yearly', 'Yearly'], ['Free', 'Free account (no expiry)']].map(function (o) { return '<option value="' + o[0] + '"' + (u.plan === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' }) +
+    fld('ep_date', 'Trial ends / paid until', { type: 'date', value: u.endsOn || '', hint: 'Leave empty to use the usual length.' }) + '</div>',
+    foot: '<button class="btn" data-a="sheetCancel">Cancel</button><button class="btn primary" data-a="doEditPlan" data-id="' + esc(u.uid) + '">Save</button>' });
+};
+A.doEditPlan = function (el) {
+  setBusy(el, true, 'Saving');
+  server('adminUpdateSubscription', { uid: el.getAttribute('data-id'), plan: val('ep_plan'), endsOn: val('ep_date') }).then(function (res) {
+    setBusy(el, false); if (!res.ok) return setErr('ep_date', res.error);
+    closeAllSheets(); toast('Plan updated', 'ok'); loadUsers();
+  }, function () { setBusy(el, false); toast('Could not reach the server.', 'err'); });
+};
+A.extendTrial = function (el) {
+  var id = el.getAttribute('data-id'); setBusy(el, true, 'Saving');
+  server('adminUpdateSubscription', { uid: id, plan: 'Trial', extendDays: 7 }).then(function (res) {
+    setBusy(el, false); if (!res.ok) return alertSheet('Could not extend', res.error);
+    closeAllSheets(); toast('Trial extended by 7 days', 'ok'); loadUsers();
+  }, function () { setBusy(el, false); toast('Could not reach the server.', 'err'); });
+};
+A.sendRemind = function (el) {
+  var id = el.getAttribute('data-id'), u = userById(id); setBusy(el, true, 'Sending');
+  server('adminSendReminder', { uid: id }).then(function (res) {
+    setBusy(el, false); if (!res.ok) return alertSheet('Could not send', res.error);
+    toast('Reminder sent to ' + u.email + ' (copy to you)', 'ok');
+  }, function () { setBusy(el, false); toast('Could not reach the server.', 'err'); });
 };
 A.resetUserPw = function (el) {
   var id = el.getAttribute('data-id'), u = (S.users || []).filter(function (x) { return x.uid === id; })[0];

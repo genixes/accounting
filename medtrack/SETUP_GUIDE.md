@@ -87,3 +87,12 @@ This turns MedTrack into a multi-user system. Everyone signs in with their email
 - Alerts fire at 180, 90, 60 and 30 days and when stock has expired, as **one digest a day**, and only for things not already reported. Change thresholds and time in Settings.
 - SMS is optional and paid: enter your provider's address and API key in Settings.
 - Nothing is ever deleted. Products and accounts are archived instead.
+
+## Subscriptions, trial and payment reminders (owner only)
+
+1. Add `Billing.gs` (Script type) to the project like the other files, then run `runMultiUserSetup` once more. It adds the new columns and a hidden `Payments` tab. Redeploy: Deploy > Manage deployments > pencil > New version.
+2. Sign in as admin and open **Subscribers**. Under **Plans and reminders** set your monthly and yearly price, the free-trial length (default 7 days), how many days before the due date to remind (default 5), and the grace days.
+3. Put your payment QR (GCash, Maya or bank) as a picture in your Google Drive, Share > Copy link, and paste the link in **Payment QR picture**. It is embedded in the reminder email.
+4. New medreps start on the free trial. When they pay, open them in **Subscribers** > **Confirm payment**. Monthly adds one month, yearly adds twelve. A receipt is emailed.
+5. Reminders go out automatically (after 8am Manila time): 5 days before a monthly or yearly payment is due, and 2 days before a trial ends. You are copied. Replies from the medrep come to you.
+6. Access ends by itself when the trial or paid period (plus grace days) is over. Their data is kept; paying again restores access.
