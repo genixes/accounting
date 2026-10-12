@@ -329,6 +329,7 @@ h1,h2,h3,p{margin:0}
 /* ---- Sign-in screens ---- */
 .auth-mode .topbar,.auth-mode .sidebar,.auth-mode .bottomnav,.auth-mode .fab{display:none!important}
 .auth-mode .view{margin:0 auto;max-width:520px;padding:calc(24px + env(safe-area-inset-top)) 16px 40px}
+.authsep{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12.5px;margin-top:4px}.authsep::before,.authsep::after{content:"";flex:1;height:1px;background:var(--line)}
 .authwrap{max-width:440px;margin:6vh auto 0;padding:26px 22px;display:flex;flex-direction:column;gap:14px;animation:rise .28s var(--ease);box-shadow:var(--shadow-2)}
 @media print{.topbar,.bottomnav,.sidebar,.fab,.toasts{display:none!important}}
 </style>
@@ -442,8 +443,9 @@ var S = {
 var CFG = window.MT_CONFIG || {};
 var API_URL = CFG.api || '';
 var MULTI = !!(window.MT_MULTI || CFG.multi);
+var VERIFY_TOKEN = (function () { try { var m = (location.search || '').match(/[?&]verify=([A-Za-z0-9]{30,64})/); return m ? m[1] : ''; } catch (e) { return ''; } })();
 var RESET_TOKEN = window.MT_RESET || (function () { try { var m = (location.search || '').match(/[?&]reset=([A-Za-z0-9]{30,64})/); return m ? m[1] : ''; } catch (e) { return ''; } })();
-S.token = ''; S.user = null; S.uid = ''; S.auth = { mode: '', msg: '', email: '' }; S.users = null;
+S.pub = null; S.token = ''; S.user = null; S.uid = ''; S.auth = { mode: '', msg: '', email: '' }; S.users = null;
 /** Storage keys are per user so several medreps can share a phone without mixing data. */
 function uk(base) { return base + '_' + (S.uid || 'single'); }
 var lastVals = {};
@@ -1858,9 +1860,13 @@ function authGate() {
   return true;
 }
 function drawAuth() {
+  if (S.auth.mode === 'login' && !S.pub && !S.pubTried) { S.pubTried = true; loadPublicInfo(); }
   var m = S.auth.mode, msg = S.auth.msg ? '<div class="banner ' + (S.auth.ok ? 'ok' : 'warn') + '">' + ico(S.auth.ok ? 'check' : 'info') + '<span>' + esc(S.auth.msg) + '</span></div>' : '';
   var head = '<div style="text-align:center;margin-bottom:6px"><div class="logo" style="width:56px;height:56px;border-radius:18px;margin:0 auto 14px"><span style="width:30px;height:30px;display:block">' + ico('pill') + '</span></div>', body = '';
-  if (m === 'login') body = head + '<div class="h1">Welcome back</div><div class="sub">Sign in to your MedTrack</div></div>' + msg + '<div class="form">' + fld('au_email', 'Email', { type: 'email', value: S.auth.email || '', attrs: 'autocomplete="username" autocapitalize="off" inputmode="email" data-in="authEnter"' }) + pwField('au_pw', 'Password', 'current-password') + '<button class="btn primary block" id="auGo" data-a="doLogin" style="min-height:54px;font-size:16px">Sign in</button><button class="link" data-a="goForgot" style="align-self:center">Forgot password?</button></div>';
+  if (m === 'login') body = head + '<div class="h1">Welcome back</div><div class="sub">Sign in to your MedTrack</div></div>' + msg + '<div class="form">' + fld('au_email', 'Email', { type: 'email', value: S.auth.email || '', attrs: 'autocomplete="username" autocapitalize="off" inputmode="email" data-in="authEnter"' }) + pwField('au_pw', 'Password', 'current-password') + '<button class="btn primary block" id="auGo" data-a="doLogin" style="min-height:54px;font-size:16px">Sign in</button><button class="link" data-a="goForgot" style="align-self:center">Forgot password?</button>' + (S.pub && S.pub.signupOpen ? '<div class="authsep"><span>New to MedTrack?</span></div><button class="btn block" data-a="goSignup" style="min-height:50px">Create a free account</button>' : '') + '</div>';
+  else if (m === 'signup') body = head + '<div class="h1">Create your account</div><div class="sub">Free for ' + ((S.pub && S.pub.trialDays) || 7) + ' days. No payment needed to start.</div></div>' + msg + '<div class="form">' + fld('su_name', 'Your name', { attrs: 'autocomplete="name" maxlength="80"', value: S.auth.name || '' }) + fld('au_email', 'Email', { type: 'email', value: S.auth.email || '', attrs: 'autocomplete="username" autocapitalize="off" inputmode="email"' }) + pwField('au_new', 'Choose a password', 'new-password') + pwField('au_new2', 'Type the password again', 'new-password') + '<div style="position:absolute;left:-5000px;height:0;overflow:hidden" aria-hidden="true"><input id="su_web" tabindex="-1" autocomplete="off" type="text"></div><p class="hint">We will email you a link to confirm your address, then your account opens right away.</p><button class="btn primary block" id="auGo" data-a="doSignup" style="min-height:54px;font-size:16px">Create my free account</button><button class="link" data-a="goLogin" style="align-self:center">I already have an account</button></div>';
+  else if (m === 'sent') body = head + '<div class="h1">Check your email</div><div class="sub">We sent a confirmation link to <b>' + esc(S.auth.email || '') + '</b>. Tap it to open your account. It may take a minute, and please look in spam too.</div></div>' + msg + '<div class="form"><button class="btn block" data-a="goLogin" style="min-height:50px">Back to sign in</button></div>';
+  else if (m === 'verifying') body = head + '<div class="h1">Confirming your email</div><div class="sub">One moment. We are creating your private space. This can take a few seconds.</div></div>' + msg + '<div class="form"><div class="skel" style="height:18px"></div></div>';
   else if (m === 'forgot') body = head + '<div class="h1">Forgot password?</div><div class="sub">Enter your email. We will send you a link to choose a new password.</div></div>' + msg + '<div class="form">' + fld('au_email', 'Email', { type: 'email', value: S.auth.email || '', attrs: 'autocomplete="username" autocapitalize="off" inputmode="email" data-in="authEnter"' }) + '<button class="btn primary block" id="auGo" data-a="doForgot" style="min-height:54px;font-size:16px">Send reset link</button><button class="link" data-a="goLogin" style="align-self:center">Back to sign in</button></div>';
   else if (m === 'reset') body = head + '<div class="h1">Choose a new password</div><div class="sub">At least 8 characters, with a letter and a number.</div></div>' + msg + '<div class="form">' + fld('au_email', 'Your registered email', { type: 'email', value: S.auth.email || '', attrs: 'autocomplete="username" autocapitalize="off" inputmode="email"' }) + pwField('au_new', 'New password', 'new-password') + pwField('au_new2', 'Confirm new password', 'new-password') + '<button class="btn primary block" id="auGo" data-a="doReset" style="min-height:54px;font-size:16px">Save password</button><button class="link" data-a="goLogin" style="align-self:center">Back to sign in</button></div>';
   else body = head + '<div class="h1">' + (S.user && S.user.mustChange ? 'Choose your password' : 'Change password') + '</div><div class="sub">' + (S.user && S.user.mustChange ? 'For your security, replace the temporary password with your own.' : 'Pick a new password for your account.') + '</div></div>' + msg + '<div class="form">' + pwField('au_cur', S.user && S.user.mustChange ? 'Temporary password' : 'Current password', 'current-password') + pwField('au_new', 'New password', 'new-password') + pwField('au_new2', 'Type the new password again', 'new-password') + '<button class="btn primary block" id="auGo" data-a="doChange" style="min-height:54px;font-size:16px">Save password</button>' + (S.user && S.user.mustChange ? '<button class="link" data-a="logout" style="align-self:center">Sign out</button>' : '<button class="link" data-a="cancelChange" style="align-self:center">Cancel</button>') + '</div>';
@@ -1890,6 +1896,34 @@ A.doLogin = function (el) {
     S.auth = { mode: '', msg: '' }; startSession();
   }, function () { setBusy(el, false); authFail('Could not reach the server. Please try again.'); });
 };
+A.goSignup = function () { S.auth = { mode: 'signup', msg: '', email: val('au_email') }; drawAuth(); };
+A.doSignup = function (el) {
+  var name = val('su_name').trim(), email = val('au_email').trim(), p1 = val('au_new'), p2 = val('au_new2'); ['su_name', 'au_email', 'au_new', 'au_new2'].forEach(function (i) { setErr(i, ''); });
+  if (!name) return setErr('su_name', 'Please enter your name.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setErr('au_email', 'Please enter a valid email address.');
+  var pr = pwProblem(p1, email); if (pr) return setErr('au_new', pr);
+  if (p1 !== p2) return setErr('au_new2', 'The two passwords are not the same.');
+  if (!S.online) return authFail('You are offline. Please try again with signal.');
+  setBusy(el, true, 'Sending');
+  server('requestSignup', { name: name, email: email, password: p1, website: val('su_web') }).then(function (res) {
+    setBusy(el, false);
+    if (!res.ok) { if (/email/i.test(res.error)) return setErr('au_email', res.error); if (/password|character|letter/i.test(res.error)) return setErr('au_new', res.error); return setErr('su_name', res.error); }
+    S.auth = { mode: 'sent', email: email }; drawAuth();
+  }, function () { setBusy(el, false); authFail('Could not reach the server. Please try again.'); });
+};
+function verifyFromLink() {
+  S.auth = { mode: 'verifying', msg: '' }; renderAll();
+  server('verifySignup', { token: VERIFY_TOKEN }, 120000).then(function (res) {
+    try { history.replaceState(null, '', location.pathname); } catch (e) { /* ignore */ }
+    VERIFY_TOKEN = '';
+    if (!res.ok) { S.auth = { mode: 'login', msg: res.error }; drawAuth(); return; }
+    S.token = res.token; S.user = res.user; S.uid = res.user.uid; store.set('mt_token', S.token); store.set('mt_user', JSON.stringify(S.user));
+    S.data = null; S.loading = true; S.loadError = ''; S.auth = { mode: '', msg: '' }; startSession(); toast('Welcome to MedTrack! Your free trial has started.', 'ok');
+  }, function () { S.auth = { mode: 'login', msg: 'Could not reach the server. Please open the link in your email again.' }; drawAuth(); });
+}
+function loadPublicInfo() {
+  server('publicInfo').then(function (res) { if (res && res.ok) { S.pub = res; if (S.auth.mode === 'login' && $('.authwrap')) { var e = val('au_email'); S.auth.email = e; drawAuth(); } } }, function () { /* offline: no sign-up link */ });
+}
 A.doForgot = function (el) {
   var email = val('au_email').trim(); setErr('au_email', '');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setErr('au_email', 'Please enter a valid email address.');
@@ -2006,7 +2040,7 @@ function subFilterOk(u, f) {
 }
 function drawSubs() {
   var s = S.sum, tiles = $('#subTiles'); if (!tiles || !s) return;
-  tiles.innerHTML = '<div class="card stat"><div class="lbl">Registered</div><div class="val">' + intf(s.total) + '</div><div class="ssub">' + intf(s.free) + ' free · ' + intf(s.off) + ' off</div></div>' +
+  tiles.innerHTML = '<div class="card stat"><div class="lbl">Registered</div><div class="val">' + intf(s.total) + '</div><div class="ssub">' + (s.pending ? intf(s.pending) + ' waiting to confirm email' : intf(s.free) + ' free · ' + intf(s.off) + ' off') + '</div></div>' +
     '<div class="card stat"><div class="lbl">On trial</div><div class="val">' + intf(s.trial) + '</div><div class="ssub">' + (S.billing.trialDays || 7) + '-day free trial</div></div>' +
     '<div class="card stat"><div class="lbl">Paying</div><div class="val">' + intf(s.paying) + '</div><div class="ssub">' + peso(s.mrr, 0) + ' per month</div></div>' +
     '<div class="card stat"><div class="lbl">Needs attention</div><div class="val">' + intf(s.soon + s.expired) + '</div><div class="ssub">' + intf(s.soon) + ' due soon · ' + intf(s.expired) + ' expired</div></div>';
@@ -2014,7 +2048,7 @@ function drawSubs() {
   $('#subChips').innerHTML = [['all', 'Everyone'], ['trial', 'Trial'], ['paying', 'Paying'], ['soon', 'Due soon'], ['expired', 'Expired'], ['off', 'Off']].map(function (c) { return '<button class="chip' + (S.subFilter === c[0] ? ' on' : '') + '" data-a="subFilter" data-v="' + c[0] + '">' + c[1] + ' · ' + cnt[c[0]] + '</button>'; }).join('');
   var list = (S.users || []).filter(function (u) { return subFilterOk(u, S.subFilter); });
   $('#userList').innerHTML = list.map(function (u) {
-    return '<button class="item" data-a="openUser" data-id="' + esc(u.uid) + '"><span class="avatar">' + esc(u.name.charAt(0).toUpperCase()) + '</span><div class="main"><div class="t">' + esc(u.name) + (u.role === 'Admin' ? ' <span class="tag">Admin</span>' : '') + '</div><div class="s">' + esc(u.email) + '</div><div class="s">' + esc(subLine(u)) + ' · ' + (u.lastLogin ? 'last sign-in ' + esc(fmtDate(String(u.lastLogin).slice(0, 10))) : 'not signed in yet') + '</div></div><div class="e">' + subPill(u) + '</div></button>';
+    return '<button class="item" data-a="openUser" data-id="' + esc(u.uid) + '"><span class="avatar">' + esc(u.name.charAt(0).toUpperCase()) + '</span><div class="main"><div class="t">' + esc(u.name) + (u.role === 'Admin' ? ' <span class="tag">Admin</span>' : u.source === 'Self' ? ' <span class="tag">Self sign-up</span>' : '') + '</div><div class="s">' + esc(u.email) + '</div><div class="s">' + esc(subLine(u)) + ' · ' + (u.lastLogin ? 'last sign-in ' + esc(fmtDate(String(u.lastLogin).slice(0, 10))) : 'not signed in yet') + '</div></div><div class="e">' + subPill(u) + '</div></button>';
   }).join('') || emptyState('users', 'Nobody here', S.subFilter === 'all' ? 'Add your first medrep.' : 'No one matches this filter.');
   var pays = S.payments || [];
   $('#payList').innerHTML = pays.map(function (p) {
@@ -2032,6 +2066,7 @@ function drawBilling() {
     fld('bl_qr', 'Payment QR picture (Google Drive link)', { value: b.qrUrl, attrs: 'inputmode="url" autocapitalize="off" placeholder="https://drive.google.com/file/d/..."', hint: 'Upload your GCash / Maya / bank QR as a picture to your Drive, then Share > Copy link.' + (S.qrReady ? ' <b>QR is ready.</b>' : '') }) +
     fld('bl_in', 'How to pay (shown in the email)', { html: '<textarea class="input" id="bl_in" rows="3" maxlength="600" placeholder="GCash 0917 000 0000 · Bank transfer details...">' + esc(b.instructions) + '</textarea>' }) +
     fld('bl_c', 'Your contact (shown to medreps)', { value: b.contact, attrs: 'maxlength="120" placeholder="layawsystem@gmail.com · 0917 000 0000"' }) +
+    '<div class="lab" style="margin-top:6px">Sign-up</div><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="bl_so"' + (b.signupOpen ? ' checked' : '') + '> <span>Let medreps create their own free-trial account</span></label>' + fld('bl_cap', 'Most new sign-ups per day', { type: 'number', value: b.signupDailyCap, attrs: 'inputmode="numeric" min="1" max="500"', hint: 'Each one makes a private spreadsheet in your Drive, so this keeps things safe from spam.' }) +
     '<div><button class="btn primary sm" data-a="saveBilling">Save plans and reminders</button></div>';
 }
 function drawAppLink() {
@@ -2049,10 +2084,10 @@ function loadUsers() {
 }
 A.subFilter = function (el) { S.subFilter = el.getAttribute('data-v'); drawSubs(); };
 A.saveBilling = function (el) {
-  var ids = ['bl_m', 'bl_y', 'bl_t', 'bl_r', 'bl_tr', 'bl_g', 'bl_qr']; clearErrs(ids); setBusy(el, true, 'Saving');
-  server('adminSaveBilling', { monthlyPrice: val('bl_m'), yearlyPrice: val('bl_y'), trialDays: val('bl_t'), remindDays: val('bl_r'), trialRemindDays: val('bl_tr'), graceDays: val('bl_g'), payeeName: val('bl_pn').trim(), qrUrl: val('bl_qr').trim(), instructions: val('bl_in').trim(), contact: val('bl_c').trim() }).then(function (res) {
+  var ids = ['bl_m', 'bl_y', 'bl_t', 'bl_r', 'bl_tr', 'bl_g', 'bl_qr', 'bl_cap']; clearErrs(ids); setBusy(el, true, 'Saving');
+  server('adminSaveBilling', { monthlyPrice: val('bl_m'), yearlyPrice: val('bl_y'), trialDays: val('bl_t'), remindDays: val('bl_r'), trialRemindDays: val('bl_tr'), graceDays: val('bl_g'), payeeName: val('bl_pn').trim(), qrUrl: val('bl_qr').trim(), instructions: val('bl_in').trim(), contact: val('bl_c').trim(), signupOpen: !!document.getElementById('bl_so').checked, signupDailyCap: val('bl_cap') }).then(function (res) {
     setBusy(el, false);
-    if (!res.ok) { var bad = /Monthly/.test(res.error) ? 'bl_m' : /Yearly/.test(res.error) ? 'bl_y' : /Trial reminder/.test(res.error) ? 'bl_tr' : /Trial/.test(res.error) ? 'bl_t' : /Reminder/.test(res.error) ? 'bl_r' : /Grace/.test(res.error) ? 'bl_g' : 'bl_qr'; return setErr(bad, res.error); }
+    if (!res.ok) { var bad = /Monthly/.test(res.error) ? 'bl_m' : /Yearly/.test(res.error) ? 'bl_y' : /Trial reminder/.test(res.error) ? 'bl_tr' : /Trial/.test(res.error) ? 'bl_t' : /Reminder/.test(res.error) ? 'bl_r' : /Grace/.test(res.error) ? 'bl_g' : /sign-up/i.test(res.error) ? 'bl_cap' : 'bl_qr'; return setErr(bad, res.error); }
     S.billing = res.billing; toast('Saved', 'ok'); loadUsers();
   }, function () { setBusy(el, false); toast('Could not reach the server.', 'err'); });
 };
@@ -2187,11 +2222,12 @@ function boot() {
   S.route = parseHash();
   if (MULTI) {
     if (RESET_TOKEN) { S.auth = { mode: 'reset', msg: '' }; renderAll(); return; }
+    if (VERIFY_TOKEN) { verifyFromLink(); return; }
     var tk = store.get('mt_token'), us = store.get('mt_user');
     if (tk && us) {
       try { S.user = JSON.parse(us); S.token = tk; S.uid = S.user.uid; } catch (e) { S.token = ''; }
     }
-    if (!S.token) { S.auth = { mode: 'login', msg: (API_URL && /PASTE/i.test(API_URL)) ? 'Setup needed: open config.js and paste your Web app link, then upload the site again.' : '' }; renderAll(); return; }
+    if (!S.token) { S.auth = { mode: 'login', msg: (API_URL && /PASTE/i.test(API_URL)) ? 'Setup needed: open config.js and paste your Web app link, then upload the site again.' : '' }; renderAll(); loadPublicInfo(); return; }
     if (S.user.mustChange) { S.auth = { mode: 'change', msg: 'Please choose your own password to continue.' }; renderAll(); return; }
   }
   startSession();

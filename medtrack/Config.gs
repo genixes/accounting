@@ -45,9 +45,10 @@ var SCHEMA = {
 
 /** Master-sheet tables used only in multi-user mode (accounts, sessions, password-reset tokens). */
 var MASTER_SCHEMA = {
-  Users: [['UserID','s'],['Email','s'],['Name','s'],['Role','s'],['Active','b'],['PasswordHash','s'],['Salt','s'],['MustChange','b'],['SpreadsheetID','s'],['CreatedAt','t'],['LastLoginAt','t'],['AlertHour','n'],['LastAlertDate','d'],['Plan','s'],['TrialEnds','d'],['PaidUntil','d'],['Amount','n'],['LastReminderFor','s']],
+  Users: [['UserID','s'],['Email','s'],['Name','s'],['Role','s'],['Active','b'],['PasswordHash','s'],['Salt','s'],['MustChange','b'],['SpreadsheetID','s'],['CreatedAt','t'],['LastLoginAt','t'],['AlertHour','n'],['LastAlertDate','d'],['Plan','s'],['TrialEnds','d'],['PaidUntil','d'],['Amount','n'],['LastReminderFor','s'],['Source','s']],
   Sessions: [['TokenHash','s'],['UserID','s'],['CreatedAt','t'],['ExpiresAt','n']],
   ResetTokens: [['TokenHash','s'],['UserID','s'],['ExpiresAt','n'],['Used','b'],['CreatedAt','t']],
+  Signups: [['TokenHash','s'],['Email','s'],['Name','s'],['PasswordHash','s'],['Salt','s'],['ExpiresAt','n'],['Used','b'],['CreatedAt','t']],
   Payments: [['PaymentID','s'],['UserID','s'],['PaidOn','d'],['Plan','s'],['Amount','n'],['PeriodStart','d'],['PeriodEnd','d'],['Method','s'],['Note','s'],['RecordedAt','t']]
 };
 var USERS = 'Users', SESSIONS = 'Sessions', RESETS = 'ResetTokens';

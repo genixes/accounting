@@ -96,3 +96,10 @@ This turns MedTrack into a multi-user system. Everyone signs in with their email
 4. New medreps start on the free trial. When they pay, open them in **Subscribers** > **Confirm payment**. Monthly adds one month, yearly adds twelve. A receipt is emailed.
 5. Reminders go out automatically (after 8am Manila time): 5 days before a monthly or yearly payment is due, and 2 days before a trial ends. You are copied. Replies from the medrep come to you.
 6. Access ends by itself when the trial or paid period (plus grace days) is over. Their data is kept; paying again restores access.
+
+## Self sign-up (medreps register themselves)
+
+- The sign-in page shows **Create a free account**. The medrep types name, email and a password. We email a confirmation link; opening it creates their private spreadsheet in your Drive, starts the free trial and signs them in. You get an email for every new sign-up and see them in **Subscribers** (tagged "Self sign-up").
+- Switch it off (or limit how many per day) in **Subscribers > Plans and reminders > Sign-up**. The daily limit keeps spam from filling your Drive.
+- The confirmation link points to the link set in **Link your medreps open** (your website).
+- Run `runMultiUserSetup` once after updating so the hidden `Signups` tab and new columns are added, then redeploy.

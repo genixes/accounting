@@ -66,6 +66,9 @@ function actions_() {
     changePassword: changePassword_,
     requestReset: requestReset_,
     resetPassword: resetPassword_,
+    publicInfo: publicInfo_,
+    requestSignup: requestSignup_,
+    verifySignup: verifySignup_,
     adminListUsers: adminListUsers_,
     adminCreateUser: adminCreateUser_,
     adminResetPassword: adminResetPassword_,
@@ -79,7 +82,7 @@ function actions_() {
 }
 
 /** Actions that work before sign-in (multi-user mode). */
-var PUBLIC_ACTIONS_ = { login: 1, requestReset: 1, resetPassword: 1 };
+var PUBLIC_ACTIONS_ = { login: 1, requestReset: 1, resetPassword: 1, publicInfo: 1, requestSignup: 1, verifySignup: 1 };
 
 /**
  * Single entry point for the client. Always returns a JSON string:

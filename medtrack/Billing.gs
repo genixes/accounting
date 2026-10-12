@@ -8,7 +8,7 @@
 
 var PAYMENTS = 'Payments';
 
-var BILLING_DEFAULTS = { trialDays: 7, graceDays: 3, remindDays: 5, trialRemindDays: 2, monthlyPrice: 0, yearlyPrice: 0, payeeName: '', instructions: '', qrUrl: '', contact: '' };
+var BILLING_DEFAULTS = { trialDays: 7, graceDays: 3, remindDays: 5, trialRemindDays: 2, monthlyPrice: 0, yearlyPrice: 0, payeeName: '', instructions: '', qrUrl: '', contact: '', signupOpen: true, signupDailyCap: 20 };
 var PLANS_ = { Trial: 1, Monthly: 1, Yearly: 1, Free: 1 };
 
 /* ------------------------------ Settings ------------------------------ */
@@ -43,6 +43,7 @@ function moneyIn_(v, what) {
 /** Admin saves billing settings. */
 function adminSaveBilling_(p, user) {
   requireAdmin_(user);
+  var cur = getBilling_();
   var b = {
     trialDays: intIn_(p.trialDays, 1, 90, 'Trial days'),
     graceDays: intIn_(p.graceDays, 0, 60, 'Grace days'),
@@ -53,7 +54,9 @@ function adminSaveBilling_(p, user) {
     payeeName: str_(p.payeeName, 80),
     instructions: str_(p.instructions, 600),
     contact: str_(p.contact, 120),
-    qrUrl: str_(p.qrUrl, 400)
+    qrUrl: str_(p.qrUrl, 400),
+    signupOpen: p.signupOpen == null ? cur.signupOpen : (p.signupOpen === true || p.signupOpen === 'true'),
+    signupDailyCap: intIn_(p.signupDailyCap == null || p.signupDailyCap === '' ? cur.signupDailyCap : p.signupDailyCap, 1, 500, 'Daily sign-up limit')
   };
   if (b.qrUrl) {
     var id = driveFileId_(b.qrUrl);

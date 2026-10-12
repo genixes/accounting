@@ -265,6 +265,109 @@ function resetPassword_(p) {
   return {};
 }
 
+/* ----------------------------- Self sign-up ---------------------------- */
+
+var SIGNUPS = 'Signups', SIGNUP_HOURS = 24;
+
+/** What the sign-in page may know before anyone is signed in. */
+function publicInfo_() {
+  var b = getBilling_();
+  return { signupOpen: !!b.signupOpen, trialDays: b.trialDays };
+}
+
+/** Counts something per day in Script Properties (CacheService only lasts 6 hours). Throws when over the limit. */
+function dayBump_(kind, max) {
+  var key = 'DAY_' + kind, today = todayYMD_(), props = PropertiesService.getScriptProperties(), over = false;
+  withLock_(function () {
+    var v = String(props.getProperty(key) || '').split(':'), n = v[0] === today ? (parseInt(v[1], 10) || 0) : 0;
+    if (n >= max) over = true; else props.setProperty(key, today + ':' + (n + 1));
+  });
+  if (over) { var b = getBilling_(); throw userError_('We have a lot of sign-ups today. Please try again tomorrow' + (b.contact ? ', or contact ' + b.contact : '') + '.'); }
+}
+
+/** A small branded email (title, a line, an optional button). */
+function simpleMail_(to, subject, title, leadHtml, btnLabel, btnUrl, note) {
+  try {
+    var brand = '#0F2A44', accent = '#0E9AA7';
+    var html = '<div style="background:#F3F6F9;padding:24px 12px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif"><div style="max-width:520px;margin:auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 6px 24px rgba(15,42,68,.10)">' +
+      '<div style="background:' + brand + ';padding:24px 28px"><div style="color:#fff;font-size:22px;font-weight:800">MedTrack</div><div style="color:' + accent + ';font-size:12px;font-weight:700;letter-spacing:.12em;margin-top:2px">INVENTORY &amp; EXPIRY MONITORING</div></div>' +
+      '<div style="padding:28px"><h2 style="margin:0 0 10px;color:#0F2A44;font-size:20px">' + esc_(title) + '</h2><p style="margin:0 0 18px;color:#334A60;font-size:14.5px;line-height:1.55">' + leadHtml + '</p>' +
+      (btnUrl ? '<p style="margin:22px 0"><a href="' + esc_(btnUrl) + '" style="background:' + accent + ';color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:12px;display:inline-block">' + esc_(btnLabel) + '</a></p><p style="margin:0 0 6px;color:#5B6F83;font-size:12.5px;word-break:break-all">Button not working? Open this address:<br><a href="' + esc_(btnUrl) + '" style="color:' + accent + '">' + esc_(btnUrl) + '</a></p>' : '') +
+      (note ? '<p style="margin:16px 0 0;color:#7A8B9C;font-size:12.5px;line-height:1.5">' + esc_(note) + '</p>' : '') +
+      '</div><div style="padding:14px 28px;background:#F8FAFC;color:#7A8B9C;font-size:11.5px;text-align:center">Powered by <a href="' + APP.URL + '" style="color:#5B6F83;font-weight:700;text-decoration:none">LAYAW SYSTEM</a></div></div></div>';
+    MailApp.sendEmail({ to: to, subject: subject, htmlBody: html, body: title + '\n\n' + leadHtml.replace(/<[^>]+>/g, '') + (btnUrl ? '\n\n' + btnLabel + ': ' + btnUrl : '') + (note ? '\n\n' + note : '') + '\n\nPowered by LAYAW SYSTEM', name: 'MedTrack' });
+    return true;
+  } catch (e) { console.error('Mail failed: ' + e); return false; }
+}
+
+/**
+ * A medrep signs themselves up. Nothing is created yet: we store a pending request (with the password
+ * already hashed) and email a confirmation link. The account and its private spreadsheet are only made
+ * when the link is opened, which also proves the email is theirs.
+ */
+function requestSignup_(p) {
+  var b = getBilling_();
+  if (!b.signupOpen) throw userError_('Sign-up is closed right now.' + (b.contact ? ' Please contact ' + b.contact + '.' : ''));
+  if (String(p.website || '') !== '') return { sent: true };
+  var name = str_(p.name, 80), email = normEmail_(p.email), pw = typeof p.password === 'string' ? p.password : '';
+  if (!name) throw userError_('Please enter your name.');
+  if (!validEmail_(email)) throw userError_('Please enter a valid email address.');
+  var prob = pwProblem_(pw, email); if (prob) throw userError_(prob);
+  var rk = 'RL_S_' + sha_(email).substr(0, 20); rateCheck_(rk, 3); rateHit_(rk, 3600);
+  dayBump_('SUREQ', Math.max(10, b.signupDailyCap * 3));
+  var m = masterSS_(), url = appUrl_();
+  if (readTable_(USERS, m).rows.some(function (x) { return x.Email === email; })) {
+    simpleMail_(email, 'You already have a MedTrack account', 'You already have an account', 'Hi ' + esc_(name) + ', this email is already registered with MedTrack. Just sign in. If you forgot your password, tap &ldquo;Forgot password&rdquo; on the sign-in page.', 'Open MedTrack', url, 'If this was not you, you can ignore this email.');
+    return { sent: true };
+  }
+  var raw = randomString_(40), salt = randomString_(24), now = Date.now();
+  withLock_(function () {
+    var t = readTable_(SIGNUPS, m);
+    var keep = t.rows.filter(function (r) { return !r.Used && r.ExpiresAt > now && r.Email !== email; });
+    if (keep.length !== t.rows.length) { t.sheet.getRange(2, 1, t.sheet.getMaxRows() - 1, 8).clearContent(); if (keep.length) rewriteTable_(SIGNUPS, keep, m); }
+    appendRows_(SIGNUPS, [{ TokenHash: sha_(raw), Email: email, Name: name, PasswordHash: hashPw_(pw, salt), Salt: salt, ExpiresAt: now + SIGNUP_HOURS * 3600000, Used: false, CreatedAt: nowISO_() }], m);
+  });
+  var link = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'verify=' + raw;
+  var ok = simpleMail_(email, 'Confirm your email to start your MedTrack trial', 'Confirm your email', 'Hi ' + esc_(name) + ', thanks for signing up! Tap the button to confirm your email and start your <b>' + b.trialDays + '-day free trial</b>. The link works once and expires in ' + SIGNUP_HOURS + ' hours.', 'Confirm my email', link, 'If you did not sign up, you can ignore this email. Nothing will be created.');
+  if (!ok) throw userError_('We could not send the confirmation email. Please check the address and try again in a few minutes.');
+  return { sent: true };
+}
+
+/** Opens the confirmation link: creates the account, the private spreadsheet and the trial, then signs the person in. */
+function verifySignup_(p) {
+  var token = String(p.token || '');
+  if (!/^[A-Za-z0-9]{30,64}$/.test(token)) throw userError_('This confirmation link is not valid. Please sign up again.');
+  var hash = sha_(token), m = masterSS_(), now = Date.now(), req = null, why = '';
+  withLock_(function () {
+    var r = readTable_(SIGNUPS, m).rows.filter(function (x) { return x.TokenHash === hash; })[0];
+    if (!r || r.Used || r.ExpiresAt < now) { why = 'gone'; return; }
+    if (readTable_(USERS, m).rows.some(function (x) { return x.Email === r.Email; })) { why = 'exists'; return; }
+    r.Used = true; updateRow_(SIGNUPS, r, m); req = r;
+  });
+  if (why === 'exists') throw userError_('This email is already registered. Please sign in.');
+  if (!req) throw userError_('This confirmation link has expired or was already used. If you have not signed in yet, please sign up again.');
+  var b = getBilling_();
+  try { dayBump_('SUNEW', b.signupDailyCap); }
+  catch (e) { withLock_(function () { var r = readTable_(SIGNUPS, m).rows.filter(function (x) { return x.TokenHash === hash; })[0]; if (r) { r.Used = false; updateRow_(SIGNUPS, r, m); } }); throw e; }
+  var id, trialEnds = addDaysYMD_(todayYMD_(), b.trialDays), row;
+  try {
+    id = uniqueId_('USR', indexBy_(readTable_(USERS, m).rows, 'UserID'), '');
+    var saved = { SS_MEMO_: SS_MEMO_, T: TENANT_ID_, C: CACHE_PFX_ };
+    var ts = createTenantSpreadsheet_(req.Name, req.Email, id);
+    SS_MEMO_ = saved.SS_MEMO_; TENANT_ID_ = saved.T; CACHE_PFX_ = saved.C;
+    row = { UserID: id, Email: req.Email, Name: req.Name, Role: 'Rep', Active: true, PasswordHash: req.PasswordHash, Salt: req.Salt, MustChange: false, SpreadsheetID: ts.getId(), CreatedAt: nowISO_(), LastLoginAt: nowISO_(), AlertHour: 7, LastAlertDate: '', Plan: 'Trial', TrialEnds: trialEnds, Source: 'Self' };
+    withLock_(function () { appendRows_(USERS, [row], m); });
+  } catch (e) {
+    console.error('Sign-up failed: ' + e);
+    withLock_(function () { var r = readTable_(SIGNUPS, m).rows.filter(function (x) { return x.TokenHash === hash; })[0]; if (r) { r.Used = false; updateRow_(SIGNUPS, r, m); } });
+    throw userError_('We could not create your account just now. Please open the link again in a minute.');
+  }
+  var owner = ''; try { owner = normEmail_(Session.getEffectiveUser().getEmail()); } catch (e2) { owner = ''; }
+  if (owner) simpleMail_(owner, 'New MedTrack sign-up: ' + req.Name, 'New sign-up', '<b>' + esc_(req.Name) + '</b> (' + esc_(req.Email) + ') confirmed their email and started a free trial until <b>' + esc_(fmtDate_(trialEnds)) + '</b>.', '', '', 'See them in MedTrack > Subscribers.');
+  var tok = createSession_(id);
+  return { token: tok, user: publicUser_(row) };
+}
+
 /* ------------------------------- Admin ------------------------------- */
 
 function requireAdmin_(user) { if (!user || user.Role !== 'Admin') throw userError_('Only the administrator can do that.'); }
@@ -276,7 +379,7 @@ function adminListUsers_(p, user) {
   try { owner = normEmail_(Session.getEffectiveUser().getEmail()); } catch (e) { owner = ''; }
   var isOwner = !!owner && normEmail_(user.Email) === owner;
   var m = masterSS_(), bill = getBilling_(), today = todayYMD_();
-  var s = { total: 0, trial: 0, paying: 0, soon: 0, expired: 0, off: 0, free: 0, mrr: 0, month: 0, year: 0 };
+  var s = { pending: 0, total: 0, trial: 0, paying: 0, soon: 0, expired: 0, off: 0, free: 0, mrr: 0, month: 0, year: 0 };
   var rows = readTable_(USERS, m).rows.map(function (u) {
     var a = accessState_(u, bill, today), rep = u.Role !== 'Admin';
     var price = u.Plan === 'Yearly' ? (u.Amount || bill.yearlyPrice) / 12 : (u.Amount || bill.monthlyPrice);
@@ -291,7 +394,7 @@ function adminListUsers_(p, user) {
       }
     }
     return { uid: u.UserID, name: u.Name, email: u.Email, role: u.Role, active: u.Active, mustChange: u.MustChange, lastLogin: u.LastLoginAt, created: u.CreatedAt,
-      plan: a.plan, state: a.state, endsOn: a.endsOn, daysLeft: a.daysLeft, amount: u.Amount || (u.Plan === 'Yearly' ? bill.yearlyPrice : u.Plan === 'Monthly' ? bill.monthlyPrice : 0),
+      source: u.Source || 'Admin', plan: a.plan, state: a.state, endsOn: a.endsOn, daysLeft: a.daysLeft, amount: u.Amount || (u.Plan === 'Yearly' ? bill.yearlyPrice : u.Plan === 'Monthly' ? bill.monthlyPrice : 0),
       sheetUrl: isOwner && u.SpreadsheetID ? 'https://docs.google.com/spreadsheets/d/' + u.SpreadsheetID + '/edit' : '' };
   });
   rows.sort(function (x, y) { return x.name.localeCompare(y.name); });
@@ -302,6 +405,7 @@ function adminListUsers_(p, user) {
   pays.sort(function (x, y) { return String(y.RecordedAt).localeCompare(String(x.RecordedAt)); });
   var recent = pays.slice(0, 15).map(function (x) { return { id: x.PaymentID, uid: x.UserID, name: names[x.UserID] || '', paidOn: x.PaidOn, plan: x.Plan, amount: x.Amount, until: x.PeriodEnd, method: x.Method, note: x.Note }; });
   s.mrr = Math.round(s.mrr * 100) / 100;
+  var nowMs = Date.now(); s.pending = readTable_(SIGNUPS, m).rows.filter(function (x) { return !x.Used && x.ExpiresAt > nowMs; }).length;
   return { users: rows, appUrl: appUrl_(), summary: s, billing: bill, payments: recent, qrReady: !!driveFileId_(bill.qrUrl) };
 }
 
@@ -362,7 +466,7 @@ function adminCreateUser_(p, user) {
   var saved = { SS_MEMO_: SS_MEMO_, T: TENANT_ID_, C: CACHE_PFX_ };
   var tenantSS = createTenantSpreadsheet_(name, email, id);
   SS_MEMO_ = saved.SS_MEMO_; TENANT_ID_ = saved.T; CACHE_PFX_ = saved.C;
-  var row = { UserID: id, Email: email, Name: name, Role: role, Active: true, PasswordHash: hashPw_(temp, salt), Salt: salt, MustChange: true, SpreadsheetID: tenantSS.getId(), CreatedAt: nowISO_(), LastLoginAt: '', AlertHour: 7, LastAlertDate: '', Plan: free ? 'Free' : 'Trial', TrialEnds: free ? '' : addDaysYMD_(todayYMD_(), getBilling_().trialDays) };
+  var row = { UserID: id, Email: email, Name: name, Role: role, Active: true, PasswordHash: hashPw_(temp, salt), Salt: salt, MustChange: true, SpreadsheetID: tenantSS.getId(), CreatedAt: nowISO_(), LastLoginAt: '', AlertHour: 7, LastAlertDate: '', Source: 'Admin', Plan: free ? 'Free' : 'Trial', TrialEnds: free ? '' : addDaysYMD_(todayYMD_(), getBilling_().trialDays) };
   withLock_(function () { appendRows_(USERS, [row], m); });
   var url = appUrl_(), emailed = p.notify === false ? false : sendCredentialEmail_(name, email, temp, url, 'welcome', row.TrialEnds);
   return { user: { uid: id, name: name, email: email, role: role }, temp: temp, url: url, emailed: emailed, trialEnds: row.TrialEnds };
@@ -468,7 +572,7 @@ function runMultiUserSetup() {
     var id = uniqueId_('USR', indexBy_(readTable_(USERS, m).rows, 'UserID'), ''), temp = tempPassword_(), salt = randomString_(24);
     var ts = createTenantSpreadsheet_('Admin', email, id);
     SS_MEMO_ = null; TENANT_ID_ = ''; CACHE_PFX_ = 'MT_';
-    appendRows_(USERS, [{ UserID: id, Email: email, Name: 'Administrator', Role: 'Admin', Active: true, PasswordHash: hashPw_(temp, salt), Salt: salt, MustChange: true, SpreadsheetID: ts.getId(), CreatedAt: nowISO_(), LastLoginAt: '', AlertHour: 7, LastAlertDate: '', Plan: 'Free' }], m);
+    appendRows_(USERS, [{ UserID: id, Email: email, Name: 'Administrator', Role: 'Admin', Active: true, PasswordHash: hashPw_(temp, salt), Salt: salt, MustChange: true, SpreadsheetID: ts.getId(), CreatedAt: nowISO_(), LastLoginAt: '', AlertHour: 7, LastAlertDate: '', Plan: 'Free', Source: 'Admin' }], m);
     msg = 'Multi-user mode is ON.\n\nAdmin login\nEmail: ' + email + '\nTemporary password: ' + temp + '\n\nDeploy the web app with "Who has access: Anyone" and sign in. You will be asked to choose your own password.';
   }
   installMultiTrigger_();
