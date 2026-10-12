@@ -57,7 +57,7 @@ This turns MedTrack into a multi-user system. Everyone signs in with their email
 
 1. Add a new script file named **Auth** and paste `Auth.gs`. Replace the other changed files too, then save.
 2. Run the function **runMultiUserSetup** (Setup.gs is not needed; pick it from the Auth.gs file). Allow the permissions. A message shows **your admin email and a temporary password** (also in the Execution log).
-3. **Deploy → Manage deployments → ✏ → Version: New version**, and set **Who has access: Anyone**. (Medreps do not need a Google account. Login is handled by MedTrack.) Deploy and copy the web app link.
+3. Open `appsscript.json` and paste the contents of `appsscript.multiuser.json` (it sets access to **Anyone**). Then **Deploy → New deployment → Web app**, **Execute as: Me**, **Who has access: Anyone** → Deploy. Copy the new link. Test it with `?ping=1` added at the end: it should show "MedTrack is online" even in a private window. (Medreps do not need a Google account. Login is handled by MedTrack.) Deploy and copy the web app link.
 4. Open the link, sign in as admin with the temporary password. MedTrack asks you to choose your own password.
 5. **More → Manage users → Add medrep**: enter their name and email. You get a card with the **link, email and temporary password**. Tap **Copy all details** and send it to them. The password is shown only once.
 6. The medrep signs in, and is asked to choose their own password before anything else.
