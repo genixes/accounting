@@ -273,7 +273,10 @@ function requireAdmin_(user) { if (!user || user.Role !== 'Admin') throw userErr
 /** Lists all users (admin). */
 function adminListUsers_(p, user) {
   requireAdmin_(user);
-  var rows = readTable_(USERS, masterSS_()).rows.map(function (u) { return { uid: u.UserID, name: u.Name, email: u.Email, role: u.Role, active: u.Active, mustChange: u.MustChange, lastLogin: u.LastLoginAt, created: u.CreatedAt, sheetUrl: u.SpreadsheetID ? 'https://docs.google.com/spreadsheets/d/' + u.SpreadsheetID + '/edit' : '' }; });
+  var owner = '';
+  try { owner = normEmail_(Session.getEffectiveUser().getEmail()); } catch (e) { owner = ''; }
+  var isOwner = !!owner && normEmail_(user.Email) === owner;
+  var rows = readTable_(USERS, masterSS_()).rows.map(function (u) { return { uid: u.UserID, name: u.Name, email: u.Email, role: u.Role, active: u.Active, mustChange: u.MustChange, lastLogin: u.LastLoginAt, created: u.CreatedAt, sheetUrl: isOwner && u.SpreadsheetID ? 'https://docs.google.com/spreadsheets/d/' + u.SpreadsheetID + '/edit' : '' }; });
   rows.sort(function (a, b) { return a.name.localeCompare(b.name); });
   return { users: rows, appUrl: appUrl_() };
 }
