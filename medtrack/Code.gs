@@ -10,9 +10,6 @@ function doGet() {
   return tpl.evaluate()
     .setTitle('MedTrack')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
-    .addMetaTag('theme-color', '#0F2A44')
-    .addMetaTag('apple-mobile-web-app-capable', 'yes')
-    .addMetaTag('mobile-web-app-capable', 'yes')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
