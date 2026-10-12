@@ -289,6 +289,38 @@ function createTenantSpreadsheet_(name, email, id) {
   return ss;
 }
 
+/**
+ * Branded welcome / new-password email with the sign-in details. Returns true when it was sent.
+ * kind: 'welcome' (new account) or 'reset' (admin issued a new temporary password).
+ */
+function sendCredentialEmail_(name, email, temp, url, kind) {
+  try {
+    var s = (typeof getSettings_ === 'function') ? getSettings_() : {};
+    var brand = /^#[0-9A-Fa-f]{6}$/.test(String(s.BrandColor || '')) ? s.BrandColor : '#0F2A44';
+    var accent = /^#[0-9A-Fa-f]{6}$/.test(String(s.AccentColor || '')) ? s.AccentColor : '#0E9AA7';
+    var welcome = kind !== 'reset';
+    var title = welcome ? 'Your MedTrack account is ready' : 'Your new MedTrack password';
+    var intro = welcome ? 'Welcome! Your account has been created. Use the details below to sign in.' : 'Your administrator reset your password. Use the temporary password below to sign in.';
+    var row = function (k, v, big) { return '<tr><td style="padding:12px 16px;border-bottom:1px solid #E6ECF2;color:#5B6F83;font-size:13px;width:38%">' + k + '</td><td style="padding:12px 16px;border-bottom:1px solid #E6ECF2;color:#0F2A44;font-weight:700;' + (big ? 'font-size:20px;letter-spacing:.06em;font-family:Consolas,Menlo,monospace;' : 'font-size:14px;') + 'word-break:break-all">' + v + '</td></tr>'; };
+    var html = '<div style="background:#F3F6F9;padding:24px 12px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif">' +
+      '<div style="max-width:520px;margin:auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 6px 24px rgba(15,42,68,.10)">' +
+      '<div style="background:' + brand + ';padding:26px 28px"><div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:.2px">MedTrack</div><div style="color:' + accent + ';font-size:12px;font-weight:700;letter-spacing:.12em;margin-top:2px">INVENTORY &amp; EXPIRY MONITORING</div></div>' +
+      '<div style="padding:28px">' +
+      '<h2 style="margin:0 0 8px;color:#0F2A44;font-size:20px">' + title + '</h2>' +
+      '<p style="margin:0 0 18px;color:#334A60;font-size:14.5px;line-height:1.55">Hi ' + esc_(name) + ', ' + intro + '</p>' +
+      '<table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border:1px solid #E6ECF2;border-radius:12px;border-collapse:separate;overflow:hidden">' +
+      row('Sign-in email', esc_(email)) + row('Temporary password', esc_(temp), true) + '</table>' +
+      '<p style="margin:24px 0"><a href="' + esc_(url) + '" style="background:' + accent + ';color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:12px;display:inline-block">Open MedTrack</a></p>' +
+      '<p style="margin:0 0 6px;color:#5B6F83;font-size:12.5px;word-break:break-all">Button not working? Open this address: <a href="' + esc_(url) + '" style="color:' + accent + '">' + esc_(url) + '</a></p>' +
+      '<div style="margin-top:18px;padding:14px 16px;background:#F3F6F9;border-radius:12px;color:#334A60;font-size:13px;line-height:1.55"><b>What happens next</b><br>1. Open the link and sign in with the details above.<br>2. You will be asked to choose your own password.<br>3. Forgot it later? Tap &ldquo;Forgot password&rdquo; on the sign-in page.</div>' +
+      '<p style="margin:18px 0 0;color:#7A8B9C;font-size:12px">For your security, please do not share this email.</p>' +
+      '</div><div style="padding:14px 28px;background:#F8FAFC;color:#7A8B9C;font-size:11.5px;text-align:center">Powered by <a href="' + APP.URL + '" style="color:#5B6F83;font-weight:700;text-decoration:none">LAYAW SYSTEM</a></div></div></div>';
+    var plain = title + '\n\nHi ' + name + ', ' + intro + '\n\nLink: ' + url + '\nEmail: ' + email + '\nTemporary password: ' + temp + '\n\nYou will be asked to choose your own password the first time you sign in.\n\nPowered by LAYAW SYSTEM';
+    MailApp.sendEmail({ to: email, subject: welcome ? 'Your MedTrack account is ready' : 'Your new MedTrack password', htmlBody: html, body: plain, name: 'MedTrack' });
+    return true;
+  } catch (e) { console.error('Credential email failed: ' + e); return false; }
+}
+
 /** Creates a medrep account with a temporary password (shown once to the admin). */
 function adminCreateUser_(p, user) {
   requireAdmin_(user);
@@ -305,7 +337,8 @@ function adminCreateUser_(p, user) {
   SS_MEMO_ = saved.SS_MEMO_; TENANT_ID_ = saved.T; CACHE_PFX_ = saved.C;
   var row = { UserID: id, Email: email, Name: name, Role: role, Active: true, PasswordHash: hashPw_(temp, salt), Salt: salt, MustChange: true, SpreadsheetID: tenantSS.getId(), CreatedAt: nowISO_(), LastLoginAt: '', AlertHour: 7, LastAlertDate: '' };
   withLock_(function () { appendRows_(USERS, [row], m); });
-  return { user: { uid: id, name: name, email: email, role: role }, temp: temp, url: appUrl_() };
+  var url = appUrl_(), emailed = p.notify === false ? false : sendCredentialEmail_(name, email, temp, url, 'welcome');
+  return { user: { uid: id, name: name, email: email, role: role }, temp: temp, url: url, emailed: emailed };
 }
 
 /** Admin resets a user's password to a new temporary one. */
@@ -316,7 +349,8 @@ function adminResetPassword_(p, user) {
   var temp = tempPassword_();
   setPassword_(u.UserID, temp, true);
   dropSessions_(u.UserID);
-  return { temp: temp, email: u.Email, name: u.Name, url: appUrl_() };
+  var url = appUrl_(), emailed = p.notify === false ? false : sendCredentialEmail_(u.Name, u.Email, temp, url, 'reset');
+  return { temp: temp, email: u.Email, name: u.Name, url: url, emailed: emailed };
 }
 
 /** Admin switches a user on or off (their data is kept). */

@@ -1625,10 +1625,10 @@ function loadUsers() {
     }).join('') || emptyState('users', 'No users yet', 'Add your first medrep.');
   }, function () { var box = $('#userList'); if (box) box.innerHTML = emptyState('users', 'No connection', 'Could not reach the server.'); });
 }
-function credentialSheet(title, name, email, temp, url) {
+function credentialSheet(title, name, email, temp, url, emailed) {
   var text = 'MedTrack login for ' + name + '\nLink: ' + url + '\nEmail: ' + email + '\nTemporary password: ' + temp + '\n(You will be asked to choose your own password the first time you sign in.)';
   S.cred = text;
-  openSheet({ title: title, html: '<div class="banner warn">' + ico('alert') + '<span>The temporary password is shown only once. Copy it now and send it to ' + esc(name) + '.</span></div><div class="card" style="box-shadow:none;margin-top:12px"><div class="pad" style="padding:6px 16px"><div class="kv"><span>Link</span><b style="word-break:break-all;font-size:12.5px">' + esc(url) + '</b></div><div class="kv"><span>Email</span><b>' + esc(email) + '</b></div><div class="kv"><span>Temporary password</span><b style="font-size:18px;letter-spacing:.04em">' + esc(temp) + '</b></div></div></div>', foot: '<button class="btn primary" data-a="copyCred">Copy all details</button>' });
+  openSheet({ title: title, html: (emailed ? '<div class="banner ok">' + ico('check') + '<span>A branded email with these details was sent to ' + esc(email) + '.</span></div>' : '') + '<div class="banner warn" style="margin-top:8px">' + ico('alert') + '<span>The temporary password is shown only once. ' + (emailed ? 'You can also copy it below.' : 'Copy it now and send it to ' + esc(name) + '.') + '</span></div><div class="card" style="box-shadow:none;margin-top:12px"><div class="pad" style="padding:6px 16px"><div class="kv"><span>Link</span><b style="word-break:break-all;font-size:12.5px">' + esc(url) + '</b></div><div class="kv"><span>Email</span><b>' + esc(email) + '</b></div><div class="kv"><span>Temporary password</span><b style="font-size:18px;letter-spacing:.04em">' + esc(temp) + '</b></div></div></div>', foot: '<button class="btn primary" data-a="copyCred">Copy all details</button>' });
 }
 A.copyCred = function () { copyText(S.cred || '').then(function (ok) { toast(ok ? 'Copied. Paste it into a message.' : 'Could not copy. Please select and copy the text.', ok ? 'ok' : 'warn'); }); };
 A.saveAppUrl = function (el) {
@@ -1637,7 +1637,7 @@ A.saveAppUrl = function (el) {
 };
 A.copyAppUrl = function () { copyText(val('al_url')).then(function (ok) { toast(ok ? 'Link copied' : 'Could not copy', ok ? 'ok' : 'warn'); }); };
 A.addUser = function () {
-  openSheet({ title: 'Add medrep', html: '<div class="form">' + fld('nu_name', 'Full name', { req: 1, attrs: 'maxlength="80" autocomplete="off"' }) + fld('nu_email', 'Email (used to sign in)', { req: 1, type: 'email', attrs: 'autocapitalize="off" autocomplete="off"' }) + fld('nu_role', 'Role', { html: '<select class="select" id="nu_role"><option value="Rep">Medrep</option><option value="Admin">Administrator</option></select>' }) + '<p class="hint">We create their own private spreadsheet in your Drive and a temporary password for you to hand over.</p></div>', foot: '<button class="btn" data-a="sheetCancel">Cancel</button><button class="btn primary" id="nuGo" data-a="saveUser">Create account</button>' });
+  openSheet({ title: 'Add medrep', html: '<div class="form">' + fld('nu_name', 'Full name', { req: 1, attrs: 'maxlength="80" autocomplete="off"' }) + fld('nu_email', 'Email (used to sign in)', { req: 1, type: 'email', attrs: 'autocapitalize="off" autocomplete="off"' }) + fld('nu_role', 'Role', { html: '<select class="select" id="nu_role"><option value="Rep">Medrep</option><option value="Admin">Administrator</option></select>' }) + '<label class="check" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="nu_mail" checked> <span>Email them their login details</span></label><p class="hint">We create their own private spreadsheet in your Drive and a temporary password. The email has the link, their email and the temporary password.</p></div>', foot: '<button class="btn" data-a="sheetCancel">Cancel</button><button class="btn primary" id="nuGo" data-a="saveUser">Create account</button>' });
 };
 A.saveUser = function (el) {
   var name = val('nu_name').trim(), email = val('nu_email').trim(); setErr('nu_name', ''); setErr('nu_email', ''); var ok = true;
@@ -1646,10 +1646,10 @@ A.saveUser = function (el) {
   if (!ok) return;
   if (!S.online) return toast('Creating an account needs a connection.', 'warn');
   setBusy(el, true, 'Creating (this takes a few seconds)');
-  server('adminCreateUser', { name: name, email: email, role: val('nu_role') }, 120000).then(function (res) {
+  server('adminCreateUser', { name: name, email: email, role: val('nu_role'), notify: !!($('#nu_mail') && $('#nu_mail').checked) }, 120000).then(function (res) {
     setBusy(el, false);
     if (!res.ok) return setErr('nu_email', res.error);
-    closeAllSheets(); credentialSheet('Account created', res.user.name, res.user.email, res.temp, res.url); loadUsers();
+    closeAllSheets(); credentialSheet('Account created', res.user.name, res.user.email, res.temp, res.url, res.emailed); loadUsers();
   }, function () { setBusy(el, false); toast('Could not reach the server. Check the Users list before trying again.', 'err'); });
 };
 A.openUser = function (el) {
@@ -1662,7 +1662,7 @@ A.resetUserPw = function (el) {
   var id = el.getAttribute('data-id'), u = (S.users || []).filter(function (x) { return x.uid === id; })[0];
   confirmSheet({ title: 'Reset password for ' + u.name + '?', intro: 'They will be signed out everywhere and must use a new temporary password.', ok: 'Reset password' }).then(function (yes) {
     if (!yes) return;
-    server('adminResetPassword', { uid: id }).then(function (res) { if (!res.ok) return alertSheet('Could not reset', res.error); closeAllSheets(); credentialSheet('New temporary password', res.name, res.email, res.temp, res.url || S.flags.appUrl || ''); loadUsers(); }, function () { toast('Could not reach the server.', 'err'); });
+    server('adminResetPassword', { uid: id }).then(function (res) { if (!res.ok) return alertSheet('Could not reset', res.error); closeAllSheets(); credentialSheet('New temporary password', res.name, res.email, res.temp, res.url || S.flags.appUrl || '', res.emailed); loadUsers(); }, function () { toast('Could not reach the server.', 'err'); });
   });
 };
 A.toggleUser = function (el) {
