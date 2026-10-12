@@ -61,6 +61,8 @@ This turns MedTrack into a multi-user system. Everyone signs in with their email
 - **Forgot password:** on the sign-in screen they tap *Forgot password?*. An email with a one-time link (valid 60 minutes) is sent from your Gmail.
 - **Lost password / new device:** Manage users → tap the medrep → *Reset password* gives a new temporary password.
 - **Leaving medrep:** Manage users → *Switch off*. Their data stays in Drive.
+- **Password reset page:** the email link opens a MedTrack page where they type their registered email, a new password and confirm it.
+- **If the email link says "unable to open the file":** the link in the email is not your real web app link. Open the app once with the real link (Deploy > Manage deployments > Web app URL, ends with **/exec**). MedTrack then remembers it. Or go to **Manage users** and paste the link in **Link your medreps open**, then tap **Save link**. Never use the "Test deployment" link.
 - Passwords are stored only as a salted hash, never as readable text.
 
 **Good to know**

@@ -232,8 +232,7 @@ function buildEmailHtml_(groups, s, today, c) {
     h += '</div>';
   });
   h += '</div>';
-  var url = '';
-  try { url = ScriptApp.getService().getUrl(); } catch (e) { url = ''; }
+  var url = appUrl_();
   if (url) h += '<div style="text-align:center;padding:4px 14px 22px;"><a href="' + esc_(url) + '" style="display:inline-block;background:' + accent + ';color:#FFFFFF;text-decoration:none;font-weight:700;padding:13px 26px;border-radius:12px;font-size:15px;">Open MedTrack</a></div>';
   h += '<div style="border-top:1px solid #E1E8EF;padding:14px;text-align:center;font-size:11px;color:#7A8B9C;">You get this digest once a day, only when something new crosses an alert threshold.<br>Powered by <a href="' + APP.URL + '" style="color:#5B6F83;font-weight:700;text-decoration:underline;">LAYAW SYSTEM</a></div>';
   h += '</div></div>';

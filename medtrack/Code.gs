@@ -8,6 +8,7 @@
 function doGet(e) {
   var tpl = HtmlService.createTemplateFromFile('Index');
   var reset = e && e.parameter && /^[A-Za-z0-9]{30,64}$/.test(e.parameter.reset || '') ? e.parameter.reset : '';
+  try { appUrl_(); } catch (err) { /* remembering the live link is best-effort */ }
   tpl.multiJson = isMulti_() ? 'true' : 'false';
   tpl.resetJson = JSON.stringify(reset);
   return tpl.evaluate()
@@ -49,7 +50,8 @@ function actions_() {
     adminListUsers: adminListUsers_,
     adminCreateUser: adminCreateUser_,
     adminResetPassword: adminResetPassword_,
-    adminSetActive: adminSetActive_
+    adminSetActive: adminSetActive_,
+    adminSetAppUrl: adminSetAppUrl_
   };
 }
 

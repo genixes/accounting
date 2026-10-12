@@ -88,6 +88,30 @@ function clearTenant_() { SS_MEMO_ = null; TENANT_ID_ = ''; CACHE_PFX_ = 'MT_'; 
 
 function authError_() { var e = new Error('Please sign in again.'); e.isUser = true; e.code = 'AUTH'; return e; }
 
+/**
+ * The link medreps should open. Uses the live /exec address whenever the app is opened through its real
+ * deployment (and remembers it); otherwise the remembered or admin-set address. Never returns a /dev test link
+ * when something better is known.
+ */
+function appUrl_() {
+  var props = PropertiesService.getScriptProperties(), cur = '';
+  try { cur = ScriptApp.getService().getUrl() || ''; } catch (e) { cur = ''; }
+  if (/\/exec$/.test(cur)) {
+    if (props.getProperty('APP_URL') !== cur) props.setProperty('APP_URL', cur);
+    return cur;
+  }
+  return props.getProperty('APP_URL') || cur;
+}
+
+/** Admin sets the official app link by hand (used when the app was only opened through a test link). */
+function adminSetAppUrl_(p, user) {
+  requireAdmin_(user);
+  var u = str_(p.url, 300);
+  if (!/^https:\/\/[^\s]+$/.test(u) || /\/dev(\?.*)?$/.test(u)) throw userError_('Please paste the Web app link that ends with /exec. Copy it from Deploy > Manage deployments.');
+  PropertiesService.getScriptProperties().setProperty('APP_URL', u);
+  return { url: u };
+}
+
 /* ----------------------------- Sessions ------------------------------ */
 
 /** Creates a session and returns the raw token (only its hash is stored). */
@@ -205,12 +229,12 @@ function requestReset_(p) {
       if (keep.length !== t.rows.length) { t.sheet.getRange(2, 1, t.sheet.getMaxRows() - 1, 5).clearContent(); if (keep.length) rewriteTable_(RESETS, keep, m); }
       appendRows_(RESETS, [{ TokenHash: sha_(raw), UserID: u.UserID, ExpiresAt: now + RESET_MINUTES * 60000, Used: false, CreatedAt: nowISO_() }], m);
     });
-    var url = '';
-    try { url = ScriptApp.getService().getUrl(); } catch (e) { url = ''; }
+    var url = appUrl_();
     var link = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'reset=' + raw;
     var html = '<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:480px;margin:auto;padding:24px;color:#0F2A44">' +
       '<h2 style="margin:0 0 8px">Reset your MedTrack password</h2><p>Hi ' + esc_(u.Name) + ', tap the button to choose a new password. The link works once and expires in ' + RESET_MINUTES + ' minutes.</p>' +
       '<p style="margin:22px 0"><a href="' + esc_(link) + '" style="background:#0E9AA7;color:#fff;text-decoration:none;font-weight:700;padding:13px 24px;border-radius:12px;display:inline-block">Choose a new password</a></p>' +
+      '<p style="color:#5B6F83;font-size:12px;word-break:break-all">Button not working? Copy this address into your browser:<br>' + esc_(link) + '</p>' +
       '<p style="color:#5B6F83;font-size:13px">If you did not ask for this, you can ignore this email. Your password stays the same.</p>' +
       '<p style="color:#7A8B9C;font-size:11px;margin-top:24px">Powered by <a href="' + APP.URL + '" style="color:#5B6F83">LAYAW SYSTEM</a></p></div>';
     try { MailApp.sendEmail({ to: u.Email, subject: 'Reset your MedTrack password', htmlBody: html, body: 'Reset your MedTrack password: ' + link + '\n(Works once, expires in ' + RESET_MINUTES + ' minutes.)', name: 'MedTrack' }); }
@@ -228,6 +252,9 @@ function resetPassword_(p) {
   if (!r || r.Used || r.ExpiresAt < now) throw userError_('This reset link has expired or was already used. Please request a new one.');
   var u = readTable_(USERS, m).rows.filter(function (x) { return x.UserID === r.UserID && x.Active; })[0];
   if (!u) throw userError_('This account is not active. Please contact your administrator.');
+  var rk = 'RL_X_' + hash.substr(0, 16);
+  rateCheck_(rk, 6);
+  if (normEmail_(p.email) !== u.Email) { rateHit_(rk, 900); throw userError_('That email does not match this reset link. Please type the email you registered with.'); }
   var prob = pwProblem_(p.password, u.Email);
   if (prob) throw userError_(prob);
   setPassword_(u.UserID, p.password, false);
@@ -248,7 +275,7 @@ function adminListUsers_(p, user) {
   requireAdmin_(user);
   var rows = readTable_(USERS, masterSS_()).rows.map(function (u) { return { uid: u.UserID, name: u.Name, email: u.Email, role: u.Role, active: u.Active, mustChange: u.MustChange, lastLogin: u.LastLoginAt, created: u.CreatedAt, sheetUrl: u.SpreadsheetID ? 'https://docs.google.com/spreadsheets/d/' + u.SpreadsheetID + '/edit' : '' }; });
   rows.sort(function (a, b) { return a.name.localeCompare(b.name); });
-  return { users: rows };
+  return { users: rows, appUrl: appUrl_() };
 }
 
 /** Creates the medrep's private spreadsheet inside the owner's "MedTrack Clients" folder and sets it up. */
@@ -278,9 +305,7 @@ function adminCreateUser_(p, user) {
   SS_MEMO_ = saved.SS_MEMO_; TENANT_ID_ = saved.T; CACHE_PFX_ = saved.C;
   var row = { UserID: id, Email: email, Name: name, Role: role, Active: true, PasswordHash: hashPw_(temp, salt), Salt: salt, MustChange: true, SpreadsheetID: tenantSS.getId(), CreatedAt: nowISO_(), LastLoginAt: '', AlertHour: 7, LastAlertDate: '' };
   withLock_(function () { appendRows_(USERS, [row], m); });
-  var url = '';
-  try { url = ScriptApp.getService().getUrl(); } catch (e) { url = ''; }
-  return { user: { uid: id, name: name, email: email, role: role }, temp: temp, url: url };
+  return { user: { uid: id, name: name, email: email, role: role }, temp: temp, url: appUrl_() };
 }
 
 /** Admin resets a user's password to a new temporary one. */
@@ -291,7 +316,7 @@ function adminResetPassword_(p, user) {
   var temp = tempPassword_();
   setPassword_(u.UserID, temp, true);
   dropSessions_(u.UserID);
-  return { temp: temp, email: u.Email, name: u.Name };
+  return { temp: temp, email: u.Email, name: u.Name, url: appUrl_() };
 }
 
 /** Admin switches a user on or off (their data is kept). */

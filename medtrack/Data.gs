@@ -400,9 +400,7 @@ function loadAll_(user) {
   flags.sheetUrl = ss.getUrl() + (imp ? '#gid=' + imp.getSheetId() : '');
   flags.version = APP.VERSION;
   flags.multi = isMulti_();
-  var appUrl = '';
-  try { appUrl = ScriptApp.getService().getUrl() || ''; } catch (e) { /* ignore */ }
-  flags.appUrl = appUrl;
+  flags.appUrl = appUrl_();
   return '{"ok":true,"today":"' + todayYMD_() + '","flags":' + JSON.stringify(flags) + ',"user":' + JSON.stringify(user ? publicUser_(user) : null) + ',"data":' + json + '}';
 }
 

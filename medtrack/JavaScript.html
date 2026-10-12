@@ -1423,7 +1423,7 @@ function drawAuth() {
   var head = '<div style="text-align:center;margin-bottom:6px"><div class="logo" style="width:56px;height:56px;border-radius:18px;margin:0 auto 14px"><span style="width:30px;height:30px;display:block">' + ico('pill') + '</span></div>', body = '';
   if (m === 'login') body = head + '<div class="h1">Welcome back</div><div class="sub">Sign in to your MedTrack</div></div>' + msg + '<div class="form">' + fld('au_email', 'Email', { type: 'email', value: S.auth.email || '', attrs: 'autocomplete="username" autocapitalize="off" inputmode="email" data-in="authEnter"' }) + pwField('au_pw', 'Password', 'current-password') + '<button class="btn primary block" id="auGo" data-a="doLogin" style="min-height:54px;font-size:16px">Sign in</button><button class="link" data-a="goForgot" style="align-self:center">Forgot password?</button></div>';
   else if (m === 'forgot') body = head + '<div class="h1">Forgot password?</div><div class="sub">Enter your email. We will send you a link to choose a new password.</div></div>' + msg + '<div class="form">' + fld('au_email', 'Email', { type: 'email', value: S.auth.email || '', attrs: 'autocomplete="username" autocapitalize="off" inputmode="email" data-in="authEnter"' }) + '<button class="btn primary block" id="auGo" data-a="doForgot" style="min-height:54px;font-size:16px">Send reset link</button><button class="link" data-a="goLogin" style="align-self:center">Back to sign in</button></div>';
-  else if (m === 'reset') body = head + '<div class="h1">Choose a new password</div><div class="sub">At least 8 characters, with a letter and a number.</div></div>' + msg + '<div class="form">' + pwField('au_new', 'New password', 'new-password') + pwField('au_new2', 'Type it again', 'new-password') + '<button class="btn primary block" id="auGo" data-a="doReset" style="min-height:54px;font-size:16px">Save password</button><button class="link" data-a="goLogin" style="align-self:center">Back to sign in</button></div>';
+  else if (m === 'reset') body = head + '<div class="h1">Choose a new password</div><div class="sub">At least 8 characters, with a letter and a number.</div></div>' + msg + '<div class="form">' + fld('au_email', 'Your registered email', { type: 'email', value: S.auth.email || '', attrs: 'autocomplete="username" autocapitalize="off" inputmode="email"' }) + pwField('au_new', 'New password', 'new-password') + pwField('au_new2', 'Confirm new password', 'new-password') + '<button class="btn primary block" id="auGo" data-a="doReset" style="min-height:54px;font-size:16px">Save password</button><button class="link" data-a="goLogin" style="align-self:center">Back to sign in</button></div>';
   else body = head + '<div class="h1">' + (S.user && S.user.mustChange ? 'Choose your password' : 'Change password') + '</div><div class="sub">' + (S.user && S.user.mustChange ? 'For your security, replace the temporary password with your own.' : 'Pick a new password for your account.') + '</div></div>' + msg + '<div class="form">' + pwField('au_cur', S.user && S.user.mustChange ? 'Temporary password' : 'Current password', 'current-password') + pwField('au_new', 'New password', 'new-password') + pwField('au_new2', 'Type the new password again', 'new-password') + '<button class="btn primary block" id="auGo" data-a="doChange" style="min-height:54px;font-size:16px">Save password</button>' + (S.user && S.user.mustChange ? '<button class="link" data-a="logout" style="align-self:center">Sign out</button>' : '<button class="link" data-a="cancelChange" style="align-self:center">Cancel</button>') + '</div>';
   $('#view').innerHTML = '<div class="authwrap card pad">' + body + '</div><div class="footer">Powered by ' + LAYAW_LINK + '</div>';
   S.auth.msg = ''; S.auth.ok = false;
@@ -1463,13 +1463,14 @@ A.doForgot = function (el) {
   }, function () { setBusy(el, false); authFail('Could not reach the server. Please try again.'); });
 };
 A.doReset = function (el) {
-  var p1 = val('au_new'), p2 = val('au_new2'); setErr('au_new', ''); setErr('au_new2', '');
-  var pr = pwProblem(p1, ''); if (pr) return setErr('au_new', pr);
+  var em = val('au_email').trim(), p1 = val('au_new'), p2 = val('au_new2'); setErr('au_email', ''); setErr('au_new', ''); setErr('au_new2', '');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return setErr('au_email', 'Please type the email you registered with.');
+  var pr = pwProblem(p1, em); if (pr) return setErr('au_new', pr);
   if (p1 !== p2) return setErr('au_new2', 'The two passwords are not the same.');
   setBusy(el, true, 'Saving');
-  server('resetPassword', { token: RESET_TOKEN, password: p1 }).then(function (res) {
+  server('resetPassword', { token: RESET_TOKEN, email: em, password: p1 }).then(function (res) {
     setBusy(el, false);
-    if (!res.ok) { S.auth = { mode: 'forgot', msg: res.error }; drawAuth(); return; }
+    if (!res.ok) { if (/email/i.test(res.error)) return setErr('au_email', res.error); S.auth = { mode: 'forgot', msg: res.error }; drawAuth(); return; }
     try { history.replaceState(null, '', location.pathname); } catch (e) { /* ignore */ }
     RESET_TOKEN = ''; store.del('mt_token'); store.del('mt_user'); S.token = '';
     S.auth = { mode: 'login', ok: true, msg: 'Your password was changed. Please sign in.' }; drawAuth();
@@ -1520,7 +1521,7 @@ function copyText(t) {
   });
 }
 V.users = function () {
-  var h = '<div class="page"><div class="page-head"><div><div class="h1">Users</div><div class="sub">Everyone who can sign in. Each medrep has their own private data.</div></div><button class="btn primary sm" data-a="addUser">' + ico('plus') + ' Add medrep</button></div><div class="card list" id="userList">' + skelRows(3) + '</div><div class="footer">Powered by ' + LAYAW_LINK + '</div></div>';
+  var h = '<div class="page"><div class="page-head"><div><div class="h1">Users</div><div class="sub">Everyone who can sign in. Each medrep has their own private data.</div></div><button class="btn primary sm" data-a="addUser">' + ico('plus') + ' Add medrep</button></div><div class="card pad form" id="appLinkCard"></div><div class="card list" id="userList">' + skelRows(3) + '</div><div class="footer">Powered by ' + LAYAW_LINK + '</div></div>';
   return { html: h, after: loadUsers };
 };
 function loadUsers() {
@@ -1528,7 +1529,8 @@ function loadUsers() {
   server('adminListUsers').then(function (res) {
     var box = $('#userList'); if (!box) return;
     if (!res.ok) { box.innerHTML = emptyState('users', 'Could not load users', res.error); return; }
-    S.users = res.users;
+    S.users = res.users; S.flags.appUrl = res.appUrl || S.flags.appUrl;
+    $('#appLinkCard').innerHTML = '<div><b>Link your medreps open</b><p class="muted" style="margin-top:4px">This is the address in password-reset emails and in the details you send. It must be the Web app link that ends with <b>/exec</b>.</p></div>' + fld('al_url', 'Web app link', { value: res.appUrl || '', attrs: 'inputmode="url" autocapitalize="off" placeholder="https://script.google.com/macros/s/.../exec"' }) + '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-a="saveAppUrl">Save link</button><button class="btn sm ghost" data-a="copyAppUrl">Copy link</button></div>' + (/\/exec$/.test(res.appUrl || '') ? '' : '<div class="banner warn">' + ico('alert') + '<span>The link is not set yet, or it is a test link. Paste your Web app link (Deploy > Manage deployments) and tap Save link, or open the real link once.</span></div>');
     box.innerHTML = res.users.map(function (u) {
       return '<button class="item" data-a="openUser" data-id="' + esc(u.uid) + '"><span class="avatar">' + esc(u.name.charAt(0).toUpperCase()) + '</span><div class="main"><div class="t">' + esc(u.name) + (u.role === 'Admin' ? ' <span class="tag">Admin</span>' : '') + (u.active ? '' : ' <span class="tag" style="color:var(--gray);background:var(--gray-bg)">Off</span>') + '</div><div class="s">' + esc(u.email) + '</div><div class="s">' + (u.lastLogin ? 'Last sign-in ' + esc(fmtDate(String(u.lastLogin).slice(0, 10))) : 'Has not signed in yet') + '</div></div><div class="e">' + (u.mustChange ? '<span class="pill amber">Temp password</span>' : u.active ? '<span class="pill green">Active</span>' : grayPill('Off')) + '</div></button>';
     }).join('') || emptyState('users', 'No users yet', 'Add your first medrep.');
@@ -1540,6 +1542,11 @@ function credentialSheet(title, name, email, temp, url) {
   openSheet({ title: title, html: '<div class="banner warn">' + ico('alert') + '<span>The temporary password is shown only once. Copy it now and send it to ' + esc(name) + '.</span></div><div class="card" style="box-shadow:none;margin-top:12px"><div class="pad" style="padding:6px 16px"><div class="kv"><span>Link</span><b style="word-break:break-all;font-size:12.5px">' + esc(url) + '</b></div><div class="kv"><span>Email</span><b>' + esc(email) + '</b></div><div class="kv"><span>Temporary password</span><b style="font-size:18px;letter-spacing:.04em">' + esc(temp) + '</b></div></div></div>', foot: '<button class="btn primary" data-a="copyCred">Copy all details</button>' });
 }
 A.copyCred = function () { copyText(S.cred || '').then(function (ok) { toast(ok ? 'Copied. Paste it into a message.' : 'Could not copy. Please select and copy the text.', ok ? 'ok' : 'warn'); }); };
+A.saveAppUrl = function (el) {
+  setErr('al_url', ''); setBusy(el, true, 'Saving');
+  server('adminSetAppUrl', { url: val('al_url').trim() }).then(function (res) { setBusy(el, false); if (!res.ok) return setErr('al_url', res.error); S.flags.appUrl = res.url; toast('Link saved', 'ok'); loadUsers(); }, function () { setBusy(el, false); toast('Could not reach the server.', 'err'); });
+};
+A.copyAppUrl = function () { copyText(val('al_url')).then(function (ok) { toast(ok ? 'Link copied' : 'Could not copy', ok ? 'ok' : 'warn'); }); };
 A.addUser = function () {
   openSheet({ title: 'Add medrep', html: '<div class="form">' + fld('nu_name', 'Full name', { req: 1, attrs: 'maxlength="80" autocomplete="off"' }) + fld('nu_email', 'Email (used to sign in)', { req: 1, type: 'email', attrs: 'autocapitalize="off" autocomplete="off"' }) + fld('nu_role', 'Role', { html: '<select class="select" id="nu_role"><option value="Rep">Medrep</option><option value="Admin">Administrator</option></select>' }) + '<p class="hint">We create their own private spreadsheet in your Drive and a temporary password for you to hand over.</p></div>', foot: '<button class="btn" data-a="sheetCancel">Cancel</button><button class="btn primary" id="nuGo" data-a="saveUser">Create account</button>' });
 };
@@ -1566,7 +1573,7 @@ A.resetUserPw = function (el) {
   var id = el.getAttribute('data-id'), u = (S.users || []).filter(function (x) { return x.uid === id; })[0];
   confirmSheet({ title: 'Reset password for ' + u.name + '?', intro: 'They will be signed out everywhere and must use a new temporary password.', ok: 'Reset password' }).then(function (yes) {
     if (!yes) return;
-    server('adminResetPassword', { uid: id }).then(function (res) { if (!res.ok) return alertSheet('Could not reset', res.error); closeAllSheets(); credentialSheet('New temporary password', res.name, res.email, res.temp, S.flags.appUrl || ''); loadUsers(); }, function () { toast('Could not reach the server.', 'err'); });
+    server('adminResetPassword', { uid: id }).then(function (res) { if (!res.ok) return alertSheet('Could not reset', res.error); closeAllSheets(); credentialSheet('New temporary password', res.name, res.email, res.temp, res.url || S.flags.appUrl || ''); loadUsers(); }, function () { toast('Could not reach the server.', 'err'); });
   });
 };
 A.toggleUser = function (el) {
