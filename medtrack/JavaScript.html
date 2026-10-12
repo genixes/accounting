@@ -1303,6 +1303,7 @@ V.settings = function () {
     '<details><summary class="link" style="cursor:pointer">Advanced: request format</summary><div class="form" style="margin-top:8px"><div class="field"><div class="lab">Format</div><div class="seg"><button class="' + (S.stDraft.SmsContentType === 'form' ? 'on' : '') + '" data-a="stFmt" data-v="form">Form</button><button class="' + (S.stDraft.SmsContentType === 'json' ? 'on' : '') + '" data-a="stFmt" data-v="json">JSON</button></div></div>' +
     fld('st_smstpl', 'Request body', { html: '<textarea class="textarea" id="st_smstpl" maxlength="600" style="font-family:ui-monospace,monospace;font-size:13px">' + esc(s.SmsBodyTemplate) + '</textarea>', hint: 'Placeholders: {{apikey}} {{number}} {{message}} {{sender}}' }) + '</div></details></div>' +
     '<div class="sticky-act"><button class="btn primary block" data-a="stSave" id="stSave" style="min-height:54px;font-size:16px">Save settings</button></div>' +
+    '<div class="card pad form"><h2 class="h2">Sample data</h2><p class="muted">Want to try MedTrack first? Load realistic sample products, batches, accounts and movements. Remove them any time to start with your own data.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-a="stSeed" id="stSeed">' + ico('box') + ' Load sample data</button><button class="btn danger" data-a="stClear" id="stClear">' + ico('archive') + ' Remove ALL my data</button></div></div>' +
     '<div class="card pad form"><h2 class="h2">Check that it works</h2><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-a="stTest" id="stTest">' + ico('bell') + ' Send test alert</button><button class="btn" data-a="stRun" id="stRun">' + ico('sync') + ' Run expiry check now</button><button class="btn" data-a="stRecon" id="stRecon">' + ico('check') + ' Check data integrity</button></div><div id="stOut"></div>' +
     '<p class="hint">Recent alerts: ' + (S.data.alerts.length ? esc(S.data.alerts.slice(-1)[0].Channel + ' · ' + S.data.alerts.slice(-1)[0].Status + ' · ' + String(S.data.alerts.slice(-1)[0].Date).slice(0, 10)) : 'none yet') + '</p></div>' +
     '<div class="footer">Powered by ' + LAYAW_LINK + '</div></div>';
@@ -1314,6 +1315,27 @@ IN.brandInput = function () {
 };
 A.brandPreset = function (el) { var p = PRESETS[+el.getAttribute('data-i')]; $('#st_accent').value = p[1]; $('#st_brand').value = p[2]; setErr('st_brand', ''); applyBrand(p[1], p[2]); };
 A.brandReset = function () { $('#st_accent').value = DEF_ACCENT; $('#st_brand').value = DEF_BRAND; setErr('st_brand', ''); applyBrand(DEF_ACCENT, DEF_BRAND); };
+A.stSeed = function (el) {
+  if (!S.online) return toast('This needs a connection.', 'warn');
+  setBusy(el, true, 'Loading');
+  server('seedDemo', null, 120000).then(function (res) {
+    setBusy(el, false);
+    if (!res.ok) return alertSheet('Sample data', res.error);
+    toast('Sample data loaded', 'ok'); refresh(true).then(function () { go('dashboard'); });
+  }, function () { setBusy(el, false); toast('Could not reach the server.', 'err'); });
+};
+A.stClear = function (el) {
+  if (!S.online) return toast('This needs a connection.', 'warn');
+  confirmSheet({ title: 'Remove ALL your data?', intro: 'This permanently deletes every product, batch, account, delivery, movement and alert record in your MedTrack. Settings and your login stay. This cannot be undone.', warns: S.queue.length ? ['You have entries that are not synced yet. They will be lost too.'] : [], ok: 'Yes, remove everything', tone: 'danger' }).then(function (yes) {
+    if (!yes) return;
+    setBusy(el, true, 'Removing');
+    server('clearAllData', null, 120000).then(function (res) {
+      setBusy(el, false);
+      if (!res.ok) return alertSheet('Could not remove', res.error);
+      S.queue = []; S.failed = []; saveQueue(); toast('All data removed', 'ok'); refresh(true).then(function () { go('dashboard'); });
+    }, function () { setBusy(el, false); toast('Could not reach the server.', 'err'); });
+  });
+};
 A.stToggle = function (el) {
   var k = el.getAttribute('data-k'); S.stDraft[k] = S.stDraft[k] === 'TRUE' ? 'FALSE' : 'TRUE';
   var label = el.textContent.split(':')[0]; el.className = 'chip' + (S.stDraft[k] === 'TRUE' ? ' on' : ''); el.setAttribute('aria-checked', S.stDraft[k] === 'TRUE'); el.textContent = label + ': ' + (S.stDraft[k] === 'TRUE' ? 'On' : 'Off');

@@ -161,10 +161,16 @@ function runSetup() {
 
 /** Fills the system with realistic Philippine sample data. Only runs on an empty system. */
 function seedSampleData() {
+  try { seedDemoData_(); }
+  catch (e) { if (e && e.isUser) { notify_(e.message); return; } throw e; }
+  notify_('Demo data loaded: 15 products, 30 batches, 8 accounts and a movement history. Open the web app to explore.');
+}
+
+/** Loads the demo data into the current spreadsheet (used by the menu and by Settings in the app). */
+function seedDemoData_() {
   runSetupIfNeeded_();
   if (readTable_(SH.PRODUCTS).rows.length || readTable_(SH.BATCHES).rows.length) {
-    notify_('Demo data was not loaded because MedTrack already has data. Use MedTrack menu > Clear ALL data first if you want a fresh start.');
-    return;
+    throw userError_('Sample data was not loaded because there is already data here. Clear it first if you want a fresh start.');
   }
   withLock_(function () {
     var today = todayYMD_(), now = nowISO_();
@@ -291,7 +297,6 @@ function seedSampleData() {
     appendRows_(SH.BATCHES, B);
     appendRows_(SH.MOVEMENTS, MV);
   });
-  notify_('Demo data loaded: 15 products, 30 batches, 8 accounts and a movement history. Open the web app to explore.');
 }
 
 /** Runs setup silently if the sheets do not exist yet. */
@@ -306,13 +311,18 @@ function resetAllData() {
     var ans = ui.alert('Clear ALL data?', 'This permanently removes every product, batch, account, delivery, movement and alert record. Settings are kept. This cannot be undone.', ui.ButtonSet.YES_NO);
     if (ans !== ui.Button.YES) return;
   } catch (e) { /* run from the editor: proceed */ }
+  clearAllData_();
+  notify_('All data cleared. You can start fresh.');
+}
+
+/** Removes every product, batch, account, delivery, movement and alert record of the current spreadsheet. */
+function clearAllData_() {
   withLock_(function () {
     [SH.PRODUCTS, SH.BATCHES, SH.DELIVERIES, SH.ACCOUNTS, SH.MOVEMENTS, SH.ALERTLOG].forEach(function (n) {
       var sh = getSheet_(n);
       if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
     });
   });
-  notify_('All data cleared. You can start fresh.');
 }
 
 /* ------------------------------- Import ------------------------------ */

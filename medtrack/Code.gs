@@ -42,6 +42,8 @@ function actions_() {
     exportXlsx: function (p) { return exportReportXlsx_(p); },
     validateImport: function () { return validateImport_(); },
     runImport: function (p) { return runImport_(p); },
+    seedDemo: function () { seedDemoData_(); return {}; },
+    clearAllData: function () { clearAllData_(); return {}; },
     login: login_,
     logout: logout_,
     changePassword: changePassword_,
