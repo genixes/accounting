@@ -41,12 +41,15 @@ In the Sheet: **Extensions → Apps Script**. A code editor opens.
 - **iPhone (Safari):** open the URL → Share → **Add to Home Screen**.
 
 ## 8. Move your Excel data (optional, one time)
-1. Open the **Import** tab in the Sheet. Paste your Excel rows under the headers (BrandName … SellingPrice). Expiry can be a date, `12/2027` or `Dec 2027`.
-2. In MedTrack: **More → Import → Check my data**. Fix anything shown in red, check again, then **Import**.
+No access to any spreadsheet is needed. In MedTrack: **More → Import**.
+1. In Excel select your rows, **Copy**, and **paste** into the box (or tap **Upload a CSV file**). Columns in this order: BrandName, GenericName, Dosage, Form, PackSize, Principal, LotNumber, ExpiryDate, Quantity, UnitCost, SellingPrice. A header row is fine. Expiry can be a date, `12/2027` or `Dec 2027`. **Download a blank template** is there if you need one.
+2. Tap **Check my data**. Anything wrong is listed in red with its row number.
+3. Fix it in Excel, paste again, check again, then tap **Import**.
+(In single-user mode you can still use the **Import** tab of the Google Sheet.)
 
 ## 9. Make it yours (optional)
 - **Colors:** More → Settings → **Personalize**. Pick a style or your own colors; you see the change right away. Tap **Save settings** to keep it (it also colors your email alerts and reports). Expiry warning colors (red, amber, blue, green) never change.
-- **Where reports are saved:** More → Settings → **Where to save reports**. In Google Drive open your folder, copy its address from the browser and paste it. From then on every PDF or Excel report is saved in that folder automatically (you still get the download). The folder must be in the same Google account that owns MedTrack.
+- **Where reports are saved (single-user mode only):** More → Settings → **Where to save reports**. In Google Drive open your folder, copy its address from the browser and paste it. From then on every PDF or Excel report is saved in that folder automatically (you still get the download). The folder must be in the same Google account that owns MedTrack.
 - After updating the files, redeploy: **Deploy → Manage deployments → ✏ → Version: New version → Deploy**.
 
 ## 10. Selling to several medreps (own login for each)

@@ -40,7 +40,7 @@ function actions_() {
     getReport: function (p) { return getReportPreview_(p); },
     exportPdf: function (p) { return exportReportPdf_(p); },
     exportXlsx: function (p) { return exportReportXlsx_(p); },
-    validateImport: function () { return validateImport_(); },
+    validateImport: function (p) { return validateImport_(p); },
     runImport: function (p) { return runImport_(p); },
     seedDemo: function () { seedDemoData_(); return {}; },
     clearAllData: function () { clearAllData_(); return {}; },

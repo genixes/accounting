@@ -343,6 +343,7 @@ function parseDateLoose_(v) {
     return '';
   }
   var s = String(v).trim(), m;
+  if (/^\d{5}$/.test(s)) return parseDateLoose_(Number(s));
   if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) return build(+m[1], +m[2], +m[3]);
   if ((m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/))) {
     var yr = +m[3]; if (yr < 100) yr += 2000;
@@ -357,9 +358,8 @@ function parseDateLoose_(v) {
 }
 
 /** Reads and validates the Import sheet. Returns {rows (results), valid (clean items), counts}. */
-function parseImport_() {
-  var sheet = getSheet_(SH.IMPORT);
-  var values = sheet.getDataRange().getValues();
+function parseImport_(values, firstRow) {
+  if (!values) { values = getSheet_(SH.IMPORT).getDataRange().getValues(); firstRow = 2; }
   var today = todayYMD_();
   var results = [], items = [], seen = {};
   for (var i = 1; i < values.length; i++) {
@@ -367,11 +367,11 @@ function parseImport_() {
     var blank = true;
     for (var c = 0; c < 11; c++) if (r[c] !== '' && r[c] != null) { blank = false; break; }
     if (blank) continue;
-    var res = { row: i + 1, brand: str_(r[0], 120), lot: str_(r[6], 40), errors: [], warnings: [], status: 'ok' };
+    var res = { row: firstRow + i - 1, brand: str_(r[0], 120), lot: str_(r[6], 40), errors: [], warnings: [], status: 'ok' };
     results.push(res);
     if (String(r[11] || '').indexOf('Imported') === 0) { res.status = 'skip'; res.warnings.push('Already imported'); continue; }
     var it = {
-      row: i + 1, brand: res.brand, generic: str_(r[1], 120), dosage: str_(r[2], 60), form: str_(r[3], 40), pack: str_(r[4], 60), principal: str_(r[5], 80), lot: res.lot,
+      row: firstRow + i - 1, brand: res.brand, generic: str_(r[1], 120), dosage: str_(r[2], 60), form: str_(r[3], 40), pack: str_(r[4], 60), principal: str_(r[5], 80), lot: res.lot,
       expiry: parseDateLoose_(r[7]), qty: num_(r[8]), cost: r[9] === '' ? 0 : num_(r[9]), sell: r[10] === '' ? 0 : num_(r[10])
     };
     if (!it.brand) res.errors.push('Brand name is missing');
@@ -404,16 +404,35 @@ function parseImport_() {
 }
 
 /** Dry-run: tells the app which rows are fine and which need fixing. */
-function validateImport_() {
-  var p = parseImport_();
+function validateImport_(opts) {
+  var p = importFromOpts_(opts);
   return { rows: p.results, counts: p.counts };
+}
+
+/** Rows pasted or uploaded in the app (no spreadsheet access needed) or, when absent, the Import sheet. */
+function importFromOpts_(opts) {
+  if (opts && Array.isArray(opts.rows)) {
+    if (!opts.rows.length) throw userError_('Paste your rows first.');
+    if (opts.rows.length > 5000) throw userError_('Please import up to 5,000 rows at a time.');
+    var rows = opts.rows.map(function (r) {
+      var out = [];
+      for (var c = 0; c < 11; c++) { var v = Array.isArray(r) ? r[c] : ''; out.push(v == null ? '' : (typeof v === 'number' ? v : str_(v, 200))); }
+      out.push('');
+      return out;
+    });
+    var first = parseInt(opts.firstRow, 10) || 1;
+    return parseImport_([IMPORT_HEADERS].concat(rows), first);
+  }
+  if (isMulti_()) throw userError_('Paste your rows first, or upload a CSV file.');
+  return parseImport_();
 }
 
 /** Imports the valid rows: creates Products (matched by name/dosage/form/pack), Batches and one opening Delivery. */
 function runImport_(opts) {
-  var parsed = parseImport_();
-  if (!parsed.items.length) throw userError_(parsed.counts.total ? 'There are no new valid rows to import.' : 'The Import sheet is empty. Paste your Excel rows under the headers first.');
-  if (parsed.counts.errors && !(opts && opts.skipInvalid)) throw userError_(parsed.counts.errors + ' row(s) have problems. Fix them in the Import sheet, or choose "Import valid rows only".');
+  var fromApp = !!(opts && Array.isArray(opts.rows));
+  var parsed = importFromOpts_(opts);
+  if (!parsed.items.length) throw userError_(parsed.counts.total ? 'There are no new valid rows to import.' : 'There is nothing to import. Paste your Excel rows first.');
+  if (parsed.counts.errors && !(opts && opts.skipInvalid)) throw userError_(parsed.counts.errors + ' row(s) have problems. Fix them and check again, or choose "Import valid rows only".');
   return withLock_(function () {
     var today = todayYMD_(), now = nowISO_();
     var pt = readTable_(SH.PRODUCTS), bt = readTable_(SH.BATCHES);
@@ -449,7 +468,7 @@ function runImport_(opts) {
       appendRows_(SH.PRODUCTS, newProducts);
       appendRows_(SH.BATCHES, newBatches);
     }
-    var sheet = getSheet_(SH.IMPORT), last = sheet.getLastRow();
+    var sheet = fromApp ? null : getSheet_(SH.IMPORT), last = fromApp ? 0 : sheet.getLastRow();
     if (last > 1) {
       var col = sheet.getRange(2, 12, last - 1, 1).getValues();
       Object.keys(rowStatus).forEach(function (r) { col[+r - 2][0] = rowStatus[r]; });

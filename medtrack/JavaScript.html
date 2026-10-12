@@ -1235,13 +1235,58 @@ A.repPdf = function (el) { downloadFile('exportPdf', el, 'PDF'); };
 A.repXlsx = function (el) { downloadFile('exportXlsx', el, 'Excel file'); };
 
 /* ----------------------------------- Import ----------------------------------- */
+/** Splits pasted text (tab- or comma-separated, quotes allowed) into rows of cells. */
+function parseDelimited(text) {
+  var first = (text.split(/\r?\n/)[0] || ''), delim = first.indexOf('\t') >= 0 ? '\t' : (first.indexOf(';') >= 0 && first.indexOf(',') < 0 ? ';' : ',');
+  var rows = [], row = [], cell = '', q = false;
+  for (var i = 0; i < text.length; i++) {
+    var ch = text.charAt(i);
+    if (q) { if (ch === '"') { if (text.charAt(i + 1) === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === delim) { row.push(cell); cell = ''; }
+    else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+    else if (ch !== '\r') cell += ch;
+  }
+  row.push(cell); rows.push(row);
+  return rows;
+}
+/** Turns pasted text into import rows (header row detected and skipped). */
+function readImportText(text) {
+  if (text === S.impLastText) return;
+  S.impLastText = text;
+  var rows = parseDelimited(text || '').map(function (r) { return r.map(function (c) { return String(c).trim(); }); }).filter(function (r) { return r.some(function (c) { return c !== ''; }); });
+  var hadHeader = rows.length && /^brand/i.test(rows[0][0] || '');
+  if (hadHeader) rows.shift();
+  S.impRows = rows.slice(0, 5001).map(function (r) { var o = []; for (var i = 0; i < 11; i++) o.push(r[i] == null ? '' : r[i]); return o; });
+  S.impFirst = hadHeader ? 2 : 1; S.imp = null;
+  var info = $('#impCount'); if (info) info.textContent = S.impRows.length ? S.impRows.length + ' row' + (S.impRows.length === 1 ? '' : 's') + ' ready to check' : '';
+  var out = $('#impOut'); if (out) out.innerHTML = '';
+}
+function impPayload() { return S.impRows && S.impRows.length ? { rows: S.impRows, firstRow: S.impFirst || 1 } : null; }
 V.import = function () {
-  var I = S.imp, h = '<div class="page"><div class="page-head"><div><div class="h1">Import from Excel</div><div class="sub">One-time import of the stock you already track. Safe to check as many times as you like.</div></div></div>' +
-    '<div class="card pad form"><div><b>1. Paste your rows</b><p class="muted" style="margin-top:4px">Open the <b>Import</b> sheet in your Google Sheet and paste your Excel rows under these columns:</p></div>' +
+  var h = '<div class="page"><div class="page-head"><div><div class="h1">Import from Excel</div><div class="sub">One-time import of the stock you already track. Safe to check as many times as you like.</div></div></div>' +
+    '<div class="card pad form"><div><b>1. Add your rows</b><p class="muted" style="margin-top:4px">In Excel, select your rows (without worrying about extra columns), tap <b>Copy</b>, and paste below. Columns in this order:</p></div>' +
     '<div class="chips">' + ['BrandName', 'GenericName', 'Dosage', 'Form', 'PackSize', 'Principal', 'LotNumber', 'ExpiryDate', 'Quantity', 'UnitCost', 'SellingPrice'].map(function (c) { return '<span class="pill gray plain">' + c + '</span>'; }).join('') + '</div>' +
-    (S.flags.sheetUrl ? '<a class="btn" href="' + esc(S.flags.sheetUrl) + '" target="_blank" rel="noopener">' + ico('upload') + ' Open the Import sheet</a>' : '') + '</div>' +
-    '<div class="card pad form"><div><b>2. Check your data</b><p class="muted" style="margin-top:4px">We check every row and show you exactly what to fix. Nothing is imported yet.</p></div><button class="btn primary" data-a="impCheck" id="impCheck">' + ico('check') + ' Check my data</button></div><div id="impOut">' + (I ? impResult() : '') + '</div><div class="footer">Powered by ' + LAYAW_LINK + '</div></div>';
+    '<textarea class="textarea" id="impText" data-in="impText" rows="6" style="min-height:150px;font-family:ui-monospace,monospace;font-size:13px" placeholder="Paste here. A header row is fine, we skip it. Dates can be like 12/2027, Dec 2027 or 31-Dec-2027."></textarea>' +
+    '<div class="hint" id="impCount"></div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><label class="btn sm" style="cursor:pointer">' + ico('upload') + ' Upload a CSV file<input type="file" id="impFile" data-in="impFile" accept=".csv,.tsv,.txt,text/csv" style="display:none"></label><button class="btn sm ghost" data-a="impTemplate">' + ico('download') + ' Download a blank template</button>' + (!MULTI && S.flags.sheetUrl ? '<a class="btn sm ghost" href="' + esc(S.flags.sheetUrl) + '" target="_blank" rel="noopener">Use the Import sheet instead</a>' : '') + '</div></div>' +
+    '<div class="card pad form"><div><b>2. Check your data</b><p class="muted" style="margin-top:4px">We check every row and show you exactly what to fix. Nothing is imported yet.</p></div><button class="btn primary" data-a="impCheck" id="impCheck">' + ico('check') + ' Check my data</button></div><div id="impOut">' + (S.imp ? impResult() : '') + '</div><div class="footer">Powered by ' + LAYAW_LINK + '</div></div>';
   return { html: h };
+};
+IN.impText = debounce(function (el) { readImportText(el.value); }, 200);
+IN.impFile = function (el) {
+  var f = el.files && el.files[0]; if (!f) return;
+  if (f.size > 4000000) { toast('That file is too big. Please import up to 5,000 rows at a time.', 'err'); return; }
+  var rd = new FileReader();
+  rd.onload = function () { var t = String(rd.result || ''); var box = $('#impText'); if (box) box.value = t; readImportText(t); toast('File loaded', 'ok'); };
+  rd.onerror = function () { toast('Could not read that file.', 'err'); };
+  rd.readAsText(f); el.value = '';
+};
+A.impTemplate = function () {
+  var csv = 'BrandName,GenericName,Dosage,Form,PackSize,Principal,LotNumber,ExpiryDate,Quantity,UnitCost,SellingPrice\r\nAmoxiflex,Amoxicillin,500 mg,Capsule,Box of 100,Zenith Pharma,AX2603,12/2027,120,420,560\r\n';
+  var url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), a = document.createElement('a');
+  a.href = url; a.download = 'MedTrack-import-template.csv'; a.style.display = 'none'; document.body.appendChild(a); a.click();
+  setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 3000);
 };
 function impResult() {
   var I = S.imp, c = I.counts;
@@ -1251,14 +1296,16 @@ function impResult() {
   if (bad.length) h += '<div class="scroll-x"><table class="tbl"><tr><th>Row</th><th>Item</th><th>Result</th></tr>' + bad.map(function (r) {
     return '<tr><td class="n">' + r.row + '</td><td><b>' + esc(r.brand || '(blank)') + '</b><br><span class="muted">Lot ' + esc(r.lot || '—') + '</span></td><td>' + r.errors.map(function (e) { return '<span class="pill red plain" style="margin:2px 0;white-space:normal">' + esc(e) + '</span>'; }).join('<br>') + (r.errors.length && r.warnings.length ? '<br>' : '') + r.warnings.map(function (e) { return '<span class="pill amber plain" style="margin:2px 0;white-space:normal">' + esc(e) + '</span>'; }).join('<br>') + '</td></tr>';
   }).join('') + '</table></div>';
-  if (c.errors) h += '<div class="banner warn">' + ico('alert') + '<span>Fix the red rows in the Import sheet and check again, or import only the ' + c.ok + ' good rows now.</span></div>';
+  if (c.errors) h += '<div class="banner warn">' + ico('alert') + '<span>Fix the red rows in your data and check again, or import only the ' + c.ok + ' good rows now.</span></div>';
   if (c.ok) h += '<button class="btn primary block" data-a="impRun" id="impRun" data-skip="' + (c.errors ? 1 : 0) + '">' + (c.errors ? 'Import the ' + c.ok + ' valid rows' : 'Import ' + c.ok + ' rows') + '</button>';
   return h + '</div>';
 }
 A.impCheck = function (el) {
   if (!S.online) return toast('Import needs a connection.', 'warn');
+  var pl = impPayload();
+  if (!pl && MULTI) return toast('Paste your rows first, or upload a CSV file.', 'warn');
   setBusy(el, true, 'Checking');
-  server('validateImport').then(function (res) {
+  server('validateImport', pl).then(function (res) {
     setBusy(el, false);
     if (!res.ok) return toast(res.error, 'err');
     S.imp = { rows: res.rows, counts: res.counts }; $('#impOut').innerHTML = impResult();
@@ -1269,10 +1316,10 @@ A.impRun = function (el) {
   confirmSheet({ title: 'Import ' + c.ok + ' rows?', rows: [['Rows to import', String(c.ok)], ['Rows skipped', String(c.errors)]], intro: 'This creates products, batches and one opening delivery. It cannot be undone, but nothing is ever deleted so you can adjust afterwards.', ok: 'Import now' }).then(function (yes) {
     if (!yes) return;
     var b = $('#impRun'); setBusy(b, true, 'Importing');
-    server('runImport', { skipInvalid: skip }, 180000).then(function (res) {
+    server('runImport', Object.assign({ skipInvalid: skip }, impPayload() || {}), 180000).then(function (res) {
       setBusy(b, false);
       if (!res.ok) return alertSheet('Import stopped', res.error);
-      S.imp = null; toast('Imported ' + res.imported + ' batches across ' + res.products + ' new products', 'ok');
+      S.imp = null; S.impRows = []; S.impFirst = 1; S.impLastText = ''; toast('Imported ' + res.imported + ' batches across ' + res.products + ' new products', 'ok');
       refresh(true).then(function () { go('inventory'); });
     }, function () { setBusy(b, false); toast('Connection lost. Check the Inventory page before trying again.', 'err'); });
   });
@@ -1288,7 +1335,7 @@ V.settings = function () {
     '<div class="card pad form"><h2 class="h2">Personalize</h2><p class="muted">Make the system yours. Pick a color style, or choose your own colors. Red, amber, blue and green for expiry warnings always stay the same so they are easy to read.</p><div class="chips" id="brandPresets">' + PRESETS.map(function (p, i) { return '<button class="chip" data-a="brandPreset" data-i="' + i + '"><span style="width:16px;height:16px;border-radius:50%;background:' + p[1] + ';display:inline-block;box-shadow:inset 0 0 0 3px ' + p[2] + '"></span>' + p[0] + '</button>'; }).join('') + '</div>' +
     '<div class="row2"><div class="field"><label class="lab" for="st_accent">Main color (buttons)</label><input type="color" class="input" id="st_accent" data-in="brandInput" value="' + esc(hexOk(s.AccentColor) ? s.AccentColor : DEF_ACCENT) + '" style="padding:4px;cursor:pointer"></div><div class="field"><label class="lab" for="st_brand">Dark color (headers)</label><input type="color" class="input" id="st_brand" data-in="brandInput" value="' + esc(hexOk(s.BrandColor) ? s.BrandColor : DEF_BRAND) + '" style="padding:4px;cursor:pointer"></div></div><div class="err" id="st_brand_e" role="alert"></div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-a="brandReset">Back to default colors</button></div><div class="hint">You see the change right away. Tap Save settings to keep it. It also colors your email alerts and reports.</div></div>' +
-    '<div class="card pad form"><h2 class="h2">Where to save reports</h2><p class="muted">Paste the link of a Google Drive folder. Every PDF or Excel report you create is saved there automatically, and you still get your download.</p>' + fld('st_folder', 'Google Drive folder link', { value: s.ReportFolderUrl, attrs: 'inputmode="url" autocapitalize="off" placeholder="https://drive.google.com/drive/folders/..."', hint: 'In Google Drive, open your folder, copy the address from the browser and paste it here. Leave empty to only download.' }) + '</div>' +
+    (MULTI ? '' : '<div class="card pad form"><h2 class="h2">Where to save reports</h2><p class="muted">Paste the link of a Google Drive folder. Every PDF or Excel report you create is saved there automatically, and you still get your download.</p>' + fld('st_folder', 'Google Drive folder link', { value: s.ReportFolderUrl, attrs: 'inputmode="url" autocapitalize="off" placeholder="https://drive.google.com/drive/folders/..."', hint: 'In Google Drive, open your folder, copy the address from the browser and paste it here. Leave empty to only download.' }) + '</div>') +
     '<div class="card pad form"><h2 class="h2">Expiry alerts</h2><p class="muted">One digest a day, only when something new crosses a threshold. Nothing is sent when there is nothing new.</p>' +
     fld('st_thr', 'Alert when this many days are left', { value: s.AlertThresholds, attrs: 'placeholder="180,90,60,30"', hint: 'Separate days with commas. Already-expired stock is always reported.' }) +
     fld('st_time', 'Daily check time (Manila)', { type: 'time', value: s.DailyAlertTime }) + '</div>' +
@@ -1342,7 +1389,7 @@ A.stToggle = function (el) {
 };
 A.stFmt = function (el) { S.stDraft.SmsContentType = el.getAttribute('data-v'); $$('[data-a="stFmt"]').forEach(function (b) { b.className = b.getAttribute('data-v') === S.stDraft.SmsContentType ? 'on' : ''; }); };
 function settingsPayload() {
-  return { settings: { BusinessName: val('st_biz'), ReportFolderUrl: val('st_folder').trim(), AccentColor: val('st_accent').toUpperCase(), BrandColor: val('st_brand').toUpperCase(), AlertThresholds: val('st_thr'), DailyAlertTime: val('st_time') || '07:00', AlertEmail: val('st_email'), EmailEnabled: S.stDraft.EmailEnabled, TelegramEnabled: S.stDraft.TelegramEnabled, TelegramChatId: val('st_tgchat'),
+  return { settings: { BusinessName: val('st_biz'), ReportFolderUrl: MULTI ? (S.data.settings.ReportFolderUrl || '') : val('st_folder').trim(), AccentColor: val('st_accent').toUpperCase(), BrandColor: val('st_brand').toUpperCase(), AlertThresholds: val('st_thr'), DailyAlertTime: val('st_time') || '07:00', AlertEmail: val('st_email'), EmailEnabled: S.stDraft.EmailEnabled, TelegramEnabled: S.stDraft.TelegramEnabled, TelegramChatId: val('st_tgchat'),
     SmsEnabled: S.stDraft.SmsEnabled, SmsEndpoint: val('st_smsurl'), SmsRecipient: val('st_smsno'), SmsSender: val('st_smssender'), SmsContentType: S.stDraft.SmsContentType, SmsBodyTemplate: val('st_smstpl') },
     secrets: { telegramToken: val('st_tgtoken').trim(), smsApiKey: val('st_smskey').trim() } };
 }
