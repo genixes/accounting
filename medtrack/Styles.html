@@ -13,6 +13,7 @@
   --shadow-2:0 2px 4px rgba(15,42,68,.05),0 10px 28px rgba(15,42,68,.09);
   --shadow-3:0 4px 8px rgba(15,42,68,.06),0 24px 60px rgba(15,42,68,.18);
   --mesh-a:rgba(14,154,167,.16); --mesh-b:rgba(15,42,68,.10);
+  --g-card:rgba(255,255,255,.66); --g-card-hi:rgba(255,255,255,.84); --g-line:rgba(255,255,255,.8); --g-hl:inset 0 1px 0 rgba(255,255,255,.75); --g-mesh-c:rgba(124,92,255,.16);
   --r:16px; --r-sm:12px; --nav-h:64px; --top-h:58px; --ease:cubic-bezier(.2,.7,.2,1);
   color-scheme:light;
 }
@@ -26,7 +27,7 @@
   --shadow-1:0 1px 2px rgba(0,0,0,.35),0 3px 10px rgba(0,0,0,.25);
   --shadow-2:0 2px 4px rgba(0,0,0,.35),0 10px 28px rgba(0,0,0,.35);
   --shadow-3:0 4px 8px rgba(0,0,0,.4),0 24px 60px rgba(0,0,0,.55);
-  --mesh-a:rgba(14,154,167,.16); --mesh-b:rgba(40,90,150,.18);
+  --mesh-a:rgba(14,154,167,.16); --mesh-b:rgba(40,90,150,.18); --g-card:rgba(18,38,60,.56); --g-card-hi:rgba(18,38,60,.80); --g-line:rgba(255,255,255,.12); --g-hl:inset 0 1px 0 rgba(255,255,255,.08); --g-mesh-c:rgba(90,110,255,.22);
   color-scheme:dark;
 }
 @media (prefers-color-scheme: dark){
@@ -40,7 +41,7 @@
     --shadow-1:0 1px 2px rgba(0,0,0,.35),0 3px 10px rgba(0,0,0,.25);
     --shadow-2:0 2px 4px rgba(0,0,0,.35),0 10px 28px rgba(0,0,0,.35);
     --shadow-3:0 4px 8px rgba(0,0,0,.4),0 24px 60px rgba(0,0,0,.55);
-    --mesh-a:rgba(14,154,167,.16); --mesh-b:rgba(40,90,150,.18);
+    --mesh-a:rgba(14,154,167,.16); --mesh-b:rgba(40,90,150,.18); --g-card:rgba(18,38,60,.56); --g-card-hi:rgba(18,38,60,.80); --g-line:rgba(255,255,255,.12); --g-hl:inset 0 1px 0 rgba(255,255,255,.08); --g-mesh-c:rgba(90,110,255,.22);
     color-scheme:dark;
   }
 }
@@ -278,6 +279,21 @@ h1,h2,h3,p{margin:0}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+}
+/* ---- Glass style (default). Users can switch to Solid in More > Appearance ---- */
+:root[data-style="glass"] .mesh{background:
+  radial-gradient(620px 460px at 4% -4%,var(--mesh-a),transparent 66%),radial-gradient(620px 460px at 4% -4%,var(--mesh-a),transparent 66%),
+  radial-gradient(560px 440px at 100% 6%,var(--g-mesh-c),transparent 64%),
+  radial-gradient(640px 500px at 92% 62%,var(--mesh-b),transparent 66%),radial-gradient(640px 500px at 92% 62%,var(--mesh-b),transparent 66%),
+  radial-gradient(620px 460px at 8% 96%,var(--mesh-a),transparent 66%),var(--bg)}
+@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  :root[data-style="glass"] .card:not(.list),:root[data-style="glass"] .tile{background:var(--g-card);border:1px solid var(--g-line);box-shadow:var(--g-hl),var(--shadow-2);-webkit-backdrop-filter:blur(14px) saturate(1.5);backdrop-filter:blur(14px) saturate(1.5)}
+  :root[data-style="glass"] .card.list{background:var(--g-card-hi);border:1px solid var(--g-line);box-shadow:var(--g-hl),var(--shadow-1)}
+  :root[data-style="glass"] .chip:not(.on),:root[data-style="glass"] .btn:not(.primary):not(.navy):not(.danger):not(.ghost){background:var(--g-card-hi);border-color:var(--g-line)}
+  :root[data-style="glass"] .seg{background:var(--g-card);border-color:var(--g-line)}
+  :root[data-style="glass"] .stat::after{background:var(--teal-soft)}
+  :root[data-style="glass"] .item:active{background:var(--g-card)}
+  :root[data-style="glass"] .sk-row{border-color:var(--g-line)}
 }
 /* ---- Icon sizing inside lists, chips and avatars (prevents oversized SVGs) ---- */
 .item>svg{width:18px;height:18px;flex:none;color:var(--muted)}

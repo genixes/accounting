@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="auto">
+<html lang="en" data-theme="auto" data-style="glass">
 <head>
   <base target="_top">
   <meta charset="utf-8">
@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script>
     /* Apply the saved theme before first paint to avoid a flash. */
+    try { document.documentElement.setAttribute('data-style', localStorage.getItem('mt_style') === 'solid' ? 'solid' : 'glass'); } catch (e) { document.documentElement.setAttribute('data-style', 'glass'); }
     try { var t = localStorage.getItem('mt_theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}
     try { var bv = JSON.parse(localStorage.getItem('mt_brandvars') || 'null'); if (bv) for (var k in bv) document.documentElement.style.setProperty(k, bv[k]); } catch (e) {}
   </script>

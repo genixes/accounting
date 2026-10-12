@@ -531,6 +531,12 @@ function applyBrand(a, b) {
 function savedBrand() { var s = S.data ? S.data.settings : {}; applyBrand(s.AccentColor, s.BrandColor); }
 
 /* ----------------------------------- Theme ----------------------------------- */
+/** Glass (translucent cards) or Solid (plainer, easier to read in strong sunlight). Saved on this device. */
+function applyStyle(s) {
+  s = s === 'solid' ? 'solid' : 'glass';
+  document.documentElement.setAttribute('data-style', s);
+  if (s === 'glass') store.del('mt_style'); else store.set('mt_style', 'solid');
+}
 function applyTheme(t) {
   S.theme = t || 'auto';
   document.documentElement.setAttribute('data-theme', S.theme);
@@ -1167,10 +1173,11 @@ V.more = function () {
     link('receive', 'truck', 'Receive delivery', 'Log new stock from your company') + link('reports', 'file', 'Reports', 'Monthly report, PDF and Excel') + link('import', 'upload', 'Import from Excel', 'One-time import of your existing stock') + link('settings', 'sliders', 'Settings', 'Alerts, Telegram, email and SMS') + '</div>' +
     (pend ? '<button class="card item" data-a="openSync" style="border-radius:var(--r)"><span class="avatar">' + ico('sync') + '</span><div class="main"><div class="t">Pending sync</div><div class="s">' + S.queue.length + ' waiting' + (S.failed.length ? ', ' + S.failed.length + ' need attention' : '') + '</div></div>' + ico('chev') + '</button>' : '') +
     (MULTI && S.user ? '<div class="card list">' + (S.user.role === 'Admin' ? link('users', 'users', 'Manage users', 'Add medreps, reset passwords') : '') + '<div class="item" style="cursor:default"><span class="avatar">' + esc(S.user.name.charAt(0).toUpperCase()) + '</span><div class="main"><div class="t">' + esc(S.user.name) + '</div><div class="s">' + esc(S.user.email) + '</div></div></div><div style="display:flex;gap:8px;padding:0 16px 14px;flex-wrap:wrap"><button class="btn sm" data-a="openChange">Change password</button><button class="btn sm ghost" data-a="logout">Sign out</button></div></div>' : '') +
-    '<div class="card pad"><div class="lab" style="margin-bottom:8px">Appearance</div><div class="seg">' + [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(function (t) { return '<button class="' + (S.theme === t[0] ? 'on' : '') + '" data-a="setTheme" data-t="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div></div>' +
+    '<div class="card pad"><div class="lab" style="margin-bottom:8px">Style</div><div class="seg" style="margin-bottom:14px">' + [['glass', 'Glass'], ['solid', 'Solid']].map(function (t) { return '<button class="' + ((document.documentElement.getAttribute('data-style') || 'glass') === t[0] ? 'on' : '') + '" data-a="setStyle" data-t="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="hint" style="margin:-6px 0 14px">Solid is plainer and easier to read in bright sunlight.</div><div class="lab" style="margin-bottom:8px">Appearance</div><div class="seg">' + [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(function (t) { return '<button class="' + (S.theme === t[0] ? 'on' : '') + '" data-a="setTheme" data-t="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div></div>' +
     '<div class="footer">MedTrack v' + esc(S.flags.version || '1.0.0') + ' · Powered by ' + LAYAW_LINK + '</div></div>';
   return { html: h };
 };
+A.setStyle = function (el) { applyStyle(el.getAttribute('data-t')); renderView(false); };
 A.setTheme = function (el) { applyTheme(el.getAttribute('data-t')); renderView(false); if (S.route.name === 'dashboard') renderView(false); };
 
 /* ---------------------------------- Reports ---------------------------------- */
@@ -1671,6 +1678,7 @@ function startSession() {
 }
 function boot() {
   applyTheme(store.get('mt_theme') || 'auto');
+  applyStyle(store.get('mt_style'));
   S.route = parseHash();
   if (MULTI) {
     if (RESET_TOKEN) { S.auth = { mode: 'reset', msg: '' }; renderAll(); return; }
