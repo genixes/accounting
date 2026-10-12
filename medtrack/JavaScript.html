@@ -1,0 +1,1368 @@
+<script>
+(function () {
+'use strict';
+
+/* =====================================================================
+   MedTrack client. One dataset, loaded once; everything renders and
+   filters locally. Writes are optimistic, idempotent and queued offline.
+   ===================================================================== */
+
+/* ------------------------------ Utilities ------------------------------ */
+var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+var PESO = '₱';
+var REDUCED = false;
+try { REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { REDUCED = false; }
+
+function $(s, r) { return (r || document).querySelector(s); }
+function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function intf(n) { return Math.round(Number(n) || 0).toLocaleString('en-PH'); }
+function peso(n, dec) { var v = Number(n) || 0, d = dec === 0 ? 0 : 2; return PESO + v.toLocaleString('en-PH', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+function num(v) { if (typeof v === 'number') return v; var s = String(v == null ? '' : v).replace(/[₱,\s]/g, ''); return s === '' ? NaN : Number(s); }
+function manilaNow() { return new Date(Date.now() + 8 * 3600000); }
+function todayYMD() { return manilaNow().toISOString().slice(0, 10); }
+function nowISO() { return manilaNow().toISOString().slice(0, 19) + '+08:00'; }
+function dayNum(ymd) { var p = ymd.split('-'); return Math.floor(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000); }
+function daysBetween(a, b) { return dayNum(b) - dayNum(a); }
+function addDays(ymd, n) { return new Date((dayNum(ymd) + n) * 86400000).toISOString().slice(0, 10); }
+function fmtDate(ymd) { if (!ymd) return ''; var p = ymd.split('-'); return (+p[2]) + ' ' + MONTHS[+p[1] - 1] + ' ' + p[0]; }
+function fmtDateLong(ymd) { var d = new Date(dayNum(ymd) * 86400000); return DOW[d.getUTCDay()] + ', ' + fmtDate(ymd); }
+function isYMD(s) { if (!/^\d{4}-\d{2}-\d{2}$/.test(s || '')) return false; var p = s.split('-'); var d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); return d.getUTCMonth() === +p[1] - 1 && d.getUTCDate() === +p[2] && +p[0] >= 2000 && +p[0] <= 2100; }
+function uid(prefix) {
+  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', out = '', arr = [];
+  try { arr = Array.prototype.slice.call(crypto.getRandomValues(new Uint8Array(8))); } catch (e) { for (var i = 0; i < 8; i++) arr.push(Math.floor(Math.random() * 256)); }
+  for (var j = 0; j < 8; j++) out += chars.charAt(arr[j] % chars.length);
+  return prefix + '-' + out;
+}
+function debounce(fn, ms) { var t; return function () { var a = arguments, c = this; clearTimeout(t); t = setTimeout(function () { fn.apply(c, a); }, ms); }; }
+var store = {
+  get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set: function (k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
+  del: function (k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } }
+};
+
+/* -------------------------------- Icons -------------------------------- */
+var ICONS = {
+  dash: '<rect x="3" y="3" width="7" height="9" rx="1.8"/><rect x="14" y="3" width="7" height="5" rx="1.8"/><rect x="14" y="12" width="7" height="9" rx="1.8"/><rect x="3" y="16" width="7" height="5" rx="1.8"/>',
+  box: '<path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.2c2.6.2 4.5 2 4.5 4.8"/>',
+  more: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+  truck: '<path d="M3 6h11v10H3zM14 9h4l3 3v4h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>',
+  file: '<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+  upload: '<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',
+  sliders: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  filter: '<path d="M3 5h18l-7 8v6l-4 2v-8z"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
+  alert: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  moon: '<path d="M20 14.5A8.5 8.5 0 019.5 4 8.5 8.5 0 1020 14.5z"/>',
+  sync: '<path d="M20 12a8 8 0 10-2.6 5.9"/><path d="M20 4.5V10h-5.5"/>',
+  chev: '<path d="M9 6l6 6-6 6"/>',
+  back: '<path d="M15 6l-6 6 6 6"/>',
+  bell: '<path d="M6 16v-5a6 6 0 1112 0v5l2 2H4z"/><path d="M10 21h4"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  archive: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11h14V8M10 12h4"/>',
+  pill: '<rect x="2.5" y="8.5" width="19" height="7" rx="3.5" transform="rotate(-40 12 12)"/><path d="M9.5 9.5l5 5" transform="rotate(0 12 12)"/>',
+  download: '<path d="M12 4v12M7 11l5 5 5-5M4 20h16"/>',
+  wifi: '<path d="M2 9a15 15 0 0120 0M5 12.5a10.5 10.5 0 0114 0M8.5 16a5.5 5.5 0 017 0"/><circle cx="12" cy="19" r="1"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.5"/>',
+  minus: '<path d="M5 12h14"/>'
+};
+function ico(name) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>'; }
+
+function illus(kind) {
+  var t = 'var(--teal)', n = 'var(--navy)';
+  if (kind === 'users') return '<svg class="il" viewBox="0 0 160 110" fill="none" aria-hidden="true"><ellipse cx="80" cy="100" rx="60" ry="7" fill="var(--surface-3)"/><circle cx="58" cy="42" r="17" fill="' + n + '" opacity=".9"/><path d="M28 92c0-17 13-27 30-27s30 10 30 27z" fill="' + n + '" opacity=".9"/><circle cx="106" cy="48" r="14" fill="' + t + '"/><path d="M82 92c0-14 10-23 24-23s24 9 24 23z" fill="' + t + '"/></svg>';
+  if (kind === 'check') return '<svg class="il" viewBox="0 0 160 110" fill="none" aria-hidden="true"><ellipse cx="80" cy="100" rx="56" ry="7" fill="var(--surface-3)"/><circle cx="80" cy="52" r="38" fill="' + t + '" opacity=".16"/><circle cx="80" cy="52" r="28" fill="' + t + '"/><path d="M67 52l9 9 17-19" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  return '<svg class="il" viewBox="0 0 160 110" fill="none" aria-hidden="true"><ellipse cx="80" cy="100" rx="58" ry="7" fill="var(--surface-3)"/><path d="M80 14l46 24v40l-46 24-46-24V38z" fill="' + n + '" opacity=".92"/><path d="M80 14l46 24-46 24-46-24z" fill="' + t + '"/><path d="M80 62v40" stroke="#fff" stroke-opacity=".35" stroke-width="3"/><rect x="62" y="42" width="36" height="14" rx="7" transform="rotate(-24 80 49)" fill="#fff"/></svg>';
+}
+
+/* -------------------------------- State -------------------------------- */
+var S = {
+  data: null, flags: {}, today: todayYMD(), idx: null,
+  route: { name: 'dashboard', id: null }, online: navigator.onLine !== false,
+  loading: true, loadError: '', refreshing: false,
+  queue: [], failed: [], syncing: false,
+  inv: { mode: 'batches', q: '', bucket: '', status: '', account: '', principal: '', archived: false, limit: 60 },
+  acc: { q: '', type: '', archived: false },
+  rec: null, recv: null, report: { from: '', to: '', html: '', busy: '' }, imp: null, theme: 'auto', fromCache: false
+};
+var lastVals = {};
+var chart = null;
+
+/* ----------------------- Business rules (mirror server) --------------------- */
+function effect(type, source, qty) {
+  var q = Number(qty) || 0, fc = source === 'Consignment';
+  switch (type) {
+    case 'Sample': return { hand: -q, consign: 0 };
+    case 'Consignment': return { hand: -q, consign: q };
+    case 'Sale': return fc ? { hand: 0, consign: -q } : { hand: -q, consign: 0 };
+    case 'Return': return { hand: q, consign: -q };
+    case 'Pullout': return fc ? { hand: 0, consign: -q } : { hand: -q, consign: 0 };
+    case 'Adjustment': return { hand: q, consign: 0 };
+    default: return { hand: 0, consign: 0 };
+  }
+}
+function normSource(type, source) { if (type === 'Return') return 'Consignment'; if (type === 'Sale' || type === 'Pullout') return source === 'Consignment' ? 'Consignment' : 'Hand'; return 'Hand'; }
+function bucketOf(days) { return days < 0 ? 'expired' : days <= 30 ? 'b30' : days <= 60 ? 'b60' : days <= 90 ? 'b90' : days <= 180 ? 'b180' : 'ok'; }
+var BUCKETS = [
+  { k: 'expired', label: 'Expired', tone: 'red' }, { k: 'b30', label: '0–30 days', tone: 'red' }, { k: 'b60', label: '31–60 days', tone: 'amber' },
+  { k: 'b90', label: '61–90 days', tone: 'amber' }, { k: 'b180', label: '91–180 days', tone: 'blue' }, { k: 'ok', label: 'Over 180 days', tone: 'green' }
+];
+function toneOf(days) { return days < 0 || days <= 30 ? 'red' : days <= 90 ? 'amber' : days <= 180 ? 'blue' : 'green'; }
+function statusOf(days, stock, last) { if (stock <= 0) return last === 'Pullout' ? 'Pulled Out' : 'Depleted'; if (days < 0) return 'Expired'; return days <= 180 ? 'Near Expiry' : 'Active'; }
+function pillHtml(days) {
+  var t = toneOf(days), txt;
+  if (days < 0) txt = 'Expired ' + Math.abs(days) + 'd ago';
+  else if (days === 0) txt = 'Expires today';
+  else if (days <= 180) txt = days + (days === 1 ? ' day left' : ' days left');
+  else txt = 'Healthy · ' + days + 'd';
+  return '<span class="pill ' + t + '">' + esc(txt) + '</span>';
+}
+function grayPill(txt) { return '<span class="pill gray">' + esc(txt) + '</span>'; }
+
+/* ------------------------------ Server calls ------------------------------ */
+function server(action, payload, timeoutMs) {
+  return new Promise(function (resolve, reject) {
+    var done = false;
+    var timer = setTimeout(function () { if (!done) { done = true; reject(new Error('timeout')); } }, timeoutMs || (action === 'loadAll' ? 60000 : 100000));
+    try {
+      google.script.run
+        .withSuccessHandler(function (r) {
+          if (done) return; done = true; clearTimeout(timer);
+          var o = null;
+          try { o = typeof r === 'string' ? JSON.parse(r) : r; } catch (e) { reject(new Error('bad response')); return; }
+          resolve(o || { ok: false, error: 'The server sent an empty answer. Please try again.' });
+        })
+        .withFailureHandler(function (e) { if (done) return; done = true; clearTimeout(timer); reject(e || new Error('failed')); })
+        .api(action, payload ? JSON.stringify(payload) : '');
+    } catch (e) { clearTimeout(timer); if (!done) { done = true; reject(e); } }
+  });
+}
+
+/* ------------------------ Dataset, cache and index ------------------------- */
+var TABLE_KEYS = { products: 'ProductID', batches: 'BatchID', deliveries: 'DeliveryID', accounts: 'AccountID', movements: 'MovementID', alerts: 'AlertID' };
+function upsert(arr, key, obj) { for (var i = arr.length - 1; i >= 0; i--) if (arr[i][key] === obj[key]) { arr[i] = obj; return; } arr.push(obj); }
+function findBy(arr, key, id) { for (var i = arr.length - 1; i >= 0; i--) if (arr[i][key] === id) return arr[i]; return null; }
+function mergeChanges(ch) {
+  if (!ch || !S.data) return;
+  Object.keys(TABLE_KEYS).forEach(function (t) { (ch[t] || []).forEach(function (o) { upsert(S.data[t], TABLE_KEYS[t], o); }); });
+}
+var persist = debounce(function () { if (S.data) store.set('mt_cache_v1', JSON.stringify({ data: S.data, flags: S.flags, ts: Date.now() })); }, 700);
+
+function reindex() {
+  var d = S.data, today = S.today;
+  var I = { prod: {}, acc: {}, batch: {}, cons: {}, last: {}, agg: {}, list: [], byProd: {}, principals: [] };
+  d.products.forEach(function (p) { I.prod[p.ProductID] = p; });
+  d.accounts.forEach(function (a) { I.acc[a.AccountID] = a; });
+  d.movements.forEach(function (m) {
+    var e = effect(m.Type, m.Source || normSource(m.Type, ''), m.Qty);
+    if (e.consign && m.AccountID) { var c = I.cons[m.BatchID] || (I.cons[m.BatchID] = {}); c[m.AccountID] = (c[m.AccountID] || 0) + e.consign; }
+    I.last[m.BatchID] = m.Type;
+  });
+  var blank = { BrandName: '(removed product)', GenericName: '', Dosage: '', Form: '', PackSize: '', Principal: '', UnitCost: 0, SellingPrice: 0, ReorderLevel: 0, Active: false };
+  d.batches.forEach(function (b) {
+    var p = I.prod[b.ProductID] || blank, c = I.cons[b.BatchID] || {}, cons = 0, locs = [];
+    Object.keys(c).forEach(function (k) { if (c[k] > 0) { cons += c[k]; locs.push({ accId: k, qty: c[k] }); } });
+    var days = daysBetween(today, b.ExpiryDate), stock = b.QtyOnHand + cons;
+    var o = { b: b, id: b.BatchID, p: p, pid: b.ProductID, lot: b.LotNumber, expiry: b.ExpiryDate, days: days, hand: b.QtyOnHand, cons: cons, stock: stock, locs: locs,
+      bucket: stock > 0 ? bucketOf(days) : 'none', st: statusOf(days, stock, I.last[b.BatchID]),
+      sx: (p.BrandName + ' ' + p.GenericName + ' ' + b.LotNumber + ' ' + p.Dosage).toLowerCase() };
+    I.batch[o.id] = o; I.list.push(o);
+  });
+  I.list.sort(function (a, b) { return a.expiry < b.expiry ? -1 : a.expiry > b.expiry ? 1 : (a.p.BrandName < b.p.BrandName ? -1 : 1); });
+  var pr = {};
+  I.list.forEach(function (o) {
+    (I.byProd[o.pid] = I.byProd[o.pid] || []).push(o);
+    var a = I.agg[o.pid] || (I.agg[o.pid] = { hand: 0, cons: 0, stock: 0, next: null, nextDays: null, cost: 0, sell: 0 });
+    a.hand += o.hand; a.cons += o.cons; a.stock += o.stock; a.cost += o.stock * o.p.UnitCost; a.sell += o.stock * o.p.SellingPrice;
+    if (o.stock > 0 && a.next === null) { a.next = o.expiry; a.nextDays = o.days; }
+  });
+  d.products.forEach(function (p) { if (p.Principal) pr[p.Principal] = 1; });
+  I.principals = Object.keys(pr).sort();
+  S.idx = I;
+}
+function accName(id) { var a = S.idx.acc[id]; return a ? a.Name : '(unknown account)'; }
+function prodTitle(p) { return p.BrandName + (p.Dosage ? ' ' + p.Dosage : ''); }
+function consAt(o, accId) { return (S.idx.cons[o.id] || {})[accId] || 0; }
+function whereText(o) {
+  var parts = [];
+  if (o.hand > 0) parts.push('In hand ' + intf(o.hand));
+  o.locs.forEach(function (l) { parts.push(accName(l.accId) + ' ' + intf(l.qty)); });
+  return parts.length ? parts.join(' · ') : 'No stock';
+}
+function activeProducts() { return S.data.products.filter(function (p) { return p.Active; }); }
+function activeAccounts() { return S.data.accounts.filter(function (a) { return a.Active; }); }
+
+/* ------------------------- Local (optimistic) appliers ------------------------- */
+var APPLY = {
+  saveProduct: function (p) {
+    var vals = { BrandName: p.brandName.trim(), GenericName: p.genericName.trim(), Dosage: (p.dosage || '').trim(), Form: (p.form || '').trim(), PackSize: (p.packSize || '').trim(), Principal: (p.principal || '').trim(), UnitCost: num(p.unitCost) || 0, SellingPrice: num(p.sellingPrice) || 0, ReorderLevel: num(p.reorderLevel) || 0 };
+    var ex = findBy(S.data.products, 'ProductID', p.productId), now = nowISO();
+    if (ex) { for (var k in vals) ex[k] = vals[k]; ex.UpdatedAt = now; }
+    else { vals.ProductID = p.productId; vals.Active = true; vals.CreatedAt = now; vals.UpdatedAt = now; S.data.products.push(vals); }
+  },
+  setProductActive: function (p) { var ex = findBy(S.data.products, 'ProductID', p.productId); if (ex) ex.Active = !!p.active; },
+  saveAccount: function (p) {
+    var vals = { Name: p.name.trim(), Type: p.type, Address: (p.address || '').trim(), ContactPerson: (p.contactPerson || '').trim(), ContactNo: (p.contactNo || '').trim() };
+    var ex = findBy(S.data.accounts, 'AccountID', p.accountId);
+    if (ex) { for (var k in vals) ex[k] = vals[k]; } else { vals.AccountID = p.accountId; vals.Active = true; S.data.accounts.push(vals); }
+  },
+  setAccountActive: function (p) { var ex = findBy(S.data.accounts, 'AccountID', p.accountId); if (ex) ex.Active = !!p.active; },
+  receiveDelivery: function (p) {
+    if (findBy(S.data.deliveries, 'DeliveryID', p.deliveryId)) return;
+    var now = nowISO();
+    S.data.deliveries.push({ DeliveryID: p.deliveryId, DeliveryDate: p.deliveryDate, ReferenceNo: p.referenceNo || '', Notes: p.notes || '', CreatedAt: now, RequestID: p.requestId });
+    p.lines.forEach(function (l) {
+      var q = num(l.qty);
+      S.data.batches.push({ BatchID: l.batchId, ProductID: l.productId, LotNumber: l.lotNumber.trim(), ExpiryDate: l.expiryDate, QtyReceived: q, QtyOnHand: q, DeliveryID: p.deliveryId, Status: 'Active', CreatedAt: now, UpdatedAt: now });
+    });
+  },
+  recordMovement: function (p) {
+    if (findBy(S.data.movements, 'MovementID', p.movementId)) return;
+    var b = findBy(S.data.batches, 'BatchID', p.batchId); if (!b) return;
+    var src = normSource(p.type, p.source), e = effect(p.type, src, num(p.qty));
+    b.QtyOnHand += e.hand;
+    S.data.movements.push({ MovementID: p.movementId, Date: p.date, BatchID: p.batchId, AccountID: p.accountId || '', Type: p.type, Qty: num(p.qty), UnitPrice: num(p.unitPrice) || 0, Notes: p.notes || '', CreatedAt: nowISO(), RequestID: p.requestId, Source: src });
+  }
+};
+
+/* ----------------------------- Offline queue ----------------------------- */
+function saveQueue() { store.set('mt_queue_v1', JSON.stringify(S.queue)); store.set('mt_failed_v1', JSON.stringify(S.failed)); }
+function loadQueue() {
+  try { S.queue = JSON.parse(store.get('mt_queue_v1') || '[]') || []; } catch (e) { S.queue = []; }
+  try { S.failed = JSON.parse(store.get('mt_failed_v1') || '[]') || []; } catch (e) { S.failed = []; }
+}
+function enqueue(item) { S.queue.push(item); saveQueue(); renderSyncBadge(); scheduleFlush(2500); }
+function reapplyPending() { S.queue.forEach(function (it) { try { APPLY[it.action](it.payload); } catch (e) { /* ignore */ } }); }
+
+/**
+ * Applies a change instantly, then saves it. If the connection fails the entry stays in the
+ * queue (localStorage) and is retried automatically. Returns {status: saved|queued|rejected, error}.
+ */
+function mutate(action, payload, label) {
+  payload.requestId = payload.requestId || uid('REQ');
+  APPLY[action](payload);
+  reindex(); persist(); renderView(true); renderChrome();
+  var item = { id: payload.requestId, action: action, payload: payload, label: label || action, ts: Date.now() };
+  if (S.queue.length || !S.online) { enqueue(item); return Promise.resolve({ status: 'queued' }); }
+  return server(action, payload).then(function (res) {
+    if (res && res.ok) { mergeChanges(res.changes); reindex(); persist(); renderView(true); renderChrome(); return { status: 'saved', res: res }; }
+    return refresh(true).then(function () { return { status: 'rejected', error: (res && res.error) || 'Could not save.' }; });
+  }, function () { enqueue(item); return { status: 'queued' }; });
+}
+var flushTimer = null;
+function scheduleFlush(ms) { clearTimeout(flushTimer); flushTimer = setTimeout(flush, ms); }
+function flush() {
+  if (S.syncing || !S.online || !S.queue.length) return;
+  S.syncing = true; renderSyncBadge();
+  var hadReject = false, synced = 0;
+  (function next() {
+    var it = S.queue[0];
+    if (!it) {
+      S.syncing = false; renderSyncBadge();
+      if (synced) { toast(synced === 1 ? 'Pending entry synced' : synced + ' pending entries synced', 'ok'); }
+      if (hadReject) { toast('Some entries could not be saved. Tap the badge to review.', 'err'); refresh(true); }
+      return;
+    }
+    server(it.action, it.payload).then(function (res) {
+      S.queue.shift();
+      if (res && res.ok) { mergeChanges(res.changes); synced++; }
+      else { S.failed.push({ id: it.id, action: it.action, payload: it.payload, label: it.label, ts: it.ts, error: (res && res.error) || 'Could not save.' }); hadReject = true; }
+      saveQueue(); reindex(); persist(); renderView(true); renderSyncBadge();
+      next();
+    }, function () { S.syncing = false; renderSyncBadge(); scheduleFlush(20000); });
+  })();
+}
+
+/* -------------------------------- Loading -------------------------------- */
+function applyLoaded(res, fromCache) {
+  S.data = res.data; S.flags = res.flags || {}; S.today = todayYMD(); S.fromCache = !!fromCache;
+  S.data.alerts = S.data.alerts || [];
+  reapplyPending();
+  reindex();
+}
+function refresh(silent) {
+  if (!S.online) return Promise.resolve();
+  S.refreshing = true; renderChrome();
+  return server('loadAll').then(function (res) {
+    S.refreshing = false;
+    if (!res || !res.ok) throw new Error((res && res.error) || 'load failed');
+    applyLoaded(res, false); S.loading = false; S.loadError = ''; persist(); renderAll();
+  }).catch(function (e) {
+    S.refreshing = false;
+    if (!S.data) { S.loading = false; S.loadError = (e && e.message && e.message !== 'timeout' && e.message !== 'failed') ? e.message : 'We could not reach the server. Check your connection and try again.'; }
+    else if (!silent) toast('Showing saved data. Could not refresh right now.', 'warn');
+    renderAll();
+  });
+}
+
+/* ------------------------------ UI primitives ------------------------------ */
+var A = {}, IN = {}, V = {};
+var sheetStack = [];
+
+function toast(msg, type) {
+  var el = document.createElement('div');
+  el.className = 'toast glass ' + (type || 'ok');
+  el.innerHTML = ico(type === 'err' ? 'alert' : type === 'warn' ? 'wifi' : 'check') + '<span>' + esc(msg) + '</span>';
+  $('#toasts').appendChild(el);
+  setTimeout(function () { el.classList.add('out'); setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 260); }, type === 'err' ? 6500 : 3400);
+}
+
+/** Opens a glass bottom sheet (modal on desktop). Returns a handle with close(value). */
+function openSheet(o) {
+  var el = document.createElement('div');
+  el.className = 'backdrop';
+  el.innerHTML = '<div class="sheet glass" role="dialog" aria-modal="true" aria-label="' + esc(o.title || '') + '"><div class="grab"></div>' +
+    '<div class="sheet-head"><h3>' + esc(o.title || '') + '</h3><button class="iconbtn" data-a="closeSheet" aria-label="Close">' + ico('x') + '</button></div>' +
+    '<div class="sheet-body">' + (o.html || '') + '</div>' + (o.foot ? '<div class="sheet-foot">' + o.foot + '</div>' : '') + '</div>';
+  $('#sheets').appendChild(el);
+  var h = { el: el, body: $('.sheet-body', el), closed: false, close: function (val) {
+    if (h.closed) return; h.closed = true;
+    var i = sheetStack.indexOf(h); if (i >= 0) sheetStack.splice(i, 1);
+    el.classList.remove('open');
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 240);
+    if (o.onResult) o.onResult(val);
+  } };
+  sheetStack.push(h);
+  requestAnimationFrame(function () { requestAnimationFrame(function () { el.classList.add('open'); }); });
+  if (o.onOpen) o.onOpen(h.body, h);
+  return h;
+}
+function topSheet() { return sheetStack[sheetStack.length - 1]; }
+A.closeSheet = function () { var t = topSheet(); if (t) t.close(null); };
+A.sheetCancel = function () { var t = topSheet(); if (t) t.close(false); };
+A.sheetOk = function () { var t = topSheet(); if (t) t.close(true); };
+
+function confirmSheet(o) {
+  var rows = (o.rows || []).map(function (r) { return '<div class="kv"><span>' + esc(r[0]) + '</span><b>' + esc(r[1]) + '</b></div>'; }).join('');
+  var warns = (o.warns || []).map(function (w) { return '<div class="banner warn" style="margin-top:10px">' + ico('alert') + '<span>' + esc(w) + '</span></div>'; }).join('');
+  return new Promise(function (resolve) {
+    openSheet({ title: o.title, html: (o.intro ? '<p class="muted" style="margin-bottom:8px">' + esc(o.intro) + '</p>' : '') + rows + warns,
+      foot: '<button class="btn" data-a="sheetCancel">' + esc(o.cancel || 'Cancel') + '</button><button class="btn ' + (o.tone || 'primary') + '" data-a="sheetOk">' + esc(o.ok || 'Confirm') + '</button>', onResult: function (v) { resolve(v === true); } });
+  });
+}
+function alertSheet(title, msg) {
+  return new Promise(function (resolve) {
+    openSheet({ title: title, html: '<div class="banner danger">' + ico('alert') + '<span>' + esc(msg) + '</span></div>', foot: '<button class="btn primary" data-a="sheetOk">OK</button>', onResult: function () { resolve(); } });
+  });
+}
+
+/** Searchable picker sheet. items: [{id,t,s,r,dis,pill}] -> resolves chosen id, '__new__', or null. */
+function pickSheet(o) {
+  return new Promise(function (resolve) {
+    var items = o.items || [], list;
+    function draw(q) {
+      q = (q || '').toLowerCase().trim();
+      var arr = items.filter(function (i) { return !q || (i.t + ' ' + (i.s || '')).toLowerCase().indexOf(q) >= 0; }).slice(0, 80);
+      var html = '';
+      if (o.newLabel && !q) html += '<button class="item" data-a="pickItem" data-id="__new__"><span class="avatar">' + ico('plus') + '</span><div class="main"><div class="t">' + esc(o.newLabel) + '</div></div></button>';
+      html += arr.map(function (i) {
+        return '<button class="item" data-a="pickItem" data-id="' + esc(i.id) + '"' + (i.dis ? ' disabled style="opacity:.5"' : '') + '><div class="main"><div class="t">' + esc(i.t) + '</div>' + (i.s ? '<div class="s">' + esc(i.s) + '</div>' : '') + '</div>' + (i.r ? '<div class="e">' + i.r + '</div>' : '') + '</button>';
+      }).join('');
+      if (!arr.length && !(o.newLabel && !q)) html += '<div class="empty"><p>' + esc(o.empty || 'Nothing matches your search.') + '</p></div>';
+      list.innerHTML = html;
+    }
+    openSheet({ title: o.title, html: (o.search === false ? '' : '<div class="search">' + ico('search') + '<input class="input" id="pk_q" placeholder="Search" autocomplete="off"></div>') + '<div class="list" id="pk_list" style="margin-top:10px"></div>',
+      onResult: resolve, onOpen: function (root) { list = $('#pk_list', root); draw(''); var q = $('#pk_q', root); if (q) q.addEventListener('input', function () { draw(q.value); }); } });
+  });
+}
+A.pickItem = function (el) { var t = topSheet(); if (t) t.close(el.getAttribute('data-id')); };
+
+function setBusy(btn, busy, label) {
+  if (!btn) return;
+  if (busy) { btn.setAttribute('data-l', btn.innerHTML); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> ' + esc(label || 'Saving'); }
+  else { btn.disabled = false; if (btn.getAttribute('data-l')) btn.innerHTML = btn.getAttribute('data-l'); }
+}
+function fld(id, label, o) {
+  o = o || {};
+  var input = o.html || '<input class="input" id="' + id + '" type="' + (o.type || 'text') + '" value="' + esc(o.value == null ? '' : o.value) + '"' + (o.attrs ? ' ' + o.attrs : '') + '>';
+  return '<div class="field"><label class="lab" for="' + id + '">' + esc(label) + (o.req ? ' <i>*</i>' : '') + '</label>' + input + (o.hint ? '<div class="hint">' + o.hint + '</div>' : '') + '<div class="err" id="' + id + '_e" role="alert"></div></div>';
+}
+function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+function setErr(id, msg) {
+  var e = document.getElementById(id + '_e'), i = document.getElementById(id);
+  if (e) e.textContent = msg || '';
+  if (i) { if (msg) i.classList.add('bad'); else i.classList.remove('bad'); }
+  return !msg;
+}
+function clearErrs(ids) { ids.forEach(function (i) { setErr(i, ''); }); }
+function emptyState(kind, title, text, btn) {
+  return '<div class="empty">' + illus(kind) + '<b>' + esc(title) + '</b><p>' + esc(text) + '</p>' + (btn || '') + '</div>';
+}
+function skelRows(n) {
+  var h = '';
+  for (var i = 0; i < n; i++) h += '<div class="sk-row"><div class="sk" style="width:5px;height:42px"></div><div style="flex:1"><div class="sk l" style="width:60%"></div><div class="sk l" style="width:38%"></div></div><div class="sk" style="width:78px;height:26px;border-radius:99px"></div></div>';
+  return h;
+}
+function skeleton(name) {
+  if (name === 'dashboard') return '<div class="page"><div><div class="sk h" style="width:55%"></div><div class="sk l" style="width:35%"></div></div><div class="grid g-stats"><div class="sk card"></div><div class="sk card"></div><div class="sk card"></div><div class="sk card"></div></div><div class="grid g-tiles"><div class="sk card"></div><div class="sk card"></div><div class="sk card"></div><div class="sk card"></div><div class="sk card"></div></div><div class="card">' + skelRows(5) + '</div></div>';
+  return '<div class="page"><div class="sk h" style="width:45%"></div><div class="sk" style="height:48px;border-radius:15px"></div><div class="card">' + skelRows(7) + '</div></div>';
+}
+function errorState() {
+  return '<div class="page">' + emptyState('box', 'We could not load your data', S.loadError || 'Please check your connection.', '<button class="btn primary" data-a="retryLoad" style="margin-top:10px">' + ico('sync') + ' Try again</button>') + '</div>';
+}
+A.retryLoad = function () { S.loadError = ''; S.loading = true; renderView(false); refresh(); };
+
+/* ---------------------------- Chrome and routing ---------------------------- */
+var NAV = [{ k: 'dashboard', l: 'Dashboard', i: 'dash' }, { k: 'inventory', l: 'Inventory', i: 'box' }, { k: 'record', l: 'Record', i: 'plus' }, { k: 'accounts', l: 'Accounts', i: 'users' }, { k: 'more', l: 'More', i: 'more' }];
+var MORE_ROUTES = { more: 1, receive: 1, reports: 1, import: 1, settings: 1 };
+var TITLES = { dashboard: 'Dashboard', inventory: 'Inventory', record: 'Record movement', accounts: 'Accounts', more: 'More', receive: 'Receive delivery', reports: 'Reports', import: 'Import from Excel', settings: 'Settings' };
+var FORM_ROUTES = { record: 1, receive: 1, reports: 1, import: 1, settings: 1 };
+var SIDE = [['dashboard', 'Dashboard', 'dash'], ['inventory', 'Inventory', 'box'], ['record', 'Record movement', 'plus'], ['receive', 'Receive delivery', 'truck'], ['accounts', 'Accounts', 'users'], ['reports', 'Reports', 'file'], ['import', 'Import', 'upload'], ['settings', 'Settings', 'sliders']];
+
+function parseHash() {
+  var h = (location.hash || '').replace(/^#\/?/, '').split('/');
+  var name = h[0] || 'dashboard';
+  if (!TITLES[name]) name = 'dashboard';
+  return { name: name, id: h[1] || null };
+}
+function go(path) {
+  var p = path.split('/');
+  S.route = { name: p[0], id: p[1] || null };
+  try { history.pushState({ r: path }, '', '#/' + path); } catch (e) { /* sandboxed */ }
+  renderAll();
+  window.scrollTo(0, 0);
+}
+function goBack() {
+  if (S.route.name === 'accounts' && S.route.id) return go('accounts');
+  if (MORE_ROUTES[S.route.name] && S.route.name !== 'more') return go('more');
+  go('dashboard');
+}
+window.addEventListener('popstate', function () { S.route = parseHash(); renderAll(); });
+
+function renderSyncBadge() {
+  var b = $('#syncBadge'); if (!b) return;
+  var n = S.queue.length, f = S.failed.length;
+  b.className = 'sync-badge';
+  if (f) { b.classList.add('show', 'bad'); b.innerHTML = ico('alert') + 'Needs attention (' + f + ')'; }
+  else if (n) { b.classList.add('show'); if (S.syncing) b.classList.add('spin'); b.innerHTML = ico('sync') + (S.syncing ? 'Syncing…' : 'Pending sync (' + n + ')'); }
+  else if (!S.online) { b.classList.add('show'); b.innerHTML = ico('wifi') + 'Offline'; }
+  else b.innerHTML = '';
+}
+function renderChrome() {
+  var r = S.route.name, title = TITLES[r] || 'MedTrack';
+  var biz = S.data ? S.data.settings.BusinessName : '';
+  var sub = (r === 'accounts' && S.route.id) || (MORE_ROUTES[r] && r !== 'more');
+  if (r === 'accounts' && S.route.id) title = 'Account';
+  var left = sub ? '<button class="iconbtn" data-a="goBack" aria-label="Back">' + ico('back') + '</button>' : '<div class="logo">' + ico('pill') + '</div>';
+  $('#topbar').innerHTML = left + '<div class="title">' + esc(title) + '</div><button class="sync-badge" id="syncBadge" data-a="openSync"></button>' +
+    '<button class="iconbtn" data-a="doRefresh" aria-label="Refresh data" title="Refresh">' + (S.refreshing ? '<span class="spinner"></span>' : ico('sync')) + '</button>';
+  $('#sidebar').innerHTML = '<div class="brand"><div class="logo">' + ico('pill') + '</div><div><b>MedTrack</b><small>' + esc(biz || 'Expiry monitoring') + '</small></div></div>' +
+    SIDE.map(function (s) { var on = s[0] === r || (r === 'accounts' && s[0] === 'accounts'); return '<button class="navlink' + (on ? ' active' : '') + '" data-a="nav" data-to="' + s[0] + '">' + ico(s[2]) + s[1] + '</button>'; }).join('') +
+    '<div class="side-foot">Powered by <b>LAYAW SYSTEM</b><br>v' + esc(S.flags.version || '1.0.0') + '</div>';
+  $('#bottomnav').innerHTML = NAV.map(function (n) {
+    var on = n.k === r || (n.k === 'more' && MORE_ROUTES[r]);
+    return '<button class="navbtn' + (on ? ' active' : '') + '" data-a="nav" data-to="' + n.k + '" aria-label="' + n.l + '"' + (on ? ' aria-current="page"' : '') + '>' + ico(n.i) + n.l + '</button>';
+  }).join('');
+  var fab = $('#fab'); fab.innerHTML = ico('plus'); fab.hidden = !S.data || r === 'record' || r === 'receive' || r === 'settings' || r === 'import';
+  renderSyncBadge();
+}
+function renderView(keep) {
+  var root = $('#view');
+  if (!S.data) { root.innerHTML = S.loadError ? errorState() : skeleton(S.route.name); return; }
+  if (keep && FORM_ROUTES[S.route.name]) return;
+  var out = (V[S.route.name] || V.dashboard)();
+  root.innerHTML = out.html;
+  if (out.after) out.after(root);
+}
+function renderAll() { renderChrome(); renderView(false); }
+A.nav = function (el) { go(el.getAttribute('data-to')); };
+A.goBack = goBack;
+A.goRecord = function () { go('record'); };
+A.goReceive = function () { go('receive'); };
+A.doRefresh = function () { if (!S.online) return toast('You are offline. Showing saved data.', 'warn'); flush(); refresh().then(function () { toast('Up to date', 'ok'); }); };
+
+/* Delegated events */
+document.addEventListener('click', function (e) {
+  var t = e.target;
+  if (t.classList && t.classList.contains('backdrop')) { var ts = topSheet(); if (ts && ts.el === t) ts.close(null); return; }
+  var el = t.closest ? t.closest('[data-a]') : null;
+  if (!el || el.disabled) return;
+  var fn = A[el.getAttribute('data-a')];
+  if (fn) fn(el, e);
+});
+document.addEventListener('input', function (e) { var n = e.target.getAttribute && e.target.getAttribute('data-in'); if (n && IN[n]) IN[n](e.target, e); });
+document.addEventListener('change', function (e) { var n = e.target.getAttribute && e.target.getAttribute('data-in'); if (n && IN[n]) IN[n](e.target, e); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { var t = topSheet(); if (t) t.close(null); } });
+window.addEventListener('online', function () { S.online = true; renderSyncBadge(); flush(); refresh(true); });
+window.addEventListener('offline', function () { S.online = false; renderSyncBadge(); toast('You are offline. New entries are saved on this phone.', 'warn'); });
+document.addEventListener('visibilitychange', function () { if (!document.hidden) { if (S.today !== todayYMD() && S.data) { S.today = todayYMD(); reindex(); renderAll(); } if (S.queue.length) flush(); } });
+
+/* ----------------------------------- Theme ----------------------------------- */
+function applyTheme(t) {
+  S.theme = t || 'auto';
+  document.documentElement.setAttribute('data-theme', S.theme);
+  if (S.theme === 'auto') store.del('mt_theme'); else store.set('mt_theme', S.theme);
+  try { var dark = S.theme === 'dark' || (S.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches); var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', dark ? '#0A1622' : '#0F2A44'); } catch (e) { /* ignore */ }
+}
+
+/* ------------------------------ Shared helpers ------------------------------ */
+/** Shows the right feedback after a save: toast for saved/queued, blocking sheet for rejected. */
+function afterMutate(r, okMsg) {
+  if (r.status === 'saved') toast(okMsg, 'ok');
+  else if (r.status === 'queued') toast('Saved on this phone. It will sync when you are online.', 'warn');
+  else alertSheet('That could not be saved', r.error || 'Please try again.');
+  return r;
+}
+function countUps(root) {
+  $$('[data-count]', root).forEach(function (el) {
+    var to = +el.getAttribute('data-count'), key = el.getAttribute('data-k') || 'x', from = lastVals[key] || 0, fmt = el.getAttribute('data-fmt');
+    lastVals[key] = to;
+    var f = function (v) { return fmt === 'peso' ? peso(v, 0) : intf(v); };
+    if (REDUCED || from === to) { el.textContent = f(to); return; }
+    var t0 = null, dur = 700;
+    (function step(ts) {
+      if (t0 === null) t0 = ts;
+      var p = Math.min(1, (ts - t0) / dur), k = 1 - Math.pow(1 - p, 3);
+      el.textContent = f(from + (to - from) * k);
+      if (p < 1) requestAnimationFrame(step);
+    })(performance.now());
+  });
+}
+function greet() { var h = manilaNow().getUTCHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; }
+function batchRow(o, opts) {
+  opts = opts || {};
+  var tone = o.stock > 0 ? toneOf(o.days) : 'gray';
+  return '<button class="item" data-a="openBatch" data-id="' + esc(o.id) + '"><span class="stripe ' + tone + '"></span><div class="main"><div class="t">' + esc(o.p.BrandName) + ' <small>' + esc([o.p.Dosage, o.p.Form].filter(Boolean).join(' · ')) + '</small></div>' +
+    '<div class="s">' + esc(o.p.GenericName) + ' · Lot <b class="tn">' + esc(o.lot) + '</b></div><div class="s tn">' + esc(whereText(o)) + '</div></div>' +
+    '<div class="e">' + (o.stock > 0 ? pillHtml(o.days) : grayPill(o.st)) + '<span class="d">Exp ' + esc(fmtDate(o.expiry)) + '</span></div></button>';
+}
+
+/* --------------------------------- Dashboard --------------------------------- */
+function dashStats() {
+  var I = S.idx, st = { products: activeProducts().length, hand: 0, cons: 0, cost: 0, sell: 0, inStock: 0, bk: {}, act: [], low: [] };
+  BUCKETS.forEach(function (b) { st.bk[b.k] = { n: 0, u: 0 }; });
+  I.list.forEach(function (o) {
+    if (o.stock <= 0) return;
+    st.inStock++; st.hand += o.hand; st.cons += o.cons; st.cost += o.stock * o.p.UnitCost; st.sell += o.stock * o.p.SellingPrice;
+    st.bk[o.bucket].n++; st.bk[o.bucket].u += o.stock;
+    if (o.days <= 90) st.act.push(o);
+  });
+  st.act = st.act.slice(0, 8);
+  activeProducts().forEach(function (p) { var a = I.agg[p.ProductID] || { hand: 0 }; if (p.ReorderLevel > 0 && a.hand < p.ReorderLevel) st.low.push({ p: p, hand: a.hand, ratio: a.hand / p.ReorderLevel }); });
+  st.low.sort(function (a, b) { return a.ratio - b.ratio; });
+  return st;
+}
+V.dashboard = function () {
+  var st = dashStats(), biz = S.data.settings.BusinessName, h = '<div class="page">';
+  h += '<div class="page-head"><div><div class="h1">' + greet() + '</div><div class="sub">' + esc(fmtDateLong(S.today)) + (biz ? ' · ' + esc(biz) : '') + '</div></div><button class="btn primary" data-a="goReceive">' + ico('truck') + ' Receive delivery</button></div>';
+  if (S.fromCache && !S.online) h += '<div class="banner info">' + ico('wifi') + '<span>You are offline. Showing the data last saved on this phone.</span></div>';
+  var ex = st.bk.expired;
+  if (ex.n) h += '<div class="banner danger">' + ico('alert') + '<span><b>' + ex.n + ' batch' + (ex.n === 1 ? ' has' : 'es have') + ' expired</b> and still ' + (ex.n === 1 ? 'has' : 'have') + ' ' + intf(ex.u) + ' unit' + (ex.u === 1 ? '' : 's') + ' in stock. Pull ' + (ex.n === 1 ? 'it' : 'them') + ' out now.</span><button class="btn sm" data-a="goBucket" data-b="expired">Review</button></div>';
+  h += '<div class="grid g-stats">' +
+    '<div class="card stat"><div class="lbl">Products</div><div class="val"><span data-k="s1" data-count="' + st.products + '">' + intf(st.products) + '</span></div><div class="ssub">' + st.inStock + ' batch' + (st.inStock === 1 ? '' : 'es') + ' in stock</div></div>' +
+    '<div class="card stat"><div class="lbl">Units on hand</div><div class="val"><span data-k="s2" data-count="' + st.hand + '">' + intf(st.hand) + '</span></div><div class="ssub">+' + intf(st.cons) + ' on consignment</div></div>' +
+    '<div class="card stat"><div class="lbl">Value at cost</div><div class="val sm"><span data-k="s3" data-fmt="peso" data-count="' + Math.round(st.cost) + '">' + peso(st.cost, 0) + '</span></div><div class="ssub">Hand + consignment</div></div>' +
+    '<div class="card stat"><div class="lbl">Value at selling</div><div class="val sm"><span data-k="s4" data-fmt="peso" data-count="' + Math.round(st.sell) + '">' + peso(st.sell, 0) + '</span></div><div class="ssub">Margin ' + peso(st.sell - st.cost, 0) + '</div></div></div>';
+  h += '<section><div class="sec-head"><h2 class="h2">Expiry timeline</h2><span class="muted" style="font-size:12.5px">Tap to filter</span></div><div class="grid g-tiles">';
+  BUCKETS.slice(0, 5).forEach(function (b) {
+    var d = st.bk[b.k];
+    h += '<button class="tile ' + b.tone + '" data-a="goBucket" data-b="' + b.k + '"><span class="pill ' + b.tone + '">' + esc(b.label) + '</span><span class="n" data-k="t' + b.k + '" data-count="' + d.n + '">' + d.n + '</span><span class="u">batch' + (d.n === 1 ? '' : 'es') + ' · ' + intf(d.u) + ' units</span></button>';
+  });
+  h += '</div></section><div class="grid g-two"><section class="card"><div class="pad" style="padding-bottom:4px"><div class="sec-head" style="margin:0"><h2 class="h2">Act now</h2><button class="link" data-a="goAll">See all</button></div><div class="sub" style="margin:0 0 4px">Closest to expiry, within 90 days</div></div>';
+  if (!st.act.length) h += emptyState('check', 'Nothing urgent', 'No stock is within 90 days of expiry. Nice work keeping on top of it.');
+  else h += '<div class="list">' + st.act.map(batchRow).join('') + '</div>';
+  h += '</section><div style="display:flex;flex-direction:column;gap:12px"><section class="card pad"><div class="sec-head"><h2 class="h2">Units by expiry window</h2></div><div class="chartbox"><canvas id="chExp" role="img" aria-label="Units by expiry window"></canvas></div></section>';
+  h += '<section class="card"><div class="pad" style="padding-bottom:0"><h2 class="h2">Low stock</h2><div class="sub" style="margin:0 0 4px">Below the reorder level you set</div></div>';
+  if (!st.low.length) h += emptyState('check', 'All stocked up', 'Every product is at or above its reorder level.');
+  else h += '<div class="list">' + st.low.slice(0, 6).map(function (l) {
+    return '<button class="item" data-a="openProduct" data-id="' + esc(l.p.ProductID) + '"><div class="main"><div class="t">' + esc(prodTitle(l.p)) + '</div><div class="s">Reorder level ' + intf(l.p.ReorderLevel) + '</div></div><div class="e"><span class="pill amber">Low · ' + intf(l.hand) + ' left</span></div></button>';
+  }).join('') + '</div>';
+  h += '</section></div></div><div class="footer">Powered by <b>LAYAW SYSTEM</b></div></div>';
+  return { html: h, after: function (root) { countUps(root); drawChart(st); } };
+};
+function drawChart(st) {
+  var cv = $('#chExp'); if (!cv) return;
+  if (typeof Chart === 'undefined') { window.addEventListener('load', function () { if ($('#chExp')) drawChart(st); }, { once: true }); return; }
+  if (chart) { try { chart.destroy(); } catch (e) { /* ignore */ } chart = null; }
+  var cs = getComputedStyle(document.documentElement), txt = cs.getPropertyValue('--muted').trim() || '#5B6F83', grid = cs.getPropertyValue('--line').trim() || '#E1E8EF';
+  var cols = { red: '#D92D4A', amber: '#E39A12', blue: '#3B82F6' }, bs = BUCKETS.slice(0, 5);
+  chart = new Chart(cv.getContext('2d'), { type: 'bar',
+    data: { labels: bs.map(function (b) { return b.label; }), datasets: [{ data: bs.map(function (b) { return st.bk[b.k].u; }), backgroundColor: bs.map(function (b) { return cols[b.tone]; }), borderRadius: 8, maxBarThickness: 46 }] },
+    options: { responsive: true, maintainAspectRatio: false, animation: REDUCED ? false : { duration: 700 }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return intf(c.parsed.y) + ' units'; } } } },
+      scales: { x: { grid: { display: false }, ticks: { color: txt, font: { size: 11, weight: '600' } } }, y: { beginAtZero: true, grid: { color: grid }, ticks: { color: txt, precision: 0 } } } } });
+}
+A.goBucket = function (el) { S.inv = { mode: 'batches', q: '', bucket: el.getAttribute('data-b'), status: '', account: '', principal: '', archived: false, limit: 60 }; go('inventory'); };
+A.goAll = function () { S.inv = { mode: 'batches', q: '', bucket: '', status: '', account: '', principal: '', archived: false, limit: 60 }; go('inventory'); };
+
+/* -------------------------------- Inventory -------------------------------- */
+function filterBatches() {
+  var f = S.inv, tokens = f.q.toLowerCase().split(/\s+/).filter(Boolean);
+  return S.idx.list.filter(function (o) {
+    if (f.status) { if (o.st !== f.status) return false; } else if (o.stock <= 0) return false;
+    if (f.bucket && o.bucket !== f.bucket) return false;
+    if (f.principal && o.p.Principal !== f.principal) return false;
+    if (f.account && consAt(o, f.account) <= 0) return false;
+    for (var i = 0; i < tokens.length; i++) if (o.sx.indexOf(tokens[i]) < 0) return false;
+    return true;
+  });
+}
+function filterProducts() {
+  var f = S.inv, tokens = f.q.toLowerCase().split(/\s+/).filter(Boolean);
+  return S.data.products.filter(function (p) {
+    if (!p.Active && !f.archived) return false;
+    if (f.principal && p.Principal !== f.principal) return false;
+    var a = S.idx.agg[p.ProductID] || { stock: 0, next: null, nextDays: null };
+    if (f.bucket && (a.next === null || (S.idx.byProd[p.ProductID] || []).every(function (o) { return o.bucket !== f.bucket; }))) return false;
+    if (f.account && !(S.idx.byProd[p.ProductID] || []).some(function (o) { return consAt(o, f.account) > 0; })) return false;
+    var sx = (p.BrandName + ' ' + p.GenericName + ' ' + p.Dosage + ' ' + p.Principal + ' ' + (S.idx.byProd[p.ProductID] || []).map(function (o) { return o.lot; }).join(' ')).toLowerCase();
+    for (var i = 0; i < tokens.length; i++) if (sx.indexOf(tokens[i]) < 0) return false;
+    return true;
+  }).sort(function (a, b) { return a.BrandName.localeCompare(b.BrandName); });
+}
+function activeFilterChips() {
+  var f = S.inv, c = [];
+  if (f.bucket) c.push(['bucket', (BUCKETS.filter(function (b) { return b.k === f.bucket; })[0] || {}).label]);
+  if (f.status) c.push(['status', f.status]);
+  if (f.account) c.push(['account', accName(f.account)]);
+  if (f.principal) c.push(['principal', f.principal]);
+  if (f.archived && f.mode === 'products') c.push(['archived', 'Incl. archived']);
+  return c;
+}
+function drawInvList() {
+  var f = S.inv, box = $('#invList'); if (!box) return;
+  var arr = f.mode === 'batches' ? filterBatches() : filterProducts();
+  var cnt = $('#invCount');
+  if (cnt) cnt.textContent = intf(arr.length) + (f.mode === 'batches' ? ' batch' + (arr.length === 1 ? '' : 'es') : ' product' + (arr.length === 1 ? '' : 's')) + (f.mode === 'batches' && !f.status ? ' with stock' : '') + ', first expiry first';
+  var chips = $('#invChips');
+  if (chips) {
+    var ac = activeFilterChips();
+    chips.innerHTML = '<button class="chip' + (ac.length ? ' on' : '') + '" data-a="openFilters">' + ico('filter') + ' Filters' + (ac.length ? ' · ' + ac.length : '') + '</button>' +
+      ac.map(function (c) { return '<button class="chip on" data-a="fClear" data-k="' + c[0] + '">' + esc(c[1]) + ' <span class="x">✕</span></button>'; }).join('');
+  }
+  if (!arr.length) {
+    var any = f.mode === 'batches' ? S.idx.list.length : S.data.products.length;
+    box.innerHTML = any ? emptyState('box', 'No matches', 'Try a different search or clear the filters.', '<button class="btn" data-a="fClearAll" style="margin-top:8px">Clear filters</button>') :
+      emptyState('box', f.mode === 'batches' ? 'No stock yet' : 'No products yet', 'Add your first product, then log a delivery to start tracking expiry dates.', '<button class="btn primary" data-a="addProduct" style="margin-top:8px">' + ico('plus') + ' Add product</button>');
+    return;
+  }
+  var shown = arr.slice(0, f.limit), html;
+  if (f.mode === 'batches') html = shown.map(batchRow).join('');
+  else html = shown.map(function (p) {
+    var a = S.idx.agg[p.ProductID] || { hand: 0, cons: 0, stock: 0, next: null, nextDays: null };
+    return '<button class="item" data-a="openProduct" data-id="' + esc(p.ProductID) + '"><span class="avatar">' + esc(p.BrandName.charAt(0).toUpperCase()) + '</span><div class="main"><div class="t">' + esc(p.BrandName) + ' <small>' + esc([p.Dosage, p.Form].filter(Boolean).join(' · ')) + '</small>' + (p.Active ? '' : ' <span class="tag" style="color:var(--gray);background:var(--gray-bg)">Archived</span>') + '</div><div class="s">' + esc(p.GenericName) + (p.Principal ? ' · ' + esc(p.Principal) : '') + '</div>' +
+      '<div class="s tn">In hand ' + intf(a.hand) + (a.cons ? ' · Consignment ' + intf(a.cons) : '') + '</div></div><div class="e">' + (a.next ? pillHtml(a.nextDays) : grayPill(a.stock > 0 ? 'In stock' : 'No stock')) + (a.next ? '<span class="d">Next exp ' + esc(fmtDate(a.next)) + '</span>' : '') + '</div></button>';
+  }).join('');
+  if (arr.length > shown.length) html += '<div class="more"><button class="btn sm" data-a="invMore">Show more (' + intf(arr.length - shown.length) + ' left)</button></div>';
+  box.innerHTML = html;
+}
+V.inventory = function () {
+  var f = S.inv;
+  var h = '<div class="page"><div class="page-head"><div><div class="h1">Inventory</div><div class="sub" id="invCount"></div></div><button class="btn primary sm" data-a="addProduct">' + ico('plus') + ' Product</button></div>' +
+    '<div class="seg" role="tablist"><button class="' + (f.mode === 'batches' ? 'on' : '') + '" data-a="invMode" data-m="batches">Batches</button><button class="' + (f.mode === 'products' ? 'on' : '') + '" data-a="invMode" data-m="products">Products</button></div>' +
+    '<div class="search">' + ico('search') + '<input class="input" id="invQ" data-in="invQ" type="search" placeholder="Search brand, generic or lot number" autocomplete="off" value="' + esc(f.q) + '" aria-label="Search inventory"></div>' +
+    '<div class="chips" id="invChips"></div><div class="card list" id="invList"></div><div class="footer">Powered by <b>LAYAW SYSTEM</b></div></div>';
+  return { html: h, after: drawInvList };
+};
+IN.invQ = debounce(function (el) { S.inv.q = el.value; S.inv.limit = 60; drawInvList(); }, 60);
+A.invMode = function (el) { S.inv.mode = el.getAttribute('data-m'); S.inv.limit = 60; renderView(false); };
+A.invMore = function () { S.inv.limit += 80; drawInvList(); };
+A.fClear = function (el) { var k = el.getAttribute('data-k'); S.inv[k] = k === 'archived' ? false : ''; S.inv.limit = 60; drawInvList(); };
+A.fClearAll = function () { S.inv.bucket = S.inv.status = S.inv.account = S.inv.principal = S.inv.q = ''; S.inv.archived = false; renderView(false); };
+A.openFilters = function () {
+  var h = openSheet({ title: 'Filters', html: '<div id="fBody"></div>', foot: '<button class="btn" data-a="fReset">Reset</button><button class="btn primary" data-a="closeSheet">Show results</button>' });
+  drawFilters();
+};
+function drawFilters() {
+  var f = S.inv, box = $('#fBody'); if (!box) return;
+  function group(title, k, opts) {
+    return '<div class="field" style="margin-bottom:14px"><div class="lab">' + title + '</div><div class="chips">' + opts.map(function (o) { return '<button class="chip' + (f[k] === o[0] ? ' on' : '') + '" data-a="fSet" data-k="' + k + '" data-v="' + esc(o[0]) + '">' + esc(o[1]) + '</button>'; }).join('') + '</div></div>';
+  }
+  var h = group('Expiry window', 'bucket', [['', 'Any']].concat(BUCKETS.map(function (b) { return [b.k, b.label]; })));
+  if (f.mode === 'batches') h += group('Status', 'status', [['', 'In stock']].concat(['Active', 'Near Expiry', 'Expired', 'Pulled Out', 'Depleted'].map(function (s) { return [s, s]; })));
+  h += '<div class="field" style="margin-bottom:14px"><div class="lab">Account (stock on consignment there)</div><button class="pick" data-a="fPickAcc"><span>' + (f.account ? esc(accName(f.account)) : '<span class="ph">Any account</span>') + '</span>' + ico('chev') + '</button></div>';
+  h += '<div class="field" style="margin-bottom:14px"><div class="lab">Principal</div><button class="pick" data-a="fPickPrin"><span>' + (f.principal ? esc(f.principal) : '<span class="ph">Any principal</span>') + '</span>' + ico('chev') + '</button></div>';
+  if (f.mode === 'products') h += '<div class="chips"><button class="chip' + (f.archived ? ' on' : '') + '" data-a="fToggleArch">Include archived products</button></div>';
+  box.innerHTML = h;
+}
+A.fSet = function (el) { var k = el.getAttribute('data-k'); S.inv[k] = el.getAttribute('data-v'); S.inv.limit = 60; drawFilters(); drawInvList(); };
+A.fReset = function () { S.inv.bucket = S.inv.status = S.inv.account = S.inv.principal = ''; S.inv.archived = false; drawFilters(); drawInvList(); };
+A.fToggleArch = function () { S.inv.archived = !S.inv.archived; drawFilters(); drawInvList(); };
+A.fPickAcc = function () {
+  pickSheet({ title: 'Choose account', items: [{ id: '', t: 'Any account' }].concat(S.data.accounts.map(function (a) { return { id: a.AccountID, t: a.Name, s: a.Type }; })) }).then(function (id) { if (id === null) return; S.inv.account = id; drawFilters(); drawInvList(); });
+};
+A.fPickPrin = function () {
+  pickSheet({ title: 'Choose principal', items: [{ id: '', t: 'Any principal' }].concat(S.idx.principals.map(function (p) { return { id: p, t: p }; })) }).then(function (id) { if (id === null) return; S.inv.principal = id; drawFilters(); drawInvList(); });
+};
+
+/* ----------------------- Product form, product & batch sheets ----------------------- */
+var FORMS = ['Tablet', 'Capsule', 'Syrup', 'Suspension', 'Injection', 'Cream', 'Ointment', 'Drops', 'Inhaler', 'Sachet', 'Lozenge', 'Solution', 'Suppository'];
+/** Opens the add/edit product sheet. Resolves with the product ID once saved (optimistically), or null. */
+function productForm(p) {
+  var isNew = !p; p = p || {}; var id = isNew ? uid('PRD') : p.ProductID;
+  var ids = ['pf_brand', 'pf_generic', 'pf_cost', 'pf_sell', 'pf_reorder'];
+  var html = '<div class="form">' +
+    fld('pf_brand', 'Brand name', { req: 1, value: p.BrandName, attrs: 'maxlength="120" autocomplete="off"' }) +
+    fld('pf_generic', 'Generic name', { req: 1, value: p.GenericName, attrs: 'maxlength="120" autocomplete="off"' }) +
+    '<div class="row2">' + fld('pf_dosage', 'Dosage', { value: p.Dosage, attrs: 'maxlength="60" placeholder="e.g. 500 mg"' }) + fld('pf_form', 'Form', { value: p.Form, attrs: 'maxlength="40" list="pf_forms" placeholder="Tablet"' }) + '</div>' +
+    '<datalist id="pf_forms">' + FORMS.map(function (x) { return '<option value="' + x + '">'; }).join('') + '</datalist>' +
+    '<div class="row2">' + fld('pf_pack', 'Pack size', { value: p.PackSize, attrs: 'maxlength="60" placeholder="Box of 100"' }) + fld('pf_prin', 'Principal', { value: p.Principal, attrs: 'maxlength="80" list="pf_prins" placeholder="Company"' }) + '</div>' +
+    '<datalist id="pf_prins">' + S.idx.principals.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
+    '<div class="row2">' + fld('pf_cost', 'Unit cost (' + PESO + ')', { value: p.UnitCost != null ? p.UnitCost : '', attrs: 'inputmode="decimal" placeholder="0.00"' }) + fld('pf_sell', 'Selling price (' + PESO + ')', { value: p.SellingPrice != null ? p.SellingPrice : '', attrs: 'inputmode="decimal" placeholder="0.00"' }) + '</div>' +
+    fld('pf_reorder', 'Reorder level (units)', { value: p.ReorderLevel != null ? p.ReorderLevel : '', attrs: 'inputmode="numeric" placeholder="0"', hint: 'You will see this product under Low stock when you have fewer units than this.' }) + '</div>';
+  return new Promise(function (resolve) {
+    var saved = null;
+    S.pf = { id: id, isNew: isNew, done: function (v) { saved = v; } };
+    openSheet({ title: isNew ? 'Add product' : 'Edit product', html: html, foot: '<button class="btn" data-a="sheetCancel">Cancel</button><button class="btn primary" data-a="saveProductForm">Save product</button>', onResult: function () { resolve(saved); } });
+  });
+}
+A.saveProductForm = function () {
+  var ids = ['pf_brand', 'pf_generic', 'pf_cost', 'pf_sell', 'pf_reorder'], ok = true;
+  clearErrs(ids);
+  var brand = val('pf_brand').trim(), gen = val('pf_generic').trim();
+  if (!brand) ok = setErr('pf_brand', 'Please enter the brand name.') && ok;
+  if (!gen) ok = setErr('pf_generic', 'Please enter the generic name.') && ok;
+  var cost = val('pf_cost').trim() === '' ? 0 : num(val('pf_cost')), sell = val('pf_sell').trim() === '' ? 0 : num(val('pf_sell')), re = val('pf_reorder').trim() === '' ? 0 : num(val('pf_reorder'));
+  if (isNaN(cost) || cost < 0) ok = setErr('pf_cost', 'Enter an amount like 250.00') && ok;
+  if (isNaN(sell) || sell < 0) ok = setErr('pf_sell', 'Enter an amount like 350.00') && ok;
+  if (isNaN(re) || re < 0 || Math.floor(re) !== re) ok = setErr('pf_reorder', 'Enter a whole number, 0 or more.') && ok;
+  var payload = { productId: S.pf.id, brandName: brand, genericName: gen, dosage: val('pf_dosage'), form: val('pf_form'), packSize: val('pf_pack'), principal: val('pf_prin'), unitCost: cost, sellingPrice: sell, reorderLevel: re };
+  if (ok) {
+    var key = function (b, d, f, p) { return [b, d, f, p].join('|').toLowerCase(); };
+    var k = key(brand, payload.dosage.trim(), payload.form.trim(), payload.packSize.trim());
+    var clash = S.data.products.filter(function (x) { return x.ProductID !== S.pf.id && key(x.BrandName, x.Dosage, x.Form, x.PackSize) === k; })[0];
+    if (clash) ok = setErr('pf_brand', 'This product is already in your list.') && ok;
+  }
+  if (!ok) return;
+  var r = mutate('saveProduct', payload, 'Product: ' + brand);
+  S.pf.done(S.pf.id);
+  var t = topSheet(); if (t) t.close(S.pf.id);
+  r.then(function (x) { afterMutate(x, 'Product saved'); });
+};
+A.addProduct = function () { productForm(null); };
+A.editProduct = function (el) { var p = findBy(S.data.products, 'ProductID', el.getAttribute('data-id')); if (p) { closeAllSheets(); productForm(p); } };
+function closeAllSheets() { while (sheetStack.length) sheetStack[sheetStack.length - 1].close(null); }
+
+A.openProduct = function (el) { showProduct(el.getAttribute('data-id')); };
+function showProduct(id) {
+  var p = S.idx.prod[id]; if (!p) return;
+  var a = S.idx.agg[id] || { hand: 0, cons: 0, stock: 0, next: null, nextDays: null }, bs = S.idx.byProd[id] || [];
+  var withStock = bs.filter(function (o) { return o.stock > 0; }), without = bs.length - withStock.length;
+  var html = '<div class="card" style="box-shadow:none;margin-bottom:12px"><div class="pad" style="padding:6px 16px">' +
+    '<div class="kv"><span>Generic</span><b>' + esc(p.GenericName) + '</b></div><div class="kv"><span>Form / pack</span><b>' + esc([p.Form, p.PackSize].filter(Boolean).join(' · ') || '—') + '</b></div>' +
+    '<div class="kv"><span>Principal</span><b>' + esc(p.Principal || '—') + '</b></div><div class="kv"><span>Cost / selling</span><b>' + peso(p.UnitCost) + ' / ' + peso(p.SellingPrice) + '</b></div>' +
+    '<div class="kv"><span>In hand / consignment</span><b>' + intf(a.hand) + ' / ' + intf(a.cons) + '</b></div><div class="kv"><span>Reorder level</span><b>' + intf(p.ReorderLevel) + '</b></div></div></div>' +
+    '<div class="sec-head"><h2 class="h2">Batches, first expiry first</h2></div>';
+  html += withStock.length ? '<div class="card list" style="box-shadow:none">' + withStock.map(batchRow).join('') + '</div>' : '<div class="card">' + emptyState('box', 'No stock', 'Log a delivery to add batches for this product.') + '</div>';
+  if (without) html += '<p class="hint" style="margin-top:8px">' + without + ' older batch' + (without === 1 ? '' : 'es') + ' with no stock left (kept for your records).</p>';
+  html += '<div style="margin-top:14px"><button class="btn block ghost" data-a="toggleProduct" data-id="' + esc(id) + '">' + ico('archive') + (p.Active ? ' Archive this product' : ' Restore this product') + '</button></div>';
+  openSheet({ title: prodTitle(p), html: html, foot: '<button class="btn" data-a="editProduct" data-id="' + esc(id) + '">' + ico('edit') + ' Edit</button><button class="btn" data-a="recvProduct" data-id="' + esc(id) + '">' + ico('truck') + ' Receive</button><button class="btn primary" data-a="recProduct" data-id="' + esc(id) + '">Record</button>' });
+}
+A.recvProduct = function (el) { closeAllSheets(); S.recv = newRecv(); S.recv.lines[0].productId = el.getAttribute('data-id'); go('receive'); };
+A.recProduct = function (el) { closeAllSheets(); S.rec = newRec({ productId: el.getAttribute('data-id') }); go('record'); };
+A.toggleProduct = function (el) {
+  var id = el.getAttribute('data-id'), p = S.idx.prod[id], a = S.idx.agg[id] || { stock: 0 };
+  confirmSheet({ title: p.Active ? 'Archive ' + p.BrandName + '?' : 'Restore ' + p.BrandName + '?', intro: p.Active ? 'Archived products are hidden from pickers but nothing is deleted. Their history and stock stay on record.' : 'The product will appear in pickers again.',
+    warns: p.Active && a.stock > 0 ? ['This product still has ' + intf(a.stock) + ' unit' + (a.stock === 1 ? '' : 's') + ' in stock. Expiry alerts for that stock will continue.'] : [], ok: p.Active ? 'Archive' : 'Restore', tone: p.Active ? 'danger' : 'primary' }).then(function (yes) {
+    if (!yes) return;
+    closeAllSheets();
+    mutate('setProductActive', { productId: id, active: !p.Active }, 'Product status').then(function (r) { afterMutate(r, p.Active ? 'Product archived' : 'Product restored'); });
+  });
+};
+
+A.openBatch = function (el) { showBatch(el.getAttribute('data-id')); };
+function showBatch(id) {
+  var o = S.idx.batch[id]; if (!o) return;
+  var del = findBy(S.data.deliveries, 'DeliveryID', o.b.DeliveryID);
+  var moves = S.data.movements.filter(function (m) { return m.BatchID === id; }).sort(function (a, b) { return a.Date < b.Date ? 1 : a.Date > b.Date ? -1 : (a.CreatedAt < b.CreatedAt ? 1 : -1); }).slice(0, 12);
+  var html = '<div style="margin-bottom:10px">' + (o.stock > 0 ? pillHtml(o.days) : grayPill(o.st)) + '</div><div class="card" style="box-shadow:none"><div class="pad" style="padding:6px 16px">' +
+    '<div class="kv"><span>Generic</span><b>' + esc(o.p.GenericName) + '</b></div><div class="kv"><span>Lot number</span><b>' + esc(o.lot) + '</b></div><div class="kv"><span>Expiry date</span><b>' + esc(fmtDate(o.expiry)) + '</b></div>' +
+    '<div class="kv"><span>Received</span><b>' + intf(o.b.QtyReceived) + (del ? ' on ' + esc(fmtDate(del.DeliveryDate)) : '') + '</b></div>' + (del && del.ReferenceNo ? '<div class="kv"><span>Delivery ref</span><b>' + esc(del.ReferenceNo) + '</b></div>' : '') +
+    '<div class="kv"><span>In your hands</span><b>' + intf(o.hand) + '</b></div>' +
+    o.locs.map(function (l) { return '<div class="kv"><span>At ' + esc(accName(l.accId)) + '</span><b>' + intf(l.qty) + ' on consignment</b></div>'; }).join('') + '</div></div>';
+  html += '<div class="sec-head" style="margin-top:16px"><h2 class="h2">Recent movements</h2></div>';
+  html += moves.length ? '<div class="card list" style="box-shadow:none">' + moves.map(function (m) {
+    return '<div class="item" style="min-height:54px;cursor:default"><div class="main"><div class="t">' + esc(m.Type) + (m.Source === 'Consignment' && (m.Type === 'Sale' || m.Type === 'Pullout') ? ' <small>from consignment</small>' : '') + '</div><div class="s">' + esc(fmtDate(m.Date)) + (m.AccountID ? ' · ' + esc(accName(m.AccountID)) : '') + (m.Notes ? ' · ' + esc(m.Notes) : '') + '</div></div><div class="e"><span class="qty">' + (m.Qty > 0 ? '' : '') + intf(m.Qty) + '</span></div></div>';
+  }).join('') + '</div>' : '<p class="muted">No movements yet for this batch.</p>';
+  openSheet({ title: prodTitle(o.p), html: html, foot: '<button class="btn" data-a="batchRecord" data-id="' + esc(id) + '" data-t="Pullout">Pull out</button><button class="btn primary" data-a="batchRecord" data-id="' + esc(id) + '" data-t="Sample">Record movement</button>' });
+}
+A.batchRecord = function (el) {
+  var o = S.idx.batch[el.getAttribute('data-id')], t = el.getAttribute('data-t');
+  closeAllSheets();
+  S.rec = newRec({ type: t === 'Pullout' || o.days < 0 ? 'Pullout' : 'Sample', productId: o.pid, batchId: o.id });
+  go('record');
+};
+
+/* ------------------------------- Record movement ------------------------------- */
+var TYPE_INFO = {
+  Sample: { em: '🩺', hint: 'Given free to a doctor. Reduces your stock.' },
+  Consignment: { em: '🏪', hint: 'Left at a pharmacy to sell. Moves units from your hands to their shelf.' },
+  Sale: { em: '💵', hint: 'Sold. Choose whether it came from your stock or from what is already at the pharmacy.' },
+  Return: { em: '↩️', hint: 'Unsold consignment units coming back to you.' },
+  Pullout: { em: '🗑️', hint: 'Removed from circulation (expired, damaged or recalled).' },
+  Adjustment: { em: '⚖️', hint: 'Correct a count after a recount or damage. A reason is required.' }
+};
+function newRec(p) { p = p || {}; return { type: p.type || 'Sample', productId: p.productId || '', batchId: p.batchId || '', accountId: p.accountId || '', source: 'Hand', dir: 'add', qty: '', price: '', date: S.today, notes: '', priceTouched: false }; }
+function recSource(r) { return r.type === 'Return' ? 'Consignment' : (r.type === 'Sale' || r.type === 'Pullout') ? r.source : 'Hand'; }
+function recNeedsAcc(r) { return ['Sample', 'Consignment', 'Sale', 'Return'].indexOf(r.type) >= 0 || recSource(r) === 'Consignment'; }
+function recAvail(o, r) { if (recSource(r) === 'Consignment') return r.accountId ? consAt(o, r.accountId) : 0; if (r.type === 'Adjustment' && r.dir === 'add') return Infinity; return o.hand; }
+function recBlocked(o, r) { return o.days < 0 && ['Sample', 'Consignment', 'Sale'].indexOf(r.type) >= 0; }
+function recOptions(r) { return (S.idx.byProd[r.productId] || []).filter(function (o) { return (r.type === 'Adjustment' && r.dir === 'add') || recAvail(o, r) > 0; }); }
+function recFix(r) {
+  var opts = recOptions(r);
+  if (!opts.some(function (o) { return o.id === r.batchId; })) {
+    var sug = opts.filter(function (o) { return !recBlocked(o, r); })[0];
+    r.batchId = sug ? sug.id : '';
+  }
+  if (!r.priceTouched) { var p = S.idx.prod[r.productId]; r.price = (r.type === 'Sale' || r.type === 'Consignment') && p ? String(p.SellingPrice) : ''; }
+}
+V.record = function () {
+  if (!S.rec) S.rec = newRec();
+  return { html: '<div class="page"><div class="page-head"><div><div class="h1">Record movement</div><div class="sub">Every change in stock is logged here, so your counts always add up.</div></div></div><div id="recForm"></div></div>', after: drawRecord };
+};
+function drawRecord() {
+  var r = S.rec, box = $('#recForm'); if (!box) return;
+  recFix(r);
+  var p = S.idx.prod[r.productId], needAcc = recNeedsAcc(r), h = '<div class="card pad form">';
+  h += '<div class="field"><div class="lab">What happened?</div><div class="types">' + MOVEMENT_ORDER.map(function (t) { return '<button class="type' + (r.type === t ? ' on' : '') + '" data-a="recType" data-t="' + t + '"><span class="em" aria-hidden="true">' + TYPE_INFO[t].em + '</span>' + t + '</button>'; }).join('') + '</div><div class="hint">' + esc(TYPE_INFO[r.type].hint) + '</div></div>';
+  if (r.type === 'Sale' || r.type === 'Pullout') h += '<div class="field"><div class="lab">Taken from</div><div class="seg"><button class="' + (r.source === 'Hand' ? 'on' : '') + '" data-a="recSrc" data-s="Hand">My stock</button><button class="' + (r.source === 'Consignment' ? 'on' : '') + '" data-a="recSrc" data-s="Consignment">Consignment at an account</button></div></div>';
+  if (r.type === 'Adjustment') h += '<div class="field"><div class="lab">Direction</div><div class="seg"><button class="' + (r.dir === 'add' ? 'on' : '') + '" data-a="recDir" data-d="add">Add stock</button><button class="' + (r.dir === 'remove' ? 'on' : '') + '" data-a="recDir" data-d="remove">Remove stock</button></div></div>';
+  if (needAcc || r.accountId) {
+    h += '<div class="field"><div class="lab">' + (r.type === 'Return' || recSource(r) === 'Consignment' ? 'Account holding the stock' : 'Account') + (needAcc ? ' <i style="color:var(--red-d);font-style:normal">*</i>' : '') + '</div><button class="pick" id="rc_acc" data-a="recPickAcc"><span>' + (r.accountId ? '<b>' + esc(accName(r.accountId)) + '</b><small>' + esc((S.idx.acc[r.accountId] || {}).Type || '') + '</small>' : '<span class="ph">Choose doctor, pharmacy, hospital or clinic</span>') + '</span>' + ico('chev') + '</button><div class="err" id="rc_acc_e" role="alert"></div></div>';
+  }
+  h += '<div class="field"><div class="lab">Product <i style="color:var(--red-d);font-style:normal">*</i></div><button class="pick" id="rc_prod" data-a="recPickProd"><span>' + (p ? '<b>' + esc(prodTitle(p)) + '</b><small>' + esc([p.GenericName, p.Form].filter(Boolean).join(' · ')) + '</small>' : '<span class="ph">Search by brand or generic</span>') + '</span>' + ico('chev') + '</button><div class="err" id="rc_prod_e" role="alert"></div></div>';
+  if (p) {
+    var opts = recOptions(r), first = opts.filter(function (o) { return !recBlocked(o, r); })[0];
+    h += '<div class="field"><div class="lab">Batch <span class="muted" style="font-weight:500">(first expiry, first out)</span></div>';
+    if (!opts.length) h += '<div class="banner warn">' + ico('info') + '<span>' + (recSource(r) === 'Consignment' && !r.accountId ? 'Choose the account first to see what is there.' : 'No stock available for this product' + (recSource(r) === 'Consignment' ? ' at this account.' : ' in your hands.')) + '</span></div>';
+    else h += '<div style="display:flex;flex-direction:column;gap:8px">' + opts.map(function (o) {
+      var blocked = recBlocked(o, r), av = recAvail(o, r);
+      return '<button class="bopt' + (r.batchId === o.id ? ' on' : '') + '" data-a="recBatch" data-id="' + esc(o.id) + '"' + (blocked ? ' disabled' : '') + '><span class="rd"></span><span class="bm"><span class="bt">Lot ' + esc(o.lot) + (first && first.id === o.id ? '<span class="tag">Suggested</span>' : '') + '</span><span class="bs tn">Exp ' + esc(fmtDate(o.expiry)) + ' · ' + (av === Infinity ? 'In hand ' + intf(o.hand) : intf(av) + ' available') + '</span>' + (blocked ? '<span class="bs" style="color:var(--red)">Expired. Use Pullout instead.</span>' : '') + '</span>' + (o.stock > 0 ? pillHtml(o.days) : grayPill(o.st)) + '</button>';
+    }).join('') + '</div>';
+    h += '<div class="err" id="rc_batch_e" role="alert"></div></div>';
+  }
+  var ob = S.idx.batch[r.batchId];
+  h += '<div class="field"><label class="lab" for="rc_qty">Quantity <i style="color:var(--red-d);font-style:normal">*</i></label><div class="stepper"><button class="btn" data-a="qtyStep" data-d="-1" aria-label="Decrease">' + ico('minus') + '</button><input class="input" id="rc_qty" data-in="recQty" inputmode="numeric" placeholder="0" value="' + esc(r.qty) + '" autocomplete="off"><button class="btn" data-a="qtyStep" data-d="1" aria-label="Increase">' + ico('plus') + '</button></div><div class="hint" id="rc_avail">' + availText(ob, r) + '</div><div class="err" id="rc_qty_e" role="alert"></div></div>';
+  if (r.type === 'Sale' || r.type === 'Consignment') h += fld('rc_price', 'Unit price (' + PESO + ')', { value: r.price, attrs: 'data-in="recPrice" inputmode="decimal"', hint: 'Filled in from the product price. Change it if you gave a discount.' });
+  h += '<div class="row2">' + fld('rc_date', 'Date', { type: 'date', value: r.date, attrs: 'data-in="recDate" max="' + S.today + '"' }) + '<div></div></div>';
+  h += fld('rc_notes', r.type === 'Adjustment' ? 'Reason' : 'Notes (optional)', { req: r.type === 'Adjustment', html: '<textarea class="textarea" id="rc_notes" data-in="recNotes" maxlength="500" placeholder="' + (r.type === 'Adjustment' ? 'e.g. Damaged packaging, recount' : 'e.g. Clinic visit, requested by doctor') + '">' + esc(r.notes) + '</textarea>' });
+  h += '</div><div class="sticky-act"><button class="btn primary block" data-a="recReview" style="min-height:54px;font-size:16px">Review and save</button></div>';
+  box.innerHTML = h;
+}
+var MOVEMENT_ORDER = ['Sample', 'Consignment', 'Sale', 'Return', 'Pullout', 'Adjustment'];
+function availText(o, r) {
+  if (!o) return 'Choose a product and batch to see what is available.';
+  var av = recAvail(o, r);
+  if (av === Infinity) return 'Currently ' + intf(o.hand) + ' in your hands.';
+  return '<b>' + intf(av) + '</b> available ' + (recSource(r) === 'Consignment' ? 'at ' + esc(r.accountId ? accName(r.accountId) : 'the account') : 'in your hands') + '.';
+}
+A.recType = function (el) { var r = S.rec; r.type = el.getAttribute('data-t'); if (r.type === 'Return') r.source = 'Consignment'; else if (r.type !== 'Sale' && r.type !== 'Pullout') r.source = 'Hand'; else if (r.source !== 'Hand' && r.source !== 'Consignment') r.source = 'Hand'; r.priceTouched = false; drawRecord(); };
+A.recSrc = function (el) { S.rec.source = el.getAttribute('data-s'); S.rec.batchId = ''; drawRecord(); };
+A.recDir = function (el) { S.rec.dir = el.getAttribute('data-d'); S.rec.batchId = ''; drawRecord(); };
+A.recBatch = function (el) { S.rec.batchId = el.getAttribute('data-id'); drawRecord(); };
+A.recPickAcc = function () {
+  var r = S.rec;
+  pickSheet({ title: 'Choose account', empty: 'No accounts yet.', newLabel: 'Add a new account', items: activeAccounts().sort(function (a, b) { return a.Name.localeCompare(b.Name); }).map(function (a) {
+    var cons = 0; S.idx.list.forEach(function (o) { cons += consAt(o, a.AccountID); });
+    return { id: a.AccountID, t: a.Name, s: a.Type + (a.Address ? ' · ' + a.Address : ''), r: cons ? '<span class="pill gray plain">' + intf(cons) + ' on consignment</span>' : '' };
+  }) }).then(function (id) {
+    if (id === null) return;
+    if (id === '__new__') { accountForm(null).then(function (nid) { if (nid) { S.rec.accountId = nid; S.rec.batchId = ''; drawRecord(); } }); return; }
+    r.accountId = id; r.batchId = ''; drawRecord();
+  });
+};
+A.recPickProd = function () {
+  var r = S.rec, needsCons = recSource(r) === 'Consignment';
+  if (needsCons && !r.accountId) { toast('Choose the account first.', 'warn'); setErr('rc_acc', 'Choose the account first.'); return; }
+  var items = activeProducts().filter(function (p) {
+    if (!needsCons) return true;
+    return (S.idx.byProd[p.ProductID] || []).some(function (o) { return consAt(o, r.accountId) > 0; });
+  }).sort(function (a, b) { return a.BrandName.localeCompare(b.BrandName); }).map(function (p) {
+    var a = S.idx.agg[p.ProductID] || { hand: 0, next: null, nextDays: null };
+    return { id: p.ProductID, t: prodTitle(p), s: [p.GenericName, p.Form].filter(Boolean).join(' · '), r: '<span class="qty tn">' + intf(a.hand) + '</span>' + (a.next ? pillHtml(a.nextDays) : '') };
+  });
+  pickSheet({ title: 'Choose product', items: items, empty: needsCons ? 'This account has no consignment stock.' : 'No products yet.', newLabel: !needsCons && r.type === 'Adjustment' ? null : null }).then(function (id) {
+    if (!id) return; r.productId = id; r.batchId = ''; r.priceTouched = false; drawRecord();
+  });
+};
+A.qtyStep = function (el) { var r = S.rec, q = parseInt(r.qty, 10); if (isNaN(q)) q = 0; q = Math.max(0, q + parseInt(el.getAttribute('data-d'), 10)); r.qty = q ? String(q) : ''; var i = $('#rc_qty'); if (i) i.value = r.qty; setErr('rc_qty', ''); };
+IN.recQty = function (el) { S.rec.qty = el.value.replace(/[^0-9]/g, ''); if (el.value !== S.rec.qty) el.value = S.rec.qty; setErr('rc_qty', ''); };
+IN.recPrice = function (el) { S.rec.price = el.value; S.rec.priceTouched = true; };
+IN.recDate = function (el) { S.rec.date = el.value; setErr('rc_date', ''); };
+IN.recNotes = function (el) { S.rec.notes = el.value; setErr('rc_notes', ''); };
+A.recReview = function () {
+  var r = S.rec, ok = true, o = S.idx.batch[r.batchId], qty = parseInt(r.qty, 10);
+  ['rc_acc', 'rc_prod', 'rc_batch', 'rc_qty', 'rc_date', 'rc_notes', 'rc_price'].forEach(function (i) { setErr(i, ''); });
+  if (recNeedsAcc(r) && !r.accountId) ok = setErr('rc_acc', 'Please choose the account.') && ok;
+  if (!r.productId) ok = setErr('rc_prod', 'Please choose the product.') && ok;
+  else if (!o) ok = setErr('rc_batch', 'Please choose the batch.') && ok;
+  if (isNaN(qty) || qty < 1) ok = setErr('rc_qty', 'Enter how many units (1 or more).') && ok;
+  else if (o) {
+    var av = recAvail(o, r);
+    if (qty > av) ok = setErr('rc_qty', 'Only ' + intf(av) + ' available. You cannot record ' + intf(qty) + '.') && ok;
+    if (qty > APP_MAX) ok = setErr('rc_qty', 'That quantity is too large.') && ok;
+  }
+  if (!isYMD(r.date)) ok = setErr('rc_date', 'Please choose a valid date.') && ok;
+  else if (r.date > S.today) ok = setErr('rc_date', 'The date cannot be in the future.') && ok;
+  if (r.type === 'Adjustment' && !r.notes.trim()) ok = setErr('rc_notes', 'Please add a short reason.') && ok;
+  var price = r.price === '' ? 0 : num(r.price);
+  if ((r.type === 'Sale' || r.type === 'Consignment') && (isNaN(price) || price < 0)) ok = setErr('rc_price', 'Enter an amount like 250.00') && ok;
+  if (o && recBlocked(o, r)) ok = setErr('rc_batch', 'This batch has expired. Record a Pullout instead.') && ok;
+  if (!ok) { var bad = $('.err:not(:empty)'); if (bad && bad.scrollIntoView) bad.scrollIntoView({ block: 'center', behavior: REDUCED ? 'auto' : 'smooth' }); return; }
+  var signed = r.type === 'Adjustment' && r.dir === 'remove' ? -qty : qty, src = recSource(r), eff = effect(r.type, src, signed);
+  var rows = [['Type', r.type + (src === 'Consignment' && r.type !== 'Return' ? ' (from consignment)' : '')], ['Product', prodTitle(o.p)], ['Lot / expiry', o.lot + ' · ' + fmtDate(o.expiry)]];
+  if (r.accountId) rows.push(['Account', accName(r.accountId)]);
+  rows.push(['Quantity', (signed > 0 && r.type === 'Adjustment' ? '+' : '') + intf(signed)]);
+  if ((r.type === 'Sale' || r.type === 'Consignment') && price > 0) rows.push(['Value', peso(qty * price)]);
+  rows.push(['Date', fmtDate(r.date)]);
+  if (eff.hand) rows.push(['Your stock of this lot', intf(o.hand) + '  →  ' + intf(o.hand + eff.hand)]);
+  if (eff.consign && r.accountId) rows.push(['At ' + accName(r.accountId), intf(consAt(o, r.accountId)) + '  →  ' + intf(consAt(o, r.accountId) + eff.consign)]);
+  var warns = [];
+  if (o.days >= 0 && o.days <= 30 && r.type !== 'Pullout' && r.type !== 'Return') warns.push('This lot expires in ' + o.days + ' day' + (o.days === 1 ? '' : 's') + '. Make sure the account can use it in time.');
+  confirmSheet({ title: 'Confirm ' + r.type.toLowerCase(), rows: rows, warns: warns, ok: 'Save', intro: 'This changes your stock. Please check the details.' }).then(function (yes) {
+    if (!yes) return;
+    var payload = { movementId: uid('MOV'), type: r.type, date: r.date, batchId: o.id, accountId: r.accountId || '', source: src, qty: signed, unitPrice: (r.type === 'Sale' || r.type === 'Consignment') ? price : 0, notes: r.notes.trim() };
+    var keep = { type: r.type, accountId: r.accountId, source: r.source, dir: r.dir, date: r.date };
+    var left = o.hand + eff.hand;
+    var res = mutate('recordMovement', payload, r.type + ': ' + o.p.BrandName);
+    S.rec = newRec(keep); S.rec.type = keep.type; S.rec.accountId = keep.accountId; S.rec.source = keep.source; S.rec.dir = keep.dir; S.rec.date = keep.date;
+    drawRecord(); window.scrollTo(0, 0);
+    res.then(function (x) { afterMutate(x, r.type + ' recorded' + (eff.hand ? ' · ' + intf(left) + ' left in hand' : '')); });
+  });
+};
+var APP_MAX = 1000000;
+
+/* ------------------------------- Receive delivery ------------------------------- */
+function newLine() { return { k: uid('L'), productId: '', lot: '', expiry: '', qty: '', batchId: uid('BAT') }; }
+function newRecv() { return { date: S.today, ref: '', notes: '', deliveryId: uid('DEL'), lines: [newLine()] }; }
+V.receive = function () {
+  if (!S.recv) S.recv = newRecv();
+  return { html: '<div class="page"><div class="page-head"><div><div class="h1">Receive delivery</div><div class="sub">Log what your company delivered. Each item becomes a batch with its own expiry date.</div></div></div><div id="recvForm"></div></div>', after: drawRecv };
+};
+function lineProblems(l) {
+  var res = { err: '', warn: '' }, p = S.idx.prod[l.productId];
+  if (l.expiry) {
+    if (!isYMD(l.expiry)) res.err = 'Enter a valid expiry date.';
+    else {
+      var d = daysBetween(S.today, l.expiry);
+      if (d <= 0) res.err = 'This expiry date has already passed. Expired stock should not be received.';
+      else if (d <= 180) res.warn = 'Arrived with only ' + d + ' days left. You may want to ask your company about it.';
+    }
+  }
+  if (!res.err && p && l.lot.trim() && l.expiry) {
+    var lot = l.lot.trim().toLowerCase();
+    var clash = (S.idx.byProd[p.ProductID] || []).filter(function (o) { return o.lot.toLowerCase() === lot && o.expiry !== l.expiry; })[0];
+    if (clash) res.err = 'Lot ' + clash.lot + ' is already recorded with expiry ' + fmtDate(clash.expiry) + '. A lot has one expiry date.';
+  }
+  return res;
+}
+function drawRecv() {
+  var R = S.recv, box = $('#recvForm'); if (!box) return;
+  var h = '<div class="form"><div class="card pad form"><div class="row2">' + fld('rv_date', 'Delivery date', { type: 'date', value: R.date, attrs: 'data-in="rvDate" max="' + S.today + '"' }) + fld('rv_ref', 'Reference no.', { value: R.ref, attrs: 'data-in="rvRef" maxlength="60" placeholder="e.g. DR-1024"' }) + '</div></div>';
+  R.lines.forEach(function (l, i) {
+    var p = S.idx.prod[l.productId], pr = lineProblems(l);
+    h += '<div class="card pad form" data-line="' + l.k + '"><div style="display:flex;align-items:center;justify-content:space-between"><b>Item ' + (i + 1) + '</b>' + (R.lines.length > 1 ? '<button class="link" style="color:var(--red)" data-a="rvRemove" data-k="' + l.k + '">Remove</button>' : '') + '</div>' +
+      '<div class="field"><div class="lab">Product <i style="color:var(--red-d);font-style:normal">*</i></div><button class="pick" id="rl_prod_' + l.k + '" data-a="rvPick" data-k="' + l.k + '"><span>' + (p ? '<b>' + esc(prodTitle(p)) + '</b><small>' + esc([p.GenericName, p.Form, p.PackSize].filter(Boolean).join(' · ')) + '</small>' : '<span class="ph">Choose product</span>') + '</span>' + ico('chev') + '</button><div class="err" id="rl_prod_' + l.k + '_e" role="alert"></div></div>' +
+      '<div class="row2">' + fld('rl_lot_' + l.k, 'Lot number', { req: 1, value: l.lot, attrs: 'data-in="rvLot" data-k="' + l.k + '" maxlength="40" autocapitalize="characters" autocomplete="off"' }) + fld('rl_exp_' + l.k, 'Expiry date', { req: 1, type: 'date', value: l.expiry, attrs: 'data-in="rvExp" data-k="' + l.k + '" min="' + addDays(S.today, 1) + '"' }) + '</div>' +
+      fld('rl_qty_' + l.k, 'Quantity received', { req: 1, value: l.qty, attrs: 'data-in="rvQty" data-k="' + l.k + '" inputmode="numeric" placeholder="0" autocomplete="off"' }) +
+      '<div id="rl_note_' + l.k + '">' + lineNote(pr) + '</div></div>';
+  });
+  h += '<button class="btn block" data-a="rvAdd">' + ico('plus') + ' Add another item</button>' +
+    '<div class="card pad form">' + fld('rv_notes', 'Notes (optional)', { html: '<textarea class="textarea" id="rv_notes" data-in="rvNotes" maxlength="500" placeholder="Anything worth remembering about this delivery">' + esc(R.notes) + '</textarea>' }) + '</div></div>' +
+    '<div class="sticky-act"><button class="btn primary block" data-a="rvReview" style="min-height:54px;font-size:16px">Review and save</button></div>';
+  box.innerHTML = h;
+}
+function lineNote(pr) { return pr.err ? '<div class="banner danger">' + ico('alert') + '<span>' + esc(pr.err) + '</span></div>' : pr.warn ? '<div class="banner warn">' + ico('alert') + '<span>' + esc(pr.warn) + '</span></div>' : ''; }
+function lineBy(k) { return S.recv.lines.filter(function (l) { return l.k === k; })[0]; }
+function refreshLineNote(k) { var l = lineBy(k), box = $('#rl_note_' + k); if (l && box) box.innerHTML = lineNote(lineProblems(l)); }
+IN.rvDate = function (el) { S.recv.date = el.value; setErr('rv_date', ''); };
+IN.rvRef = function (el) { S.recv.ref = el.value; };
+IN.rvNotes = function (el) { S.recv.notes = el.value; };
+IN.rvLot = function (el) { var l = lineBy(el.getAttribute('data-k')); l.lot = el.value; setErr('rl_lot_' + l.k, ''); refreshLineNote(l.k); };
+IN.rvExp = function (el) { var l = lineBy(el.getAttribute('data-k')); l.expiry = el.value; setErr('rl_exp_' + l.k, ''); refreshLineNote(l.k); };
+IN.rvQty = function (el) { var l = lineBy(el.getAttribute('data-k')); l.qty = el.value.replace(/[^0-9]/g, ''); if (el.value !== l.qty) el.value = l.qty; setErr('rl_qty_' + l.k, ''); };
+A.rvAdd = function () { S.recv.lines.push(newLine()); drawRecv(); var last = S.recv.lines[S.recv.lines.length - 1]; var el = $('[data-line="' + last.k + '"]'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: REDUCED ? 'auto' : 'smooth' }); };
+A.rvRemove = function (el) { var k = el.getAttribute('data-k'); S.recv.lines = S.recv.lines.filter(function (l) { return l.k !== k; }); if (!S.recv.lines.length) S.recv.lines.push(newLine()); drawRecv(); };
+A.rvPick = function (el) {
+  var k = el.getAttribute('data-k');
+  pickSheet({ title: 'Choose product', newLabel: 'Add a new product', items: activeProducts().sort(function (a, b) { return a.BrandName.localeCompare(b.BrandName); }).map(function (p) { return { id: p.ProductID, t: prodTitle(p), s: [p.GenericName, p.Form, p.PackSize].filter(Boolean).join(' · ') }; }) }).then(function (id) {
+    if (!id) return;
+    if (id === '__new__') { productForm(null).then(function (nid) { if (nid) { lineBy(k).productId = nid; drawRecv(); } }); return; }
+    lineBy(k).productId = id; drawRecv();
+  });
+};
+A.rvReview = function () {
+  var R = S.recv, ok = true;
+  setErr('rv_date', '');
+  if (!isYMD(R.date)) ok = setErr('rv_date', 'Please choose a valid date.') && ok;
+  else if (R.date > S.today) ok = setErr('rv_date', 'The delivery date cannot be in the future.') && ok;
+  var seen = {}, warns = [];
+  R.lines.forEach(function (l) {
+    ['rl_prod_', 'rl_lot_', 'rl_exp_', 'rl_qty_'].forEach(function (pfx) { setErr(pfx + l.k, ''); });
+    var q = parseInt(l.qty, 10), pr = lineProblems(l);
+    if (!l.productId) ok = setErr('rl_prod_' + l.k, 'Please choose the product.') && ok;
+    if (!l.lot.trim()) ok = setErr('rl_lot_' + l.k, 'Enter the lot number.') && ok;
+    if (!l.expiry) ok = setErr('rl_exp_' + l.k, 'Enter the expiry date.') && ok;
+    else if (pr.err) ok = setErr('rl_exp_' + l.k, pr.err) && ok;
+    if (isNaN(q) || q < 1) ok = setErr('rl_qty_' + l.k, 'Enter how many units (1 or more).') && ok;
+    if (pr.warn && l.productId) warns.push(prodTitle(S.idx.prod[l.productId]) + ' lot ' + l.lot + ': ' + pr.warn);
+    var key = l.productId + '|' + l.lot.trim().toLowerCase();
+    if (l.productId && l.lot.trim()) { if (seen[key] && seen[key] !== l.expiry) ok = setErr('rl_lot_' + l.k, 'The same lot is entered twice with different expiry dates.') && ok; seen[key] = l.expiry; }
+  });
+  if (!ok) { var bad = $('.err:not(:empty)'); if (bad && bad.scrollIntoView) bad.scrollIntoView({ block: 'center', behavior: REDUCED ? 'auto' : 'smooth' }); return; }
+  var total = R.lines.reduce(function (s, l) { return s + parseInt(l.qty, 10); }, 0);
+  var rows = R.lines.map(function (l) { var p = S.idx.prod[l.productId]; return [prodTitle(p) + ' · Lot ' + l.lot.trim(), intf(l.qty) + ' units, exp ' + fmtDate(l.expiry)]; });
+  rows.unshift(['Delivery date', fmtDate(R.date) + (R.ref ? ' · ' + R.ref : '')]);
+  rows.push(['Total units', intf(total)]);
+  confirmSheet({ title: 'Confirm delivery', rows: rows, warns: warns.length ? ['Heads up: ' + warns.length + ' item' + (warns.length === 1 ? ' is' : 's are') + ' already within 180 days of expiry.'].concat(warns) : [], ok: 'Save delivery', intro: 'This adds new stock. Please check the details.' }).then(function (yes) {
+    if (!yes) return;
+    var payload = { deliveryId: R.deliveryId, deliveryDate: R.date, referenceNo: R.ref.trim(), notes: R.notes.trim(), lines: R.lines.map(function (l) { return { productId: l.productId, lotNumber: l.lot.trim(), expiryDate: l.expiry, qty: parseInt(l.qty, 10), batchId: l.batchId }; }) };
+    S.recv = null;
+    S.inv = { mode: 'batches', q: '', bucket: '', status: '', account: '', principal: '', archived: false, limit: 60 };
+    var res = mutate('receiveDelivery', payload, 'Delivery' + (R.ref ? ' ' + R.ref : ''));
+    go('inventory');
+    res.then(function (x) { afterMutate(x, 'Delivery saved · ' + payload.lines.length + ' batch' + (payload.lines.length === 1 ? '' : 'es') + ' added'); });
+  });
+};
+
+/* --------------------------------- Accounts --------------------------------- */
+function accountForm(a) {
+  var isNew = !a; a = a || {}; var id = isNew ? uid('ACC') : a.AccountID;
+  var html = '<div class="form">' + fld('af_name', 'Name', { req: 1, value: a.Name, attrs: 'maxlength="120" autocomplete="off" placeholder="e.g. Dr. Maria Santos or Botica Bayanihan"' }) +
+    fld('af_type', 'Type', { req: 1, html: '<select class="select" id="af_type"><option value="">Choose type</option>' + ['Doctor', 'Pharmacy', 'Hospital', 'Clinic'].map(function (t) { return '<option' + (a.Type === t ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select>' }) +
+    fld('af_addr', 'Address', { value: a.Address, attrs: 'maxlength="200" autocomplete="off"' }) +
+    '<div class="row2">' + fld('af_person', 'Contact person', { value: a.ContactPerson, attrs: 'maxlength="100"' }) + fld('af_no', 'Contact no.', { value: a.ContactNo, attrs: 'maxlength="40" inputmode="tel"' }) + '</div></div>';
+  return new Promise(function (resolve) {
+    var saved = null;
+    S.af = { id: id, done: function (v) { saved = v; } };
+    openSheet({ title: isNew ? 'Add account' : 'Edit account', html: html, foot: '<button class="btn" data-a="sheetCancel">Cancel</button><button class="btn primary" data-a="saveAccountForm">Save account</button>', onResult: function () { resolve(saved); } });
+  });
+}
+A.saveAccountForm = function () {
+  clearErrs(['af_name', 'af_type', 'af_no']);
+  var ok = true, name = val('af_name').trim(), type = val('af_type'), no = val('af_no').trim();
+  if (!name) ok = setErr('af_name', 'Please enter the account name.') && ok;
+  if (!type) ok = setErr('af_type', 'Please choose the type.') && ok;
+  if (no && !/^[0-9+()\-\s\/]{5,40}$/.test(no)) ok = setErr('af_no', 'Use digits, spaces, + or - only.') && ok;
+  if (!ok) return;
+  var payload = { accountId: S.af.id, name: name, type: type, address: val('af_addr'), contactPerson: val('af_person'), contactNo: no };
+  var r = mutate('saveAccount', payload, 'Account: ' + name);
+  S.af.done(S.af.id);
+  var t = topSheet(); if (t) t.close(S.af.id);
+  r.then(function (x) { afterMutate(x, 'Account saved'); });
+};
+function accountSummaries() {
+  var m = {};
+  S.idx.list.forEach(function (o) {
+    o.locs.forEach(function (l) {
+      var s = m[l.accId] || (m[l.accId] = { units: 0, near: 0, expired: 0 });
+      s.units += l.qty;
+      if (o.days < 0) s.expired++; else if (o.days <= 180) s.near++;
+    });
+  });
+  return m;
+}
+V.accounts = function () {
+  if (S.route.id) return viewAccount(S.route.id);
+  var f = S.acc, sums = accountSummaries();
+  var h = '<div class="page"><div class="page-head"><div><div class="h1">Accounts</div><div class="sub" id="accCount"></div></div><button class="btn primary sm" data-a="addAccount">' + ico('plus') + ' Account</button></div>' +
+    '<div class="search">' + ico('search') + '<input class="input" id="accQ" data-in="accQ" type="search" placeholder="Search doctors, pharmacies, hospitals" autocomplete="off" value="' + esc(f.q) + '"></div>' +
+    '<div class="chips" id="accChips"></div><div class="card list" id="accList"></div><div class="footer">Powered by <b>LAYAW SYSTEM</b></div></div>';
+  return { html: h, after: drawAccList };
+};
+function drawAccList() {
+  var f = S.acc, sums = accountSummaries(), q = f.q.toLowerCase().trim();
+  var arr = S.data.accounts.filter(function (a) { return (a.Active || f.archived) && (!f.type || a.Type === f.type) && (!q || (a.Name + ' ' + a.Address + ' ' + a.ContactPerson).toLowerCase().indexOf(q) >= 0); }).sort(function (a, b) { return a.Name.localeCompare(b.Name); });
+  $('#accCount').textContent = arr.length + ' account' + (arr.length === 1 ? '' : 's');
+  $('#accChips').innerHTML = [['', 'All']].concat(['Doctor', 'Pharmacy', 'Hospital', 'Clinic'].map(function (t) { return [t, t + 's']; })).map(function (t) { return '<button class="chip' + (f.type === t[0] ? ' on' : '') + '" data-a="accType" data-t="' + t[0] + '">' + t[1] + '</button>'; }).join('') +
+    '<button class="chip' + (f.archived ? ' on' : '') + '" data-a="accArch">Archived</button>';
+  var box = $('#accList');
+  if (!arr.length) { box.innerHTML = S.data.accounts.length ? emptyState('users', 'No matches', 'Try another search.') : emptyState('users', 'No accounts yet', 'Add the doctors, pharmacies and hospitals you visit so you can track samples and consignment.', '<button class="btn primary" data-a="addAccount" style="margin-top:8px">' + ico('plus') + ' Add account</button>'); return; }
+  box.innerHTML = arr.map(function (a) {
+    var s = sums[a.AccountID] || { units: 0, near: 0, expired: 0 };
+    return '<button class="item" data-a="openAccount" data-id="' + esc(a.AccountID) + '"><span class="avatar">' + esc(a.Name.replace(/^(Dr\.?|Dra\.?)\s+/i, '').charAt(0).toUpperCase()) + '</span><div class="main"><div class="t">' + esc(a.Name) + (a.Active ? '' : ' <span class="tag" style="color:var(--gray);background:var(--gray-bg)">Archived</span>') + '</div><div class="s">' + esc(a.Type) + (a.Address ? ' · ' + esc(a.Address) : '') + '</div></div>' +
+      '<div class="e">' + (s.expired ? '<span class="pill red">' + s.expired + ' expired</span>' : s.near ? '<span class="pill amber">' + s.near + ' near expiry</span>' : s.units ? '<span class="pill green">All fresh</span>' : '') + (s.units ? '<span class="d tn">' + intf(s.units) + ' on consignment</span>' : '') + '</div></button>';
+  }).join('');
+}
+IN.accQ = debounce(function (el) { S.acc.q = el.value; drawAccList(); }, 60);
+A.accType = function (el) { S.acc.type = el.getAttribute('data-t'); drawAccList(); };
+A.accArch = function () { S.acc.archived = !S.acc.archived; drawAccList(); };
+A.addAccount = function () { accountForm(null); };
+A.openAccount = function (el) { go('accounts/' + el.getAttribute('data-id')); };
+A.editAccount = function (el) { var a = S.idx.acc[el.getAttribute('data-id')]; if (a) accountForm(a); };
+A.toggleAccount = function (el) {
+  var a = S.idx.acc[el.getAttribute('data-id')];
+  confirmSheet({ title: a.Active ? 'Archive ' + a.Name + '?' : 'Restore ' + a.Name + '?', intro: a.Active ? 'Nothing is deleted. Their history stays, and you can restore them any time.' : 'They will appear in pickers again.', ok: a.Active ? 'Archive' : 'Restore', tone: a.Active ? 'danger' : 'primary' }).then(function (yes) {
+    if (yes) mutate('setAccountActive', { accountId: a.AccountID, active: !a.Active }, 'Account status').then(function (r) { afterMutate(r, a.Active ? 'Account archived' : 'Account restored'); });
+  });
+};
+A.recForAccount = function (el) { S.rec = newRec({ accountId: el.getAttribute('data-id') }); go('record'); };
+function viewAccount(id) {
+  var a = S.idx.acc[id];
+  if (!a) return { html: '<div class="page">' + emptyState('users', 'Account not found', 'It may have been removed.', '<button class="btn" data-a="goBack" style="margin-top:8px">Back to accounts</button>') + '</div>' };
+  var held = S.idx.list.filter(function (o) { return consAt(o, id) > 0; }), moves = S.data.movements.filter(function (m) { return m.AccountID === id; });
+  var tot = { sample: 0, sold: 0, soldVal: 0, cons: 0, ret: 0 }, byProd = {};
+  moves.forEach(function (m) {
+    var o = S.idx.batch[m.BatchID]; if (!o) return;
+    var r = byProd[o.pid] || (byProd[o.pid] = { p: o.p, sample: 0, cons: 0, sold: 0, ret: 0 });
+    if (m.Type === 'Sample') { tot.sample += m.Qty; r.sample += m.Qty; } else if (m.Type === 'Consignment') { tot.cons += m.Qty; r.cons += m.Qty; }
+    else if (m.Type === 'Sale') { tot.sold += m.Qty; tot.soldVal += m.Qty * m.UnitPrice; r.sold += m.Qty; } else if (m.Type === 'Return') { tot.ret += m.Qty; r.ret += m.Qty; }
+  });
+  var units = held.reduce(function (s, o) { return s + consAt(o, id); }, 0), risky = held.filter(function (o) { return o.days <= 180; });
+  var h = '<div class="page"><div class="card pad"><div style="display:flex;gap:14px;align-items:center"><span class="avatar" style="width:54px;height:54px;font-size:20px">' + esc(a.Name.replace(/^(Dr\.?|Dra\.?)\s+/i, '').charAt(0).toUpperCase()) + '</span><div style="flex:1;min-width:0"><div class="h1" style="font-size:21px">' + esc(a.Name) + '</div><div class="sub">' + esc(a.Type) + (a.Address ? ' · ' + esc(a.Address) : '') + '</div>' +
+    (a.ContactPerson || a.ContactNo ? '<div class="sub">' + esc(a.ContactPerson) + (a.ContactNo ? ' · <a href="tel:' + esc(a.ContactNo.replace(/[^0-9+]/g, '')) + '">' + esc(a.ContactNo) + '</a>' : '') + '</div>' : '') + '</div></div>' +
+    '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn primary sm" data-a="recForAccount" data-id="' + esc(id) + '">' + ico('plus') + ' Record here</button><button class="btn sm" data-a="editAccount" data-id="' + esc(id) + '">' + ico('edit') + ' Edit</button><button class="btn sm ghost" data-a="toggleAccount" data-id="' + esc(id) + '">' + ico('archive') + (a.Active ? ' Archive' : ' Restore') + '</button></div></div>';
+  h += '<div class="grid g-stats"><div class="card stat"><div class="lbl">On consignment</div><div class="val">' + intf(units) + '</div><div class="ssub">units here now</div></div><div class="card stat"><div class="lbl">Samples given</div><div class="val">' + intf(tot.sample) + '</div><div class="ssub">units, all time</div></div><div class="card stat"><div class="lbl">Sold</div><div class="val">' + intf(tot.sold) + '</div><div class="ssub">' + peso(tot.soldVal, 0) + '</div></div><div class="card stat"><div class="lbl">Returned</div><div class="val">' + intf(tot.ret) + '</div><div class="ssub">units back to you</div></div></div>';
+  if (risky.length) h += '<div class="banner ' + (risky.some(function (o) { return o.days <= 30; }) ? 'danger' : 'warn') + '">' + ico('alert') + '<span><b>' + risky.length + ' batch' + (risky.length === 1 ? '' : 'es') + ' at this account ' + (risky.length === 1 ? 'is' : 'are') + ' near expiry or expired.</b> Plan a pullout or return on your next visit.</span></div>';
+  h += '<section class="card"><div class="pad" style="padding-bottom:4px"><h2 class="h2">On consignment here</h2></div>';
+  h += held.length ? '<div class="list">' + held.map(function (o) {
+    return '<button class="item" data-a="openBatch" data-id="' + esc(o.id) + '"><span class="stripe ' + toneOf(o.days) + '"></span><div class="main"><div class="t">' + esc(prodTitle(o.p)) + '</div><div class="s">Lot ' + esc(o.lot) + ' · Exp ' + esc(fmtDate(o.expiry)) + '</div></div><div class="e">' + pillHtml(o.days) + '<span class="qty tn">' + intf(consAt(o, id)) + ' units</span></div></button>';
+  }).join('') + '</div>' : emptyState('box', 'Nothing on consignment', 'Units you leave here will show up with their expiry dates.');
+  h += '</section><section class="card"><div class="pad" style="padding-bottom:4px"><h2 class="h2">Given to this account</h2></div>';
+  var rows = Object.keys(byProd).map(function (k) { return byProd[k]; }).sort(function (x, y) { return x.p.BrandName.localeCompare(y.p.BrandName); });
+  h += rows.length ? '<div class="scroll-x"><table class="tbl"><tr><th>Product</th><th class="n">Samples</th><th class="n">Consigned</th><th class="n">Sold</th><th class="n">Returned</th></tr>' + rows.map(function (r) { return '<tr><td><b>' + esc(prodTitle(r.p)) + '</b></td><td class="n">' + intf(r.sample) + '</td><td class="n">' + intf(r.cons) + '</td><td class="n">' + intf(r.sold) + '</td><td class="n">' + intf(r.ret) + '</td></tr>'; }).join('') + '</table></div>' : emptyState('box', 'Nothing yet', 'Samples, consignment and sales to this account will be summarised here.');
+  h += '</section><section class="card"><div class="pad" style="padding-bottom:4px"><h2 class="h2">Recent activity</h2></div>';
+  var recent = moves.slice().sort(function (x, y) { return x.Date < y.Date ? 1 : x.Date > y.Date ? -1 : (x.CreatedAt < y.CreatedAt ? 1 : -1); }).slice(0, 20);
+  h += recent.length ? '<div class="list">' + recent.map(function (m) { var o = S.idx.batch[m.BatchID]; return '<div class="item" style="cursor:default;min-height:56px"><div class="main"><div class="t">' + esc(m.Type) + ' <small>' + esc(o ? prodTitle(o.p) + ' · Lot ' + o.lot : '') + '</small></div><div class="s">' + esc(fmtDate(m.Date)) + (m.Notes ? ' · ' + esc(m.Notes) : '') + '</div></div><div class="e"><span class="qty">' + intf(m.Qty) + '</span></div></div>'; }).join('') + '</div>' : emptyState('box', 'No activity', 'Nothing has been recorded for this account yet.');
+  return { html: h + '</section><div class="footer">Powered by <b>LAYAW SYSTEM</b></div></div>' };
+}
+
+/* ----------------------------------- More ----------------------------------- */
+V.more = function () {
+  var pend = S.queue.length + S.failed.length;
+  var link = function (to, icon, t, s, extra) { return '<button class="item" data-a="nav" data-to="' + to + '"><span class="avatar">' + ico(icon) + '</span><div class="main"><div class="t">' + t + '</div><div class="s">' + s + '</div></div>' + (extra || ico('chev')) + '</button>'; };
+  var h = '<div class="page"><div class="page-head"><div><div class="h1">More</div><div class="sub">Deliveries, reports and settings</div></div></div><div class="card list">' +
+    link('receive', 'truck', 'Receive delivery', 'Log new stock from your company') + link('reports', 'file', 'Reports', 'Monthly report, PDF and Excel') + link('import', 'upload', 'Import from Excel', 'One-time import of your existing stock') + link('settings', 'sliders', 'Settings', 'Alerts, Telegram, email and SMS') + '</div>' +
+    (pend ? '<button class="card item" data-a="openSync" style="border-radius:var(--r)"><span class="avatar">' + ico('sync') + '</span><div class="main"><div class="t">Pending sync</div><div class="s">' + S.queue.length + ' waiting' + (S.failed.length ? ', ' + S.failed.length + ' need attention' : '') + '</div></div>' + ico('chev') + '</button>' : '') +
+    '<div class="card pad"><div class="lab" style="margin-bottom:8px">Appearance</div><div class="seg">' + [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(function (t) { return '<button class="' + (S.theme === t[0] ? 'on' : '') + '" data-a="setTheme" data-t="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div></div>' +
+    '<div class="footer">MedTrack v' + esc(S.flags.version || '1.0.0') + ' · Powered by <b>LAYAW SYSTEM</b></div></div>';
+  return { html: h };
+};
+A.setTheme = function (el) { applyTheme(el.getAttribute('data-t')); renderView(false); if (S.route.name === 'dashboard') renderView(false); };
+
+/* ---------------------------------- Reports ---------------------------------- */
+V.reports = function () {
+  var R = S.report;
+  if (!R.from) { R.from = S.today.slice(0, 8) + '01'; R.to = S.today; }
+  var h = '<div class="page"><div class="page-head"><div><div class="h1">Reports</div><div class="sub">Stock on hand, distribution per account, consignment balances and near-expiry items.</div></div></div>' +
+    '<div class="card pad form"><div class="chips">' + [['m0', 'This month'], ['m1', 'Last month'], ['d30', 'Last 30 days'], ['y0', 'This year']].map(function (c) { return '<button class="chip" data-a="repQuick" data-q="' + c[0] + '">' + c[1] + '</button>'; }).join('') + '</div>' +
+    '<div class="row2">' + fld('rp_from', 'From', { type: 'date', value: R.from, attrs: 'data-in="repFrom" max="' + S.today + '"' }) + fld('rp_to', 'To', { type: 'date', value: R.to, attrs: 'data-in="repTo" max="' + S.today + '"' }) + '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-a="repPreview" id="rpPrev">' + ico('search') + ' Preview</button><button class="btn" data-a="repPdf" id="rpPdf">' + ico('download') + ' PDF</button><button class="btn" data-a="repXlsx" id="rpXls">' + ico('download') + ' Excel</button></div><div id="repMsg"></div></div>' +
+    '<div id="repOut"></div><div class="footer">Powered by <b>LAYAW SYSTEM</b></div></div>';
+  return { html: h, after: function () { if (R.html) showReport(); } };
+};
+IN.repFrom = function (el) { S.report.from = el.value; };
+IN.repTo = function (el) { S.report.to = el.value; };
+A.repQuick = function (el) {
+  var q = el.getAttribute('data-q'), t = S.today, y = +t.slice(0, 4), m = +t.slice(5, 7), from, to = t;
+  if (q === 'm0') from = t.slice(0, 8) + '01';
+  else if (q === 'm1') { var pm = m === 1 ? 12 : m - 1, py = m === 1 ? y - 1 : y; from = py + '-' + ('0' + pm).slice(-2) + '-01'; to = addDays(t.slice(0, 8) + '01', -1); }
+  else if (q === 'd30') from = addDays(t, -29); else from = y + '-01-01';
+  S.report.from = from; S.report.to = to; $('#rp_from').value = from; $('#rp_to').value = to;
+};
+function repRange() {
+  var R = S.report;
+  if (!isYMD(R.from) || !isYMD(R.to)) { toast('Please choose a start and end date.', 'err'); return null; }
+  if (R.from > R.to) { toast('The start date must be before the end date.', 'err'); return null; }
+  if (!S.online) { toast('Reports need a connection. Please try again when you have signal.', 'warn'); return null; }
+  return { from: R.from, to: R.to };
+}
+function showReport() {
+  var R = S.report, out = $('#repOut'); if (!out) return;
+  out.innerHTML = '<div class="iframe-box"><iframe id="repFrame" title="Report preview" sandbox=""></iframe></div>';
+  $('#repFrame').srcdoc = R.html;
+}
+A.repPreview = function (el) {
+  var rg = repRange(); if (!rg) return; setBusy(el, true, 'Building');
+  server('getReport', rg).then(function (res) {
+    setBusy(el, false);
+    if (!res.ok) return toast(res.error, 'err');
+    S.report.html = res.html; showReport();
+    var s = res.summary; $('#repMsg').innerHTML = '<div class="banner info" style="margin-top:12px">' + ico('info') + '<span>' + s.batches + ' batches in stock, ' + s.nearExpiry + ' near expiry or expired (' + s.expired + ' expired), ' + s.movements + ' movements in this period.</span></div>';
+  }, function () { setBusy(el, false); toast('Could not reach the server. Please try again.', 'err'); });
+};
+function downloadFile(kind, el, label) {
+  var rg = repRange(); if (!rg) return; setBusy(el, true, 'Preparing');
+  $('#repMsg').innerHTML = '<div class="hint" style="margin-top:12px">Preparing your ' + label + '. This can take up to 15 seconds.</div>';
+  server(kind, rg).then(function (res) {
+    setBusy(el, false);
+    if (!res.ok) { $('#repMsg').innerHTML = ''; return toast(res.error, 'err'); }
+    var bin = atob(res.base64), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    var url = URL.createObjectURL(new Blob([bytes], { type: res.mime }));
+    var a = document.createElement('a'); a.href = url; a.download = res.name; a.style.display = 'none'; document.body.appendChild(a); a.click();
+    $('#repMsg').innerHTML = '<div class="banner ok" style="margin-top:12px">' + ico('check') + '<span>' + esc(res.name) + ' is ready. If it did not start downloading, <a href="' + url + '" download="' + esc(res.name) + '">tap here</a>.</span></div>';
+    setTimeout(function () { if (a.parentNode) a.parentNode.removeChild(a); }, 3000);
+  }, function () { setBusy(el, false); $('#repMsg').innerHTML = ''; toast('Could not reach the server. Please try again.', 'err'); });
+}
+A.repPdf = function (el) { downloadFile('exportPdf', el, 'PDF'); };
+A.repXlsx = function (el) { downloadFile('exportXlsx', el, 'Excel file'); };
+
+/* ----------------------------------- Import ----------------------------------- */
+V.import = function () {
+  var I = S.imp, h = '<div class="page"><div class="page-head"><div><div class="h1">Import from Excel</div><div class="sub">One-time import of the stock you already track. Safe to check as many times as you like.</div></div></div>' +
+    '<div class="card pad form"><div><b>1. Paste your rows</b><p class="muted" style="margin-top:4px">Open the <b>Import</b> sheet in your Google Sheet and paste your Excel rows under these columns:</p></div>' +
+    '<div class="chips">' + ['BrandName', 'GenericName', 'Dosage', 'Form', 'PackSize', 'Principal', 'LotNumber', 'ExpiryDate', 'Quantity', 'UnitCost', 'SellingPrice'].map(function (c) { return '<span class="pill gray plain">' + c + '</span>'; }).join('') + '</div>' +
+    (S.flags.sheetUrl ? '<a class="btn" href="' + esc(S.flags.sheetUrl) + '" target="_blank" rel="noopener">' + ico('upload') + ' Open the Import sheet</a>' : '') + '</div>' +
+    '<div class="card pad form"><div><b>2. Check your data</b><p class="muted" style="margin-top:4px">We check every row and show you exactly what to fix. Nothing is imported yet.</p></div><button class="btn primary" data-a="impCheck" id="impCheck">' + ico('check') + ' Check my data</button></div><div id="impOut">' + (I ? impResult() : '') + '</div><div class="footer">Powered by <b>LAYAW SYSTEM</b></div></div>';
+  return { html: h };
+};
+function impResult() {
+  var I = S.imp, c = I.counts;
+  if (!c.total) return '<div class="card">' + emptyState('box', 'The Import sheet is empty', 'Paste your Excel rows under the headers, then check again.') + '</div>';
+  var h = '<div class="card pad form"><div class="grid g-stats" style="grid-template-columns:repeat(2,1fr)"><div class="card stat"><div class="lbl">Ready to import</div><div class="val" style="color:var(--green)">' + c.ok + '</div></div><div class="card stat"><div class="lbl">Need fixing</div><div class="val" style="color:' + (c.errors ? 'var(--red)' : 'var(--text)') + '">' + c.errors + '</div></div></div>';
+  var bad = I.rows.filter(function (r) { return r.errors.length || r.warnings.length; }).slice(0, 150);
+  if (bad.length) h += '<div class="scroll-x"><table class="tbl"><tr><th>Row</th><th>Item</th><th>Result</th></tr>' + bad.map(function (r) {
+    return '<tr><td class="n">' + r.row + '</td><td><b>' + esc(r.brand || '(blank)') + '</b><br><span class="muted">Lot ' + esc(r.lot || '—') + '</span></td><td>' + r.errors.map(function (e) { return '<span class="pill red plain" style="margin:2px 0;white-space:normal">' + esc(e) + '</span>'; }).join('<br>') + (r.errors.length && r.warnings.length ? '<br>' : '') + r.warnings.map(function (e) { return '<span class="pill amber plain" style="margin:2px 0;white-space:normal">' + esc(e) + '</span>'; }).join('<br>') + '</td></tr>';
+  }).join('') + '</table></div>';
+  if (c.errors) h += '<div class="banner warn">' + ico('alert') + '<span>Fix the red rows in the Import sheet and check again, or import only the ' + c.ok + ' good rows now.</span></div>';
+  if (c.ok) h += '<button class="btn primary block" data-a="impRun" id="impRun" data-skip="' + (c.errors ? 1 : 0) + '">' + (c.errors ? 'Import the ' + c.ok + ' valid rows' : 'Import ' + c.ok + ' rows') + '</button>';
+  return h + '</div>';
+}
+A.impCheck = function (el) {
+  if (!S.online) return toast('Import needs a connection.', 'warn');
+  setBusy(el, true, 'Checking');
+  server('validateImport').then(function (res) {
+    setBusy(el, false);
+    if (!res.ok) return toast(res.error, 'err');
+    S.imp = { rows: res.rows, counts: res.counts }; $('#impOut').innerHTML = impResult();
+  }, function () { setBusy(el, false); toast('Could not reach the server. Please try again.', 'err'); });
+};
+A.impRun = function (el) {
+  var skip = el.getAttribute('data-skip') === '1', c = S.imp.counts;
+  confirmSheet({ title: 'Import ' + c.ok + ' rows?', rows: [['Rows to import', String(c.ok)], ['Rows skipped', String(c.errors)]], intro: 'This creates products, batches and one opening delivery. It cannot be undone, but nothing is ever deleted so you can adjust afterwards.', ok: 'Import now' }).then(function (yes) {
+    if (!yes) return;
+    var b = $('#impRun'); setBusy(b, true, 'Importing');
+    server('runImport', { skipInvalid: skip }, 180000).then(function (res) {
+      setBusy(b, false);
+      if (!res.ok) return alertSheet('Import stopped', res.error);
+      S.imp = null; toast('Imported ' + res.imported + ' batches across ' + res.products + ' new products', 'ok');
+      refresh(true).then(function () { go('inventory'); });
+    }, function () { setBusy(b, false); toast('Connection lost. Check the Inventory page before trying again.', 'err'); });
+  });
+};
+
+/* ---------------------------------- Settings ---------------------------------- */
+V.settings = function () {
+  var s = S.data.settings, F = S.flags;
+  S.stDraft = { EmailEnabled: s.EmailEnabled, TelegramEnabled: s.TelegramEnabled, SmsEnabled: s.SmsEnabled, SmsContentType: s.SmsContentType || 'form' };
+  var tg = function (k, label) { return '<button class="chip' + (S.stDraft[k] === 'TRUE' ? ' on' : '') + '" role="switch" aria-checked="' + (S.stDraft[k] === 'TRUE') + '" data-a="stToggle" data-k="' + k + '">' + label + ': ' + (S.stDraft[k] === 'TRUE' ? 'On' : 'Off') + '</button>'; };
+  var h = '<div class="page"><div class="page-head"><div><div class="h1">Settings</div><div class="sub">Your alerts, business name and connections.</div></div></div>' +
+    '<div class="card pad form"><h2 class="h2">Business</h2>' + fld('st_biz', 'Business name', { value: s.BusinessName, attrs: 'maxlength="80"' }) + '</div>' +
+    '<div class="card pad form"><h2 class="h2">Expiry alerts</h2><p class="muted">One digest a day, only when something new crosses a threshold. Nothing is sent when there is nothing new.</p>' +
+    fld('st_thr', 'Alert when this many days are left', { value: s.AlertThresholds, attrs: 'placeholder="180,90,60,30"', hint: 'Separate days with commas. Already-expired stock is always reported.' }) +
+    fld('st_time', 'Daily check time (Manila)', { type: 'time', value: s.DailyAlertTime }) + '</div>' +
+    '<div class="card pad form"><h2 class="h2">Email</h2><div class="chips">' + tg('EmailEnabled', 'Email alerts') + '</div>' + fld('st_email', 'Send alerts to', { type: 'email', value: s.AlertEmail, attrs: 'autocomplete="email"' }) + '</div>' +
+    '<div class="card pad form"><h2 class="h2">Telegram</h2><div class="chips">' + tg('TelegramEnabled', 'Telegram alerts') + '</div>' +
+    fld('st_tgtoken', 'Bot token', { type: 'password', value: '', attrs: 'autocomplete="off" placeholder="' + (F.telegramTokenSet ? 'Saved ✓ (leave blank to keep)' : 'Paste the token from BotFather') + '"', hint: 'Stored safely in Script Properties, never in the sheet.' }) +
+    fld('st_tgchat', 'Chat ID', { value: s.TelegramChatId, attrs: 'inputmode="numeric" placeholder="e.g. 123456789"' }) +
+    '<button class="btn" data-a="stDetect">' + ico('search') + ' Find my chat ID</button><div class="hint">Send any message to your bot in Telegram first, then tap this.</div></div>' +
+    '<div class="card pad form"><h2 class="h2">SMS <span class="tag">Optional</span></h2><p class="muted">Paid add-on. Works with any provider that accepts a web request.</p><div class="chips">' + tg('SmsEnabled', 'SMS alerts') + '</div>' +
+    fld('st_smsurl', 'Provider address (URL)', { value: s.SmsEndpoint, attrs: 'inputmode="url" autocapitalize="off"' }) + fld('st_smskey', 'API key', { type: 'password', value: '', attrs: 'autocomplete="off" placeholder="' + (F.smsKeySet ? 'Saved ✓ (leave blank to keep)' : 'Paste your provider API key') + '"' }) +
+    '<div class="row2">' + fld('st_smsno', 'Mobile number', { value: s.SmsRecipient, attrs: 'inputmode="tel" placeholder="09171234567"' }) + fld('st_smssender', 'Sender name', { value: s.SmsSender, attrs: 'maxlength="20"' }) + '</div>' +
+    '<details><summary class="link" style="cursor:pointer">Advanced: request format</summary><div class="form" style="margin-top:8px"><div class="field"><div class="lab">Format</div><div class="seg"><button class="' + (S.stDraft.SmsContentType === 'form' ? 'on' : '') + '" data-a="stFmt" data-v="form">Form</button><button class="' + (S.stDraft.SmsContentType === 'json' ? 'on' : '') + '" data-a="stFmt" data-v="json">JSON</button></div></div>' +
+    fld('st_smstpl', 'Request body', { html: '<textarea class="textarea" id="st_smstpl" maxlength="600" style="font-family:ui-monospace,monospace;font-size:13px">' + esc(s.SmsBodyTemplate) + '</textarea>', hint: 'Placeholders: {{apikey}} {{number}} {{message}} {{sender}}' }) + '</div></details></div>' +
+    '<div class="sticky-act"><button class="btn primary block" data-a="stSave" id="stSave" style="min-height:54px;font-size:16px">Save settings</button></div>' +
+    '<div class="card pad form"><h2 class="h2">Check that it works</h2><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-a="stTest" id="stTest">' + ico('bell') + ' Send test alert</button><button class="btn" data-a="stRun" id="stRun">' + ico('sync') + ' Run expiry check now</button><button class="btn" data-a="stRecon" id="stRecon">' + ico('check') + ' Check data integrity</button></div><div id="stOut"></div>' +
+    '<p class="hint">Recent alerts: ' + (S.data.alerts.length ? esc(S.data.alerts.slice(-1)[0].Channel + ' · ' + S.data.alerts.slice(-1)[0].Status + ' · ' + String(S.data.alerts.slice(-1)[0].Date).slice(0, 10)) : 'none yet') + '</p></div>' +
+    '<div class="footer">Powered by <b>LAYAW SYSTEM</b></div></div>';
+  return { html: h };
+};
+A.stToggle = function (el) {
+  var k = el.getAttribute('data-k'); S.stDraft[k] = S.stDraft[k] === 'TRUE' ? 'FALSE' : 'TRUE';
+  var label = el.textContent.split(':')[0]; el.className = 'chip' + (S.stDraft[k] === 'TRUE' ? ' on' : ''); el.setAttribute('aria-checked', S.stDraft[k] === 'TRUE'); el.textContent = label + ': ' + (S.stDraft[k] === 'TRUE' ? 'On' : 'Off');
+};
+A.stFmt = function (el) { S.stDraft.SmsContentType = el.getAttribute('data-v'); $$('[data-a="stFmt"]').forEach(function (b) { b.className = b.getAttribute('data-v') === S.stDraft.SmsContentType ? 'on' : ''; }); };
+function settingsPayload() {
+  return { settings: { BusinessName: val('st_biz'), AlertThresholds: val('st_thr'), DailyAlertTime: val('st_time') || '07:00', AlertEmail: val('st_email'), EmailEnabled: S.stDraft.EmailEnabled, TelegramEnabled: S.stDraft.TelegramEnabled, TelegramChatId: val('st_tgchat'),
+    SmsEnabled: S.stDraft.SmsEnabled, SmsEndpoint: val('st_smsurl'), SmsRecipient: val('st_smsno'), SmsSender: val('st_smssender'), SmsContentType: S.stDraft.SmsContentType, SmsBodyTemplate: val('st_smstpl') },
+    secrets: { telegramToken: val('st_tgtoken').trim(), smsApiKey: val('st_smskey').trim() } };
+}
+/** Saves settings; resolves true when stored. */
+function saveSettingsNow(btn) {
+  if (!S.online) { toast('Settings need a connection. Please try again with signal.', 'warn'); return Promise.resolve(false); }
+  setBusy(btn, true, 'Saving');
+  return server('saveSettings', settingsPayload(), 60000).then(function (res) {
+    setBusy(btn, false);
+    if (!res.ok) { toast(res.error, 'err'); return false; }
+    S.data.settings = res.settings; S.flags.telegramTokenSet = res.flags.telegramTokenSet; S.flags.smsKeySet = res.flags.smsKeySet;
+    $('#st_tgtoken').value = ''; $('#st_smskey').value = ''; $('#st_tgtoken').placeholder = S.flags.telegramTokenSet ? 'Saved ✓ (leave blank to keep)' : 'Paste the token from BotFather'; $('#st_smskey').placeholder = S.flags.smsKeySet ? 'Saved ✓ (leave blank to keep)' : 'Paste your provider API key';
+    persist(); renderChrome(); return true;
+  }, function () { setBusy(btn, false); toast('Could not reach the server. Please try again.', 'err'); return false; });
+}
+A.stSave = function (el) { saveSettingsNow(el).then(function (ok) { if (ok) toast('Settings saved', 'ok'); }); };
+A.stDetect = function (el) {
+  saveSettingsNow(null).then(function (ok) {
+    if (!ok) return; setBusy(el, true, 'Looking');
+    server('detectTelegramChat').then(function (res) { setBusy(el, false); if (!res.ok) return toast(res.error, 'err'); $('#st_tgchat').value = res.chatId; toast('Found chat' + (res.name ? ' with ' + res.name : '') + '. Tap Save settings.', 'ok'); }, function () { setBusy(el, false); toast('Could not reach the server.', 'err'); });
+  });
+};
+A.stTest = function (el) {
+  saveSettingsNow(null).then(function (ok) {
+    if (!ok) return; setBusy(el, true, 'Sending');
+    server('sendTestAlert', null, 90000).then(function (res) {
+      setBusy(el, false);
+      if (!res.ok) return toast(res.error, 'err');
+      $('#stOut').innerHTML = res.results.map(function (r) { return '<div class="banner ' + (r.ok ? 'ok' : 'danger') + '" style="margin-top:8px">' + ico(r.ok ? 'check' : 'alert') + '<span><b>' + esc(r.channel) + ':</b> ' + esc(r.ok ? 'Test alert sent. Check your ' + (r.channel === 'Email' ? 'inbox' : 'phone') + '.' : r.detail) + '</span></div>'; }).join('');
+    }, function () { setBusy(el, false); toast('Could not reach the server.', 'err'); });
+  });
+};
+A.stRun = function (el) {
+  if (!S.online) return toast('This needs a connection.', 'warn');
+  setBusy(el, true, 'Checking');
+  server('runAlertsNow', null, 120000).then(function (res) {
+    setBusy(el, false);
+    if (!res.ok) return toast(res.error, 'err');
+    var r = res.result;
+    $('#stOut').innerHTML = '<div class="banner info" style="margin-top:8px">' + ico('info') + '<span>' + esc(r.note || r.channels.map(function (c) { return c.channel + ': ' + c.status; }).join(' · ')) + '</span></div>';
+    refresh(true);
+  }, function () { setBusy(el, false); toast('Could not reach the server.', 'err'); });
+};
+A.stRecon = function (el, fix) {
+  if (!S.online) return toast('This needs a connection.', 'warn');
+  var fixing = fix === true;
+  setBusy(el, true, 'Checking');
+  server('reconcile', { fix: fixing }, 120000).then(function (res) {
+    setBusy(el, false);
+    if (!res.ok) return toast(res.error, 'err');
+    var bad = res.mismatches.length;
+    $('#stOut').innerHTML = '<div class="banner ' + (bad ? 'warn' : 'ok') + '" style="margin-top:8px">' + ico(bad ? 'alert' : 'check') + '<span>' + (bad ? (fixing ? 'Repaired ' + res.fixed + ' batch(es) to match the movement ledger.' : bad + ' batch(es) do not match the movement ledger: ' + res.mismatches.slice(0, 4).map(function (m) { return esc(m.product) + ' lot ' + esc(m.lot) + ' (' + m.recorded + ' vs ' + m.expected + ')'; }).join(', ') + '.') : 'All ' + res.checked + ' batches reconcile with the ' + res.movements + ' recorded movements.') + '</span>' + (bad && !fixing ? '<button class="btn sm" data-a="stFix">Repair</button>' : '') + '</div>';
+    if (fixing) refresh(true);
+  }, function () { setBusy(el, false); toast('Could not reach the server.', 'err'); });
+};
+A.stFix = function () { A.stRecon($('#stRecon'), true); };
+
+/* ----------------------------------- Pending ----------------------------------- */
+A.openSync = function () {
+  var h = '';
+  if (!S.queue.length && !S.failed.length) h = emptyState('check', 'Everything is synced', S.online ? 'All your entries are safely saved.' : 'You are offline, but nothing is waiting.');
+  else {
+    if (S.failed.length) h += '<div class="banner danger" style="margin-bottom:10px">' + ico('alert') + '<span>These entries were refused by the server. Nothing was lost; review each one.</span></div><div class="card list" style="box-shadow:none;margin-bottom:14px">' + S.failed.map(function (f, i) {
+      return '<div class="item" style="align-items:flex-start;cursor:default"><div class="main"><div class="t">' + esc(f.label) + '</div><div class="s" style="color:var(--red);white-space:normal">' + esc(f.error) + '</div></div><div class="e"><button class="btn sm" data-a="syncRetry" data-i="' + i + '">Retry</button><button class="btn sm ghost" data-a="syncDiscard" data-i="' + i + '">Discard</button></div></div>';
+    }).join('') + '</div>';
+    if (S.queue.length) h += '<div class="sec-head"><h2 class="h2">Waiting to sync</h2></div><div class="card list" style="box-shadow:none">' + S.queue.map(function (q) { return '<div class="item" style="cursor:default"><div class="main"><div class="t">' + esc(q.label) + '</div><div class="s">Saved ' + esc(new Date(q.ts).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })) + '</div></div><div class="e"><span class="pill amber">Pending</span></div></div>'; }).join('') + '</div>';
+  }
+  openSheet({ title: 'Pending sync', html: h, foot: S.queue.length ? '<button class="btn primary" data-a="syncNow">' + ico('sync') + ' Sync now</button>' : '' });
+};
+A.syncNow = function () { if (!S.online) return toast('Still offline. It will sync automatically when you have signal.', 'warn'); closeAllSheets(); flush(); };
+A.syncRetry = function (el) { var f = S.failed.splice(+el.getAttribute('data-i'), 1)[0]; if (f) { S.queue.push({ id: f.id, action: f.action, payload: f.payload, label: f.label, ts: f.ts }); saveQueue(); closeAllSheets(); renderSyncBadge(); flush(); } };
+A.syncDiscard = function (el) {
+  var i = +el.getAttribute('data-i');
+  confirmSheet({ title: 'Discard this entry?', intro: 'It will not be saved. You can record it again later.', ok: 'Discard', tone: 'danger' }).then(function (yes) { if (yes) { S.failed.splice(i, 1); saveQueue(); renderSyncBadge(); reindex(); persist(); closeAllSheets(); refresh(true); } });
+};
+
+/* ------------------------------------ Boot ------------------------------------ */
+function boot() {
+  applyTheme(store.get('mt_theme') || 'auto');
+  S.route = parseHash();
+  loadQueue();
+  var cached = store.get('mt_cache_v1');
+  if (cached) {
+    try {
+      var c = JSON.parse(cached);
+      if (c && c.data) { S.data = c.data; S.flags = c.flags || {}; S.data.alerts = S.data.alerts || []; S.fromCache = true; S.loading = false; reapplyPending(); reindex(); }
+    } catch (e) { S.data = null; }
+  }
+  renderAll();
+  if (S.online) refresh(true).then(flush);
+  else if (!S.data) { S.loading = false; S.loadError = 'You are offline and no saved data is on this phone yet. Open MedTrack once with signal.'; renderAll(); }
+  setInterval(function () { if (S.queue.length && S.online) flush(); }, 60000);
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+
+})();
+</script>
