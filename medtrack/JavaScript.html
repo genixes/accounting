@@ -464,6 +464,7 @@ function renderChrome() {
     '<button class="iconbtn" data-a="doRefresh" aria-label="Refresh data" title="Refresh">' + (S.refreshing ? '<span class="spinner"></span>' : ico('sync')) + '</button>';
   $('#sidebar').innerHTML = '<div class="brand"><div class="logo">' + ico('pill') + '</div><div><b>MedTrack</b><small>' + esc(biz || 'Expiry monitoring') + '</small></div></div>' +
     SIDE.concat(MULTI && S.user && S.user.role === 'Admin' ? [['users', 'Users', 'users']] : []).map(function (s) { var on = s[0] === r || (r === 'accounts' && s[0] === 'accounts'); return '<button class="navlink' + (on ? ' active' : '') + '" data-a="nav" data-to="' + s[0] + '">' + ico(s[2]) + s[1] + '</button>'; }).join('') +
+    '<button class="navlink' + (r === 'more' ? ' active' : '') + '" data-a="nav" data-to="more" style="margin-top:8px">' + ico('more') + (MULTI ? 'Account &amp; style' : 'Style &amp; theme') + '</button>' +
     '<div class="side-foot">Powered by ' + LAYAW_LINK + '<br>v' + esc(S.flags.version || '1.0.0') + '</div>';
   $('#bottomnav').innerHTML = NAV.map(function (n) {
     var on = n.k === r || (n.k === 'more' && MORE_ROUTES[r]);
