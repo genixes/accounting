@@ -78,7 +78,7 @@ function buildReportData_(range) {
 
   var generatedAt = Utilities.formatDate(new Date(), APP.TZ, 'd MMM yyyy, h:mm a');
   return {
-    business: settings.BusinessName, from: range.from, to: range.to, today: today, generatedAt: generatedAt,
+    business: settings.BusinessName, brand: /^#[0-9A-Fa-f]{6}$/.test(settings.BrandColor || '') ? settings.BrandColor : '#0F2A44', accent: /^#[0-9A-Fa-f]{6}$/.test(settings.AccentColor || '') ? settings.AccentColor : '#0E9AA7', from: range.from, to: range.to, today: today, generatedAt: generatedAt,
     totals: totals, stock: stock, nearExpiry: nearExpiry, expiredCount: nearExpiry.filter(function (x) { return x.days < 0; }).length,
     consignment: consignment, distribution: distribution, history: history, productCount: prod.filter(function (x) { return x.Active; }).length
   };
@@ -95,8 +95,8 @@ function reportDays_(d) {
 function buildReportHtml_(r) {
   var h = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>MedTrack Report</title><style>' +
     'body{font-family:Arial,Helvetica,sans-serif;color:#0F2A44;font-size:11px;margin:0;padding:24px;}' +
-    'h1{font-size:22px;margin:0 0 2px;color:#0F2A44;}h2{font-size:14px;margin:22px 0 6px;padding-bottom:4px;border-bottom:2px solid #0E9AA7;color:#0F2A44;}' +
-    '.sub{color:#5B6F83;font-size:11px;margin-bottom:12px;}.band{background:#0F2A44;color:#fff;padding:16px 18px;border-radius:8px;}.band .sub{color:#B9CADB;margin:2px 0 0;}' +
+    'h1{font-size:22px;margin:0 0 2px;color:#0F2A44;}h2{font-size:14px;margin:22px 0 6px;padding-bottom:4px;border-bottom:2px solid ' + r.accent + ';color:#0F2A44;}' +
+    '.sub{color:#5B6F83;font-size:11px;margin-bottom:12px;}.band{background:' + r.brand + ';color:#fff;padding:16px 18px;border-radius:8px;}.band .sub{color:#B9CADB;margin:2px 0 0;}' +
     'table{width:100%;border-collapse:collapse;margin-top:4px;}th{background:#EAF0F5;color:#0F2A44;text-align:left;font-size:10px;text-transform:uppercase;padding:6px 6px;border-bottom:1px solid #D3DEE8;}' +
     'td{padding:5px 6px;border-bottom:1px solid #E6EDF3;vertical-align:top;}td.n,th.n{text-align:right;}tr.tot td{font-weight:bold;background:#F5F8FB;}' +
     '.p{display:inline-block;padding:1px 7px;border-radius:9px;font-weight:bold;font-size:10px;}.r{background:#FDECEF;color:#B4233C;}.a{background:#FFF1CF;color:#8A5A00;}.b{background:#E6EEFC;color:#1F55B5;}.g{background:#E3F5EC;color:#12724A;}' +
@@ -159,7 +159,7 @@ function buildReportHtml_(r) {
     });
     h += '</table>';
   }
-  h += '<div class="foot">Powered by LAYAW SYSTEM</div></body></html>';
+  h += '<div class="foot">Powered by <a href="' + APP.URL + '" style="color:#5B6F83;font-weight:bold;">LAYAW SYSTEM</a></div></body></html>';
   return h;
 }
 
@@ -169,13 +169,28 @@ function getReportPreview_(p) {
   return { html: buildReportHtml_(r), summary: { batches: r.stock.length, nearExpiry: r.nearExpiry.length, expired: r.expiredCount, accounts: r.distribution.length, movements: r.history.length } };
 }
 
+/** Saves a report file into the Drive folder chosen in Settings. Returns null (no folder set), {url, folder} or {error}. */
+function saveReportFile_(blob) {
+  var link = getSettings_().ReportFolderUrl;
+  if (!link) return null;
+  try {
+    var folder = DriveApp.getFolderById(driveFolderId_(link));
+    var file = folder.createFile(blob);
+    return { url: file.getUrl(), folder: folder.getName() };
+  } catch (e) {
+    console.error('Report save to Drive failed: ' + e);
+    return { error: 'The report could not be saved to your Drive folder. Please check the folder link in Settings.' };
+  }
+}
+
 /** Generates the PDF from the styled HTML template and returns it as base64. */
 function exportReportPdf_(p) {
   var range = reportRange_(p);
   var html = buildReportHtml_(buildReportData_(range));
   var pdf = Utilities.newBlob(html, 'text/html', 'report.html').getAs('application/pdf');
   var name = 'MedTrack-Report-' + range.from + '_to_' + range.to + '.pdf';
-  return { name: name, mime: 'application/pdf', base64: Utilities.base64Encode(pdf.getBytes()) };
+  pdf.setName(name);
+  return { name: name, mime: 'application/pdf', base64: Utilities.base64Encode(pdf.getBytes()), drive: saveReportFile_(pdf) };
 }
 
 /** Builds the Excel workbook sheets from report data: [{name, header, rows}]. */
@@ -216,7 +231,9 @@ function exportReportXlsx_(p) {
     SpreadsheetApp.flush();
     var resp = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + tmp.getId() + '/export?format=xlsx', { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
     if (resp.getResponseCode() !== 200) throw new Error('XLSX export failed with HTTP ' + resp.getResponseCode());
-    return { name: 'MedTrack-Report-' + range.from + '_to_' + range.to + '.xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64: Utilities.base64Encode(resp.getBlob().getBytes()) };
+    var xname = 'MedTrack-Report-' + range.from + '_to_' + range.to + '.xlsx';
+    var xblob = resp.getBlob().setName(xname);
+    return { name: xname, mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64: Utilities.base64Encode(xblob.getBytes()), drive: saveReportFile_(xblob) };
   } finally {
     try { DriveApp.getFileById(tmp.getId()).setTrashed(true); } catch (e) { /* ignore */ }
   }

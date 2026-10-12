@@ -44,6 +44,11 @@ In the Sheet: **Extensions → Apps Script**. A code editor opens.
 1. Open the **Import** tab in the Sheet. Paste your Excel rows under the headers (BrandName … SellingPrice). Expiry can be a date, `12/2027` or `Dec 2027`.
 2. In MedTrack: **More → Import → Check my data**. Fix anything shown in red, check again, then **Import**.
 
+## 9. Make it yours (optional)
+- **Colors:** More → Settings → **Personalize**. Pick a style or your own colors; you see the change right away. Tap **Save settings** to keep it (it also colors your email alerts and reports). Expiry warning colors (red, amber, blue, green) never change.
+- **Where reports are saved:** More → Settings → **Where to save reports**. In Google Drive open your folder, copy its address from the browser and paste it. From then on every PDF or Excel report is saved in that folder automatically (you still get the download). The folder must be in the same Google account that owns MedTrack.
+- After updating the files, redeploy: **Deploy → Manage deployments → ✏ → Version: New version → Deploy**.
+
 ## Daily use
 - **Delivery arrives:** More → Receive delivery (or the dashboard button).
 - **Gave samples / left stock at a pharmacy / sale / pullout:** the **+** button.

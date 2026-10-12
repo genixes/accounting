@@ -197,7 +197,7 @@ function buildPlainText_(groups, s, today) {
     });
     out.push('');
   });
-  out.push('Powered by LAYAW SYSTEM');
+  out.push('Powered by LAYAW SYSTEM - ' + APP.URL);
   return out.join('\n');
 }
 
@@ -207,7 +207,9 @@ function buildEmailHtml_(groups, s, today, c) {
   var h = '';
   h += '<div style="background:#EEF3F7;padding:16px 8px;font-family:' + font + ';color:#0F2A44;">';
   h += '<div style="max-width:600px;margin:0 auto;background:#FFFFFF;border-radius:18px;overflow:hidden;border:1px solid #E1E8EF;">';
-  h += '<div style="background:#0F2A44;background-image:linear-gradient(135deg,#0F2A44 0%,#0E7F8C 100%);padding:26px 22px;color:#FFFFFF;">';
+  var brand = /^#[0-9A-Fa-f]{6}$/.test(s.BrandColor || '') ? s.BrandColor : '#0F2A44';
+  var accent = /^#[0-9A-Fa-f]{6}$/.test(s.AccentColor || '') ? s.AccentColor : '#0E9AA7';
+  h += '<div style="background:' + brand + ';background-image:linear-gradient(135deg,' + brand + ' 0%,' + accent + ' 100%);padding:26px 22px;color:#FFFFFF;">';
   h += '<div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.8;font-weight:600;">MedTrack · Expiry digest</div>';
   h += '<div style="font-size:24px;line-height:1.25;font-weight:800;margin-top:8px;">' + c.total + ' batch' + (c.total === 1 ? '' : 'es') + ' need' + (c.total === 1 ? 's' : '') + ' your attention</div>';
   h += '<div style="font-size:13px;opacity:.85;margin-top:6px;">' + esc_(fmtDate_(today)) + ' · ' + esc_(s.BusinessName) + '</div>';
@@ -231,8 +233,8 @@ function buildEmailHtml_(groups, s, today, c) {
   h += '</div>';
   var url = '';
   try { url = ScriptApp.getService().getUrl(); } catch (e) { url = ''; }
-  if (url) h += '<div style="text-align:center;padding:4px 14px 22px;"><a href="' + esc_(url) + '" style="display:inline-block;background:#0E9AA7;color:#FFFFFF;text-decoration:none;font-weight:700;padding:13px 26px;border-radius:12px;font-size:15px;">Open MedTrack</a></div>';
-  h += '<div style="border-top:1px solid #E1E8EF;padding:14px;text-align:center;font-size:11px;color:#7A8B9C;">You get this digest once a day, only when something new crosses an alert threshold.<br>Powered by LAYAW SYSTEM</div>';
+  if (url) h += '<div style="text-align:center;padding:4px 14px 22px;"><a href="' + esc_(url) + '" style="display:inline-block;background:' + accent + ';color:#FFFFFF;text-decoration:none;font-weight:700;padding:13px 26px;border-radius:12px;font-size:15px;">Open MedTrack</a></div>';
+  h += '<div style="border-top:1px solid #E1E8EF;padding:14px;text-align:center;font-size:11px;color:#7A8B9C;">You get this digest once a day, only when something new crosses an alert threshold.<br>Powered by <a href="' + APP.URL + '" style="color:#5B6F83;font-weight:700;text-decoration:underline;">LAYAW SYSTEM</a></div>';
   h += '</div></div>';
   return h;
 }
@@ -255,7 +257,7 @@ function buildTelegramText_(groups, s, today) {
       t += '   Qty ' + fmtInt_(it.qty) + ' — ' + tgEsc_(locText_(it.locs)) + '\n';
     });
   });
-  t += '\n<i>Powered by LAYAW SYSTEM</i>';
+  t += '\n<i>Powered by <a href="' + APP.URL + '">LAYAW SYSTEM</a></i>';
   return t;
 }
 

@@ -191,6 +191,21 @@ function saveSettings_(p) {
     clean.TelegramChatId = str_(s.TelegramChatId, 40);
     if (clean.TelegramChatId && !/^(-?\d{5,20}|@[A-Za-z0-9_]{4,})$/.test(clean.TelegramChatId)) throw userError_('The Telegram chat ID should be a number like 123456789.');
   }
+  if ('ReportFolderUrl' in s) {
+    clean.ReportFolderUrl = str_(s.ReportFolderUrl, 300);
+    if (clean.ReportFolderUrl) {
+      var fid = driveFolderId_(clean.ReportFolderUrl);
+      if (!fid) throw userError_('That does not look like a Google Drive folder link. Open the folder in Google Drive, copy the address from the browser and paste it here.');
+      try { DriveApp.getFolderById(fid).getName(); } catch (e) { throw userError_('We cannot open that folder. Make sure it exists and that it is in the same Google account that owns MedTrack.'); }
+    }
+  }
+  ['AccentColor', 'BrandColor'].forEach(function (k) {
+    if (k in s) {
+      var c = str_(s[k], 7).toUpperCase();
+      if (!/^#[0-9A-F]{6}$/.test(c)) throw userError_('Please pick a valid color.');
+      clean[k] = c;
+    }
+  });
   ['EmailEnabled', 'TelegramEnabled', 'SmsEnabled'].forEach(function (k) { if (k in s) clean[k] = toBool_(s[k]) ? 'TRUE' : 'FALSE'; });
   if ('AlertThresholds' in s) clean.AlertThresholds = parseThresholds_(s.AlertThresholds).slice().reverse().join(',');
   if ('DailyAlertTime' in s) {
@@ -242,6 +257,15 @@ function saveSettings_(p) {
   });
   if (timeChanged) installDailyTrigger_();
   return { settings: getSettings_(), flags: secretFlags_() };
+}
+
+/** Extracts the folder ID from a Google Drive folder link (or a bare ID). '' when not recognised. */
+function driveFolderId_(u) {
+  var s = str_(u, 300);
+  if (!s) return '';
+  var m = s.match(/\/folders\/([A-Za-z0-9_-]{10,})/) || s.match(/[?&]id=([A-Za-z0-9_-]{10,})/);
+  if (m) return m[1];
+  return /^[A-Za-z0-9_-]{20,}$/.test(s) ? s : '';
 }
 
 /** Tells the client which secrets exist without ever returning them. */

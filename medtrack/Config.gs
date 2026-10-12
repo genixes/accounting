@@ -8,7 +8,8 @@
 var APP = {
   NAME: 'MedTrack',
   TZ: 'Asia/Manila',
-  VERSION: '1.0.0',
+  VERSION: '1.1.0',
+  URL: 'https://layawsystem.com',
   CACHE_TTL: 21600,      // seconds (6 hours, the CacheService maximum)
   CACHE_CHUNK: 30000,    // characters per cache entry (safe under the 100 KB limit)
   MAX_LINES: 100,        // max line items per delivery
@@ -50,6 +51,9 @@ var ID_PREFIX = { Products: 'PRD', Batches: 'BAT', Deliveries: 'DEL', Accounts: 
 /** Default Settings rows: [key, value, description]. Secrets are NOT here (Script Properties). */
 var DEFAULT_SETTINGS = [
   ['BusinessName', 'My Pharma Territory', 'Name shown on reports and alerts'],
+  ['AccentColor', '#0E9AA7', 'Main action color of the app (hex)'],
+  ['BrandColor', '#0F2A44', 'Dark brand color for headers (hex)'],
+  ['ReportFolderUrl', '', 'Google Drive folder link where reports are saved'],
   ['AlertEmail', '', 'Where expiry alert emails are sent'],
   ['EmailEnabled', 'TRUE', 'Send alerts by email'],
   ['TelegramEnabled', 'TRUE', 'Send alerts to Telegram (needs bot token in Script Properties)'],
