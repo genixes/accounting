@@ -91,6 +91,10 @@ var S = {
   acc: { q: '', type: '', archived: false },
   rec: null, recv: null, report: { from: '', to: '', html: '', busy: '' }, imp: null, theme: 'auto', fromCache: false
 };
+var MULTI = !!window.MT_MULTI, RESET_TOKEN = window.MT_RESET || '';
+S.token = ''; S.user = null; S.uid = ''; S.auth = { mode: '', msg: '', email: '' }; S.users = null;
+/** Storage keys are per user so several medreps can share a phone without mixing data. */
+function uk(base) { return base + '_' + (S.uid || 'single'); }
 var lastVals = {};
 var chart = null;
 
@@ -136,10 +140,12 @@ function server(action, payload, timeoutMs) {
           if (done) return; done = true; clearTimeout(timer);
           var o = null;
           try { o = typeof r === 'string' ? JSON.parse(r) : r; } catch (e) { reject(new Error('bad response')); return; }
+          if (o && o.code === 'AUTH' && action !== 'login') { authLost(); reject(new Error('auth')); return; }
+          if (o && o.code === 'CHANGE') { S.auth = { mode: 'change', msg: o.error }; renderAll(); reject(new Error('change')); return; }
           resolve(o || { ok: false, error: 'The server sent an empty answer. Please try again.' });
         })
         .withFailureHandler(function (e) { if (done) return; done = true; clearTimeout(timer); reject(e || new Error('failed')); })
-        .api(action, payload ? JSON.stringify(payload) : '');
+        .api(action, payload ? JSON.stringify(payload) : '', S.token || '');
     } catch (e) { clearTimeout(timer); if (!done) { done = true; reject(e); } }
   });
 }
@@ -152,7 +158,7 @@ function mergeChanges(ch) {
   if (!ch || !S.data) return;
   Object.keys(TABLE_KEYS).forEach(function (t) { (ch[t] || []).forEach(function (o) { upsert(S.data[t], TABLE_KEYS[t], o); }); });
 }
-var persist = debounce(function () { if (S.data) store.set('mt_cache_v1', JSON.stringify({ data: S.data, flags: S.flags, ts: Date.now() })); }, 700);
+var persist = debounce(function () { if (S.data) store.set(uk('mt_cache_v1'), JSON.stringify({ data: S.data, flags: S.flags, ts: Date.now() })); }, 700);
 
 function reindex() {
   var d = S.data, today = S.today;
@@ -232,10 +238,11 @@ var APPLY = {
 };
 
 /* ----------------------------- Offline queue ----------------------------- */
-function saveQueue() { store.set('mt_queue_v1', JSON.stringify(S.queue)); store.set('mt_failed_v1', JSON.stringify(S.failed)); }
+function saveQueue() { store.set(uk('mt_queue_v1'), JSON.stringify(S.queue)); store.set(uk('mt_failed_v1'), JSON.stringify(S.failed)); }
 function loadQueue() {
-  try { S.queue = JSON.parse(store.get('mt_queue_v1') || '[]') || []; } catch (e) { S.queue = []; }
-  try { S.failed = JSON.parse(store.get('mt_failed_v1') || '[]') || []; } catch (e) { S.failed = []; }
+  if (!MULTI && store.get('mt_queue_v1') && !store.get(uk('mt_queue_v1'))) { store.set(uk('mt_queue_v1'), store.get('mt_queue_v1')); store.del('mt_queue_v1'); }
+  try { S.queue = JSON.parse(store.get(uk('mt_queue_v1')) || '[]') || []; } catch (e) { S.queue = []; }
+  try { S.failed = JSON.parse(store.get(uk('mt_failed_v1')) || '[]') || []; } catch (e) { S.failed = []; }
 }
 function enqueue(item) { S.queue.push(item); saveQueue(); renderSyncBadge(); scheduleFlush(2500); }
 function reapplyPending() { S.queue.forEach(function (it) { try { APPLY[it.action](it.payload); } catch (e) { /* ignore */ } }); }
@@ -411,9 +418,9 @@ A.retryLoad = function () { S.loadError = ''; S.loading = true; renderView(false
 
 /* ---------------------------- Chrome and routing ---------------------------- */
 var NAV = [{ k: 'dashboard', l: 'Dashboard', i: 'dash' }, { k: 'inventory', l: 'Inventory', i: 'box' }, { k: 'record', l: 'Record', i: 'plus' }, { k: 'accounts', l: 'Accounts', i: 'users' }, { k: 'more', l: 'More', i: 'more' }];
-var MORE_ROUTES = { more: 1, receive: 1, reports: 1, import: 1, settings: 1 };
-var TITLES = { dashboard: 'Dashboard', inventory: 'Inventory', record: 'Record movement', accounts: 'Accounts', more: 'More', receive: 'Receive delivery', reports: 'Reports', import: 'Import from Excel', settings: 'Settings' };
-var FORM_ROUTES = { record: 1, receive: 1, reports: 1, import: 1, settings: 1 };
+var MORE_ROUTES = { more: 1, receive: 1, reports: 1, import: 1, settings: 1, users: 1 };
+var TITLES = { dashboard: 'Dashboard', inventory: 'Inventory', record: 'Record movement', accounts: 'Accounts', more: 'More', receive: 'Receive delivery', reports: 'Reports', import: 'Import from Excel', settings: 'Settings', users: 'Users' };
+var FORM_ROUTES = { record: 1, receive: 1, reports: 1, import: 1, settings: 1, users: 1 };
 var SIDE = [['dashboard', 'Dashboard', 'dash'], ['inventory', 'Inventory', 'box'], ['record', 'Record movement', 'plus'], ['receive', 'Receive delivery', 'truck'], ['accounts', 'Accounts', 'users'], ['reports', 'Reports', 'file'], ['import', 'Import', 'upload'], ['settings', 'Settings', 'sliders']];
 
 function parseHash() {
@@ -432,7 +439,8 @@ function go(path) {
 }
 function goBack() {
   if (S.route.name === 'accounts' && S.route.id) return go('accounts');
-  if (MORE_ROUTES[S.route.name] && S.route.name !== 'more') return go('more');
+  var wide = window.matchMedia && window.matchMedia('(min-width: 960px)').matches;
+  if (MORE_ROUTES[S.route.name] && S.route.name !== 'more') return go(wide ? 'dashboard' : 'more');
   go('dashboard');
 }
 window.addEventListener('popstate', function () { S.route = parseHash(); renderAll(); });
@@ -455,7 +463,7 @@ function renderChrome() {
   $('#topbar').innerHTML = left + '<div class="title">' + esc(title) + '</div><button class="sync-badge" id="syncBadge" data-a="openSync"></button>' +
     '<button class="iconbtn" data-a="doRefresh" aria-label="Refresh data" title="Refresh">' + (S.refreshing ? '<span class="spinner"></span>' : ico('sync')) + '</button>';
   $('#sidebar').innerHTML = '<div class="brand"><div class="logo">' + ico('pill') + '</div><div><b>MedTrack</b><small>' + esc(biz || 'Expiry monitoring') + '</small></div></div>' +
-    SIDE.map(function (s) { var on = s[0] === r || (r === 'accounts' && s[0] === 'accounts'); return '<button class="navlink' + (on ? ' active' : '') + '" data-a="nav" data-to="' + s[0] + '">' + ico(s[2]) + s[1] + '</button>'; }).join('') +
+    SIDE.concat(MULTI && S.user && S.user.role === 'Admin' ? [['users', 'Users', 'users']] : []).map(function (s) { var on = s[0] === r || (r === 'accounts' && s[0] === 'accounts'); return '<button class="navlink' + (on ? ' active' : '') + '" data-a="nav" data-to="' + s[0] + '">' + ico(s[2]) + s[1] + '</button>'; }).join('') +
     '<div class="side-foot">Powered by ' + LAYAW_LINK + '<br>v' + esc(S.flags.version || '1.0.0') + '</div>';
   $('#bottomnav').innerHTML = NAV.map(function (n) {
     var on = n.k === r || (n.k === 'more' && MORE_ROUTES[r]);
@@ -472,7 +480,7 @@ function renderView(keep) {
   root.innerHTML = out.html;
   if (out.after) out.after(root);
 }
-function renderAll() { renderChrome(); renderView(false); }
+function renderAll() { if (authGate()) return; renderChrome(); renderView(false); }
 A.nav = function (el) { go(el.getAttribute('data-to')); };
 A.goBack = goBack;
 A.goRecord = function () { go('record'); };
@@ -1158,6 +1166,7 @@ V.more = function () {
   var h = '<div class="page"><div class="page-head"><div><div class="h1">More</div><div class="sub">Deliveries, reports and settings</div></div></div><div class="card list">' +
     link('receive', 'truck', 'Receive delivery', 'Log new stock from your company') + link('reports', 'file', 'Reports', 'Monthly report, PDF and Excel') + link('import', 'upload', 'Import from Excel', 'One-time import of your existing stock') + link('settings', 'sliders', 'Settings', 'Alerts, Telegram, email and SMS') + '</div>' +
     (pend ? '<button class="card item" data-a="openSync" style="border-radius:var(--r)"><span class="avatar">' + ico('sync') + '</span><div class="main"><div class="t">Pending sync</div><div class="s">' + S.queue.length + ' waiting' + (S.failed.length ? ', ' + S.failed.length + ' need attention' : '') + '</div></div>' + ico('chev') + '</button>' : '') +
+    (MULTI && S.user ? '<div class="card list">' + (S.user.role === 'Admin' ? link('users', 'users', 'Manage users', 'Add medreps, reset passwords') : '') + '<div class="item" style="cursor:default"><span class="avatar">' + esc(S.user.name.charAt(0).toUpperCase()) + '</span><div class="main"><div class="t">' + esc(S.user.name) + '</div><div class="s">' + esc(S.user.email) + '</div></div></div><div style="display:flex;gap:8px;padding:0 16px 14px;flex-wrap:wrap"><button class="btn sm" data-a="openChange">Change password</button><button class="btn sm ghost" data-a="logout">Sign out</button></div></div>' : '') +
     '<div class="card pad"><div class="lab" style="margin-bottom:8px">Appearance</div><div class="seg">' + [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(function (t) { return '<button class="' + (S.theme === t[0] ? 'on' : '') + '" data-a="setTheme" data-t="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div></div>' +
     '<div class="footer">MedTrack v' + esc(S.flags.version || '1.0.0') + ' · Powered by ' + LAYAW_LINK + '</div></div>';
   return { html: h };
@@ -1388,22 +1397,216 @@ A.syncDiscard = function (el) {
   confirmSheet({ title: 'Discard this entry?', intro: 'It will not be saved. You can record it again later.', ok: 'Discard', tone: 'danger' }).then(function (yes) { if (yes) { S.failed.splice(i, 1); saveQueue(); renderSyncBadge(); reindex(); persist(); closeAllSheets(); refresh(true); } });
 };
 
+
+/* ------------------------------ Sign in (multi-user) ------------------------------ */
+function pwField(id, label, ac) {
+  return '<div class="field"><label class="lab" for="' + id + '">' + label + '</label><div style="position:relative"><input class="input" id="' + id + '" type="password" autocomplete="' + ac + '" style="padding-right:78px" data-in="authEnter"><button class="link" type="button" data-a="togglePw" data-t="' + id + '" style="position:absolute;right:6px;top:2px">Show</button></div><div class="err" id="' + id + '_e" role="alert"></div></div>';
+}
+A.togglePw = function (el) { var i = document.getElementById(el.getAttribute('data-t')); var show = i.type === 'password'; i.type = show ? 'text' : 'password'; el.textContent = show ? 'Hide' : 'Show'; };
+function pwProblem(pw, email) {
+  if (pw.length < 8) return 'Your new password needs at least 8 characters.';
+  if (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) return 'Use at least one letter and one number.';
+  if (email && pw.toLowerCase() === email.toLowerCase()) return 'Your password cannot be your email address.';
+  return '';
+}
+/** True (and draws the sign-in screens) while the user is not signed in or must change the password. */
+function authGate() {
+  var gate = MULTI && (!S.token || !!S.auth.mode);
+  var app = $('#app'); if (app) app.classList.toggle('auth-mode', gate);
+  if (!gate) return false;
+  if (!S.auth.mode) S.auth.mode = 'login';
+  drawAuth();
+  return true;
+}
+function drawAuth() {
+  var m = S.auth.mode, msg = S.auth.msg ? '<div class="banner ' + (S.auth.ok ? 'ok' : 'warn') + '">' + ico(S.auth.ok ? 'check' : 'info') + '<span>' + esc(S.auth.msg) + '</span></div>' : '';
+  var head = '<div style="text-align:center;margin-bottom:6px"><div class="logo" style="width:56px;height:56px;border-radius:18px;margin:0 auto 14px"><span style="width:30px;height:30px;display:block">' + ico('pill') + '</span></div>', body = '';
+  if (m === 'login') body = head + '<div class="h1">Welcome back</div><div class="sub">Sign in to your MedTrack</div></div>' + msg + '<div class="form">' + fld('au_email', 'Email', { type: 'email', value: S.auth.email || '', attrs: 'autocomplete="username" autocapitalize="off" inputmode="email" data-in="authEnter"' }) + pwField('au_pw', 'Password', 'current-password') + '<button class="btn primary block" id="auGo" data-a="doLogin" style="min-height:54px;font-size:16px">Sign in</button><button class="link" data-a="goForgot" style="align-self:center">Forgot password?</button></div>';
+  else if (m === 'forgot') body = head + '<div class="h1">Forgot password?</div><div class="sub">Enter your email. We will send you a link to choose a new password.</div></div>' + msg + '<div class="form">' + fld('au_email', 'Email', { type: 'email', value: S.auth.email || '', attrs: 'autocomplete="username" autocapitalize="off" inputmode="email" data-in="authEnter"' }) + '<button class="btn primary block" id="auGo" data-a="doForgot" style="min-height:54px;font-size:16px">Send reset link</button><button class="link" data-a="goLogin" style="align-self:center">Back to sign in</button></div>';
+  else if (m === 'reset') body = head + '<div class="h1">Choose a new password</div><div class="sub">At least 8 characters, with a letter and a number.</div></div>' + msg + '<div class="form">' + pwField('au_new', 'New password', 'new-password') + pwField('au_new2', 'Type it again', 'new-password') + '<button class="btn primary block" id="auGo" data-a="doReset" style="min-height:54px;font-size:16px">Save password</button><button class="link" data-a="goLogin" style="align-self:center">Back to sign in</button></div>';
+  else body = head + '<div class="h1">' + (S.user && S.user.mustChange ? 'Choose your password' : 'Change password') + '</div><div class="sub">' + (S.user && S.user.mustChange ? 'For your security, replace the temporary password with your own.' : 'Pick a new password for your account.') + '</div></div>' + msg + '<div class="form">' + pwField('au_cur', S.user && S.user.mustChange ? 'Temporary password' : 'Current password', 'current-password') + pwField('au_new', 'New password', 'new-password') + pwField('au_new2', 'Type the new password again', 'new-password') + '<button class="btn primary block" id="auGo" data-a="doChange" style="min-height:54px;font-size:16px">Save password</button>' + (S.user && S.user.mustChange ? '<button class="link" data-a="logout" style="align-self:center">Sign out</button>' : '<button class="link" data-a="cancelChange" style="align-self:center">Cancel</button>') + '</div>';
+  $('#view').innerHTML = '<div class="authwrap card pad">' + body + '</div><div class="footer">Powered by ' + LAYAW_LINK + '</div>';
+  S.auth.msg = ''; S.auth.ok = false;
+}
+IN.authEnter = function (el, e) { if (e && e.type === 'input') return; };
+document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && MULTI && $('.authwrap') && e.target && e.target.tagName === 'INPUT') { var b = $('#auGo'); if (b) b.click(); } });
+function authFail(msg) { toast(msg, 'err'); }
+A.goForgot = function () { S.auth = { mode: 'forgot', msg: '', email: val('au_email') }; drawAuth(); };
+A.goLogin = function () { S.auth = { mode: 'login', msg: '', email: val('au_email') }; if (RESET_TOKEN) { try { history.replaceState(null, '', location.pathname); } catch (e) { /* ignore */ } } drawAuth(); };
+A.doLogin = function (el) {
+  var email = val('au_email').trim(), pw = val('au_pw'); setErr('au_email', ''); setErr('au_pw', '');
+  var ok = true;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) ok = setErr('au_email', 'Please enter your email address.') && ok;
+  if (!pw) ok = setErr('au_pw', 'Please enter your password.') && ok;
+  if (!ok) return;
+  if (!S.online) return authFail('You are offline. Signing in needs a connection.');
+  setBusy(el, true, 'Signing in');
+  server('login', { email: email, password: pw }).then(function (res) {
+    setBusy(el, false);
+    if (!res.ok) { setErr('au_pw', res.error); return; }
+    S.token = res.token; S.user = res.user; S.uid = res.user.uid;
+    store.set('mt_token', S.token); store.set('mt_user', JSON.stringify(S.user));
+    S.data = null; S.loading = true; S.loadError = '';
+    if (res.user.mustChange) { S.auth = { mode: 'change', msg: 'Welcome! Please choose your own password to continue.', ok: true }; renderAll(); return; }
+    S.auth = { mode: '', msg: '' }; startSession();
+  }, function () { setBusy(el, false); authFail('Could not reach the server. Please try again.'); });
+};
+A.doForgot = function (el) {
+  var email = val('au_email').trim(); setErr('au_email', '');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setErr('au_email', 'Please enter a valid email address.');
+  if (!S.online) return authFail('You are offline. Please try again with signal.');
+  setBusy(el, true, 'Sending');
+  server('requestReset', { email: email }).then(function (res) {
+    setBusy(el, false);
+    if (!res.ok) return setErr('au_email', res.error);
+    S.auth = { mode: 'login', email: email, ok: true, msg: 'If that email is registered, we sent a reset link. Check your inbox (and spam). The link works once and expires in 60 minutes.' }; drawAuth();
+  }, function () { setBusy(el, false); authFail('Could not reach the server. Please try again.'); });
+};
+A.doReset = function (el) {
+  var p1 = val('au_new'), p2 = val('au_new2'); setErr('au_new', ''); setErr('au_new2', '');
+  var pr = pwProblem(p1, ''); if (pr) return setErr('au_new', pr);
+  if (p1 !== p2) return setErr('au_new2', 'The two passwords are not the same.');
+  setBusy(el, true, 'Saving');
+  server('resetPassword', { token: RESET_TOKEN, password: p1 }).then(function (res) {
+    setBusy(el, false);
+    if (!res.ok) { S.auth = { mode: 'forgot', msg: res.error }; drawAuth(); return; }
+    try { history.replaceState(null, '', location.pathname); } catch (e) { /* ignore */ }
+    RESET_TOKEN = ''; store.del('mt_token'); store.del('mt_user'); S.token = '';
+    S.auth = { mode: 'login', ok: true, msg: 'Your password was changed. Please sign in.' }; drawAuth();
+  }, function () { setBusy(el, false); authFail('Could not reach the server. Please try again.'); });
+};
+A.openChange = function () { S.auth = { mode: 'change', msg: '' }; renderAll(); };
+A.cancelChange = function () { S.auth = { mode: '', msg: '' }; renderAll(); };
+A.doChange = function (el) {
+  var cur = val('au_cur'), p1 = val('au_new'), p2 = val('au_new2'); ['au_cur', 'au_new', 'au_new2'].forEach(function (i) { setErr(i, ''); });
+  if (!cur) return setErr('au_cur', 'Please enter your current password.');
+  var pr = pwProblem(p1, S.user ? S.user.email : ''); if (pr) return setErr('au_new', pr);
+  if (p1 === cur) return setErr('au_new', 'Please choose a different password from the old one.');
+  if (p1 !== p2) return setErr('au_new2', 'The two passwords are not the same.');
+  if (!S.online) return authFail('You are offline. Changing the password needs a connection.');
+  setBusy(el, true, 'Saving');
+  server('changePassword', { current: cur, password: p1 }).then(function (res) {
+    setBusy(el, false);
+    if (!res.ok) { setErr(/current/i.test(res.error) ? 'au_cur' : 'au_new', res.error); return; }
+    var first = S.user && S.user.mustChange;
+    S.user = res.user; store.set('mt_user', JSON.stringify(S.user)); S.auth = { mode: '', msg: '' };
+    if (first || !S.data) startSession(); else { renderAll(); toast('Password changed', 'ok'); }
+  }, function () { setBusy(el, false); authFail('Could not reach the server. Please try again.'); });
+};
+/** The server says our session is no longer valid: go back to sign-in, keeping unsynced entries safe. */
+function authLost() {
+  if (!S.token && S.auth.mode === 'login') return;
+  S.token = ''; store.del('mt_token'); S.queue = []; S.failed = []; S.data = null; S.idx = null; closeAllSheets();
+  S.auth = { mode: 'login', msg: 'Your session ended. Please sign in again.', email: S.user ? S.user.email : '' }; renderAll();
+}
+A.logout = function () {
+  var pend = S.queue.length;
+  confirmSheet({ title: 'Sign out?', intro: pend ? 'You have ' + pend + ' entr' + (pend === 1 ? 'y' : 'ies') + ' that ' + (pend === 1 ? 'is' : 'are') + ' not synced yet. They stay safely on this phone and will upload when you sign in again.' : 'You will need your email and password to sign in again.', ok: 'Sign out' }).then(function (yes) {
+    if (!yes) return;
+    var old = uk('mt_cache_v1'), email = S.user ? S.user.email : '';
+    server('logout').then(function () {}, function () {});
+    store.del(old); store.del('mt_token'); store.del('mt_user');
+    S.token = ''; S.user = null; S.data = null; S.idx = null; S.queue = []; S.failed = []; S.uid = ''; closeAllSheets();
+    S.auth = { mode: 'login', msg: '', email: email }; go('dashboard');
+  });
+};
+
+/* -------------------------------- Users (admin) -------------------------------- */
+function copyText(t) {
+  try { if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t).then(function () { return true; }, function () { return false; }); } catch (e) { /* fall through */ }
+  return new Promise(function (resolve) {
+    var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+    var ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; } document.body.removeChild(ta); resolve(ok);
+  });
+}
+V.users = function () {
+  var h = '<div class="page"><div class="page-head"><div><div class="h1">Users</div><div class="sub">Everyone who can sign in. Each medrep has their own private data.</div></div><button class="btn primary sm" data-a="addUser">' + ico('plus') + ' Add medrep</button></div><div class="card list" id="userList">' + skelRows(3) + '</div><div class="footer">Powered by ' + LAYAW_LINK + '</div></div>';
+  return { html: h, after: loadUsers };
+};
+function loadUsers() {
+  if (!S.user || S.user.role !== 'Admin') { $('#userList').innerHTML = emptyState('users', 'Admins only', 'Only the administrator can manage users.'); return; }
+  server('adminListUsers').then(function (res) {
+    var box = $('#userList'); if (!box) return;
+    if (!res.ok) { box.innerHTML = emptyState('users', 'Could not load users', res.error); return; }
+    S.users = res.users;
+    box.innerHTML = res.users.map(function (u) {
+      return '<button class="item" data-a="openUser" data-id="' + esc(u.uid) + '"><span class="avatar">' + esc(u.name.charAt(0).toUpperCase()) + '</span><div class="main"><div class="t">' + esc(u.name) + (u.role === 'Admin' ? ' <span class="tag">Admin</span>' : '') + (u.active ? '' : ' <span class="tag" style="color:var(--gray);background:var(--gray-bg)">Off</span>') + '</div><div class="s">' + esc(u.email) + '</div><div class="s">' + (u.lastLogin ? 'Last sign-in ' + esc(fmtDate(String(u.lastLogin).slice(0, 10))) : 'Has not signed in yet') + '</div></div><div class="e">' + (u.mustChange ? '<span class="pill amber">Temp password</span>' : u.active ? '<span class="pill green">Active</span>' : grayPill('Off')) + '</div></button>';
+    }).join('') || emptyState('users', 'No users yet', 'Add your first medrep.');
+  }, function () { var box = $('#userList'); if (box) box.innerHTML = emptyState('users', 'No connection', 'Could not reach the server.'); });
+}
+function credentialSheet(title, name, email, temp, url) {
+  var text = 'MedTrack login for ' + name + '\nLink: ' + url + '\nEmail: ' + email + '\nTemporary password: ' + temp + '\n(You will be asked to choose your own password the first time you sign in.)';
+  S.cred = text;
+  openSheet({ title: title, html: '<div class="banner warn">' + ico('alert') + '<span>The temporary password is shown only once. Copy it now and send it to ' + esc(name) + '.</span></div><div class="card" style="box-shadow:none;margin-top:12px"><div class="pad" style="padding:6px 16px"><div class="kv"><span>Link</span><b style="word-break:break-all;font-size:12.5px">' + esc(url) + '</b></div><div class="kv"><span>Email</span><b>' + esc(email) + '</b></div><div class="kv"><span>Temporary password</span><b style="font-size:18px;letter-spacing:.04em">' + esc(temp) + '</b></div></div></div>', foot: '<button class="btn primary" data-a="copyCred">Copy all details</button>' });
+}
+A.copyCred = function () { copyText(S.cred || '').then(function (ok) { toast(ok ? 'Copied. Paste it into a message.' : 'Could not copy. Please select and copy the text.', ok ? 'ok' : 'warn'); }); };
+A.addUser = function () {
+  openSheet({ title: 'Add medrep', html: '<div class="form">' + fld('nu_name', 'Full name', { req: 1, attrs: 'maxlength="80" autocomplete="off"' }) + fld('nu_email', 'Email (used to sign in)', { req: 1, type: 'email', attrs: 'autocapitalize="off" autocomplete="off"' }) + fld('nu_role', 'Role', { html: '<select class="select" id="nu_role"><option value="Rep">Medrep</option><option value="Admin">Administrator</option></select>' }) + '<p class="hint">We create their own private spreadsheet in your Drive and a temporary password for you to hand over.</p></div>', foot: '<button class="btn" data-a="sheetCancel">Cancel</button><button class="btn primary" id="nuGo" data-a="saveUser">Create account</button>' });
+};
+A.saveUser = function (el) {
+  var name = val('nu_name').trim(), email = val('nu_email').trim(); setErr('nu_name', ''); setErr('nu_email', ''); var ok = true;
+  if (!name) ok = setErr('nu_name', 'Please enter the name.') && ok;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) ok = setErr('nu_email', 'Please enter a valid email address.') && ok;
+  if (!ok) return;
+  if (!S.online) return toast('Creating an account needs a connection.', 'warn');
+  setBusy(el, true, 'Creating (this takes a few seconds)');
+  server('adminCreateUser', { name: name, email: email, role: val('nu_role') }, 120000).then(function (res) {
+    setBusy(el, false);
+    if (!res.ok) return setErr('nu_email', res.error);
+    closeAllSheets(); credentialSheet('Account created', res.user.name, res.user.email, res.temp, res.url); loadUsers();
+  }, function () { setBusy(el, false); toast('Could not reach the server. Check the Users list before trying again.', 'err'); });
+};
+A.openUser = function (el) {
+  var u = (S.users || []).filter(function (x) { return x.uid === el.getAttribute('data-id'); })[0]; if (!u) return;
+  var self = S.user && u.uid === S.user.uid;
+  openSheet({ title: u.name, html: '<div class="card" style="box-shadow:none"><div class="pad" style="padding:6px 16px"><div class="kv"><span>Email</span><b>' + esc(u.email) + '</b></div><div class="kv"><span>Role</span><b>' + (u.role === 'Admin' ? 'Administrator' : 'Medrep') + '</b></div><div class="kv"><span>Status</span><b>' + (u.active ? 'Active' : 'Switched off') + '</b></div><div class="kv"><span>Last sign-in</span><b>' + (u.lastLogin ? esc(fmtDate(String(u.lastLogin).slice(0, 10))) : 'Never') + '</b></div></div></div>' + (u.sheetUrl ? '<p style="margin-top:12px"><a href="' + esc(u.sheetUrl) + '" target="_blank" rel="noopener noreferrer">Open their spreadsheet in Drive</a></p>' : ''),
+    foot: '<button class="btn" data-a="resetUserPw" data-id="' + esc(u.uid) + '">Reset password</button>' + (self ? '' : '<button class="btn ' + (u.active ? 'danger' : 'primary') + '" data-a="toggleUser" data-id="' + esc(u.uid) + '">' + (u.active ? 'Switch off' : 'Switch on') + '</button>') });
+};
+A.resetUserPw = function (el) {
+  var id = el.getAttribute('data-id'), u = (S.users || []).filter(function (x) { return x.uid === id; })[0];
+  confirmSheet({ title: 'Reset password for ' + u.name + '?', intro: 'They will be signed out everywhere and must use a new temporary password.', ok: 'Reset password' }).then(function (yes) {
+    if (!yes) return;
+    server('adminResetPassword', { uid: id }).then(function (res) { if (!res.ok) return alertSheet('Could not reset', res.error); closeAllSheets(); credentialSheet('New temporary password', res.name, res.email, res.temp, S.flags.appUrl || ''); loadUsers(); }, function () { toast('Could not reach the server.', 'err'); });
+  });
+};
+A.toggleUser = function (el) {
+  var id = el.getAttribute('data-id'), u = (S.users || []).filter(function (x) { return x.uid === id; })[0];
+  confirmSheet({ title: (u.active ? 'Switch off ' : 'Switch on ') + u.name + '?', intro: u.active ? 'They will be signed out and cannot sign in. Their data is kept.' : 'They can sign in again.', ok: u.active ? 'Switch off' : 'Switch on', tone: u.active ? 'danger' : 'primary' }).then(function (yes) {
+    if (!yes) return;
+    server('adminSetActive', { uid: id, active: !u.active }).then(function (res) { if (!res.ok) return alertSheet('Could not change', res.error); closeAllSheets(); toast('Saved', 'ok'); loadUsers(); }, function () { toast('Could not reach the server.', 'err'); });
+  });
+};
+
 /* ------------------------------------ Boot ------------------------------------ */
+/** Loads the saved copy of this user's data (instant start, works offline). */
+function loadCache() {
+  var cached = store.get(uk('mt_cache_v1'));
+  if (!cached) return;
+  try {
+    var c = JSON.parse(cached);
+    if (c && c.data) { S.data = c.data; S.flags = c.flags || {}; S.data.alerts = S.data.alerts || []; S.fromCache = true; S.loading = false; reapplyPending(); reindex(); savedBrand(); }
+  } catch (e) { S.data = null; }
+}
+/** Starts a signed-in session: show saved data at once, then refresh and sync pending entries. */
+function startSession() {
+  loadQueue(); loadCache(); renderAll();
+  if (S.online) refresh(true).then(flush);
+  else if (!S.data) { S.loading = false; S.loadError = 'You are offline and no saved data is on this phone yet. Open MedTrack once with signal.'; renderAll(); }
+}
 function boot() {
   applyTheme(store.get('mt_theme') || 'auto');
   S.route = parseHash();
-  loadQueue();
-  var cached = store.get('mt_cache_v1');
-  if (cached) {
-    try {
-      var c = JSON.parse(cached);
-      if (c && c.data) { S.data = c.data; S.flags = c.flags || {}; S.data.alerts = S.data.alerts || []; S.fromCache = true; S.loading = false; reapplyPending(); reindex(); savedBrand(); }
-    } catch (e) { S.data = null; }
+  if (MULTI) {
+    if (RESET_TOKEN) { S.auth = { mode: 'reset', msg: '' }; renderAll(); return; }
+    var tk = store.get('mt_token'), us = store.get('mt_user');
+    if (tk && us) {
+      try { S.user = JSON.parse(us); S.token = tk; S.uid = S.user.uid; } catch (e) { S.token = ''; }
+    }
+    if (!S.token) { S.auth = { mode: 'login', msg: '' }; renderAll(); return; }
+    if (S.user.mustChange) { S.auth = { mode: 'change', msg: 'Please choose your own password to continue.' }; renderAll(); return; }
   }
-  renderAll();
-  if (S.online) refresh(true).then(flush);
-  else if (!S.data) { S.loading = false; S.loadError = 'You are offline and no saved data is on this phone yet. Open MedTrack once with signal.'; renderAll(); }
-  setInterval(function () { if (S.queue.length && S.online) flush(); }, 60000);
+  startSession();
+  setInterval(function () { if (S.queue.length && S.online && (!MULTI || S.token)) flush(); }, 60000);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 

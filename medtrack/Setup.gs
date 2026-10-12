@@ -64,7 +64,7 @@ function formatRowsFor_(name) {
 
 /** Creates (or repairs) one table sheet: headers, styling, frozen row, formats, validation. */
 function ensureSheet_(ss, name) {
-  var cols = SCHEMA[name];
+  var cols = schemaOf_(name);
   var sh = ss.getSheetByName(name) || ss.insertSheet(name);
   var want = formatRowsFor_(name);
   if (sh.getMaxRows() < want + 1) sh.insertRowsAfter(sh.getMaxRows(), want + 1 - sh.getMaxRows());
@@ -85,7 +85,7 @@ function ensureSheet_(ss, name) {
 
 /** Applies list/checkbox/number validation to the key columns of each sheet. */
 function applyValidation_(ss) {
-  function col(name, header) { return SCHEMA[name].map(function (c) { return c[0]; }).indexOf(header) + 1; }
+  function col(name, header) { return schemaOf_(name).map(function (c) { return c[0]; }).indexOf(header) + 1; }
   function range(name, header) { var s = ss.getSheetByName(name); return s.getRange(2, col(name, header), formatRowsFor_(name), 1); }
   function list(name, header, values) { range(name, header).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(values, true).setAllowInvalid(false).build()); }
   function check(name, header) { range(name, header).setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build()); }
@@ -121,31 +121,40 @@ function ensureImportSheet_(ss) {
   return sh;
 }
 
-/** One-run setup: sheets, formatting, validation, default settings and the daily trigger. Safe to run again. */
-function runSetup() {
-  var ss = getSS_();
+/** Creates or repairs every table sheet of one spreadsheet (master copy or a medrep's own). */
+function setupSpreadsheet_(ss, opts) {
+  opts = opts || {};
   ss.setSpreadsheetTimeZone(APP.TZ);
-  PropertiesService.getScriptProperties().setProperty('SS_ID', ss.getId());
   Object.keys(SCHEMA).forEach(function (name) { ensureSheet_(ss, name); });
   ensureImportSheet_(ss);
   applyValidation_(ss);
 
   var existing = {};
-  readTable_(SH.SETTINGS).rows.forEach(function (r) { existing[r.Key] = true; });
-  var email = '';
-  try { email = Session.getEffectiveUser().getEmail() || ''; } catch (e) { email = ''; }
+  readTable_(SH.SETTINGS, ss).rows.forEach(function (r) { existing[r.Key] = true; });
+  var email = opts.email || '';
+  if (!email && !opts.tenant) { try { email = Session.getEffectiveUser().getEmail() || ''; } catch (e) { email = ''; } }
   var add = DEFAULT_SETTINGS.filter(function (d) { return !existing[d[0]]; }).map(function (d) {
-    return { Key: d[0], Value: d[0] === 'AlertEmail' ? email : d[1], Description: d[2] };
+    var v = d[1];
+    if (d[0] === 'AlertEmail') v = email;
+    if (d[0] === 'BusinessName' && opts.businessName) v = opts.businessName;
+    return { Key: d[0], Value: v, Description: d[2] };
   });
-  if (add.length) appendRows_(SH.SETTINGS, add);
+  if (add.length) appendRows_(SH.SETTINGS, add, ss);
 
   var blank = ss.getSheetByName('Sheet1') || ss.getSheetByName('Sheet 1');
   if (blank && ss.getSheets().length > 1 && blank.getLastRow() === 0) ss.deleteSheet(blank);
   var order = ['Products', 'Batches', 'Deliveries', 'Accounts', 'Movements', 'AlertLog', 'Settings', 'Import'];
-  order.forEach(function (n, i) { var s = ss.getSheetByName(n); if (s) { ss.setActiveSheet(s); ss.moveActiveSheet(i + 1); } });
+  order.forEach(function (n, i) { var sh = ss.getSheetByName(n); if (sh) { ss.setActiveSheet(sh); ss.moveActiveSheet(i + 1); } });
+}
+
+/** One-run setup: sheets, formatting, validation, default settings and the daily trigger. Safe to run again. */
+function runSetup() {
+  var ss = getSS_();
+  PropertiesService.getScriptProperties().setProperty('SS_ID', ss.getId());
+  setupSpreadsheet_(ss, {});
   installDailyTrigger_();
   invalidateCache_();
-  notify_('MedTrack is set up.\n\nNext: add your Telegram details in the app (More > Settings), deploy the web app, and open it on your phone.\nTo try it with demo data run: MedTrack menu > Load demo data.');
+  notify_('MedTrack is set up.\n\nNext: add your Telegram details in the app (More > Settings), deploy the web app, and open it on your phone.\nTo try it with demo data run: MedTrack menu > Load demo data.\nTo sell to several medreps with their own logins, run runMultiUserSetup.');
 }
 
 /* ------------------------------ Demo data ---------------------------- */

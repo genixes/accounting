@@ -8,7 +8,7 @@
 var APP = {
   NAME: 'MedTrack',
   TZ: 'Asia/Manila',
-  VERSION: '1.1.0',
+  VERSION: '2.0.0',
   URL: 'https://layawsystem.com',
   CACHE_TTL: 21600,      // seconds (6 hours, the CacheService maximum)
   CACHE_CHUNK: 30000,    // characters per cache entry (safe under the 100 KB limit)
@@ -42,6 +42,30 @@ var SCHEMA = {
   AlertLog: [['AlertID','s'],['Date','t'],['BatchID','s'],['Threshold','s'],['Channel','s'],['Status','s']],
   Settings: [['Key','s'],['Value','s'],['Description','s']]
 };
+
+/** Master-sheet tables used only in multi-user mode (accounts, sessions, password-reset tokens). */
+var MASTER_SCHEMA = {
+  Users: [['UserID','s'],['Email','s'],['Name','s'],['Role','s'],['Active','b'],['PasswordHash','s'],['Salt','s'],['MustChange','b'],['SpreadsheetID','s'],['CreatedAt','t'],['LastLoginAt','t'],['AlertHour','n'],['LastAlertDate','d']],
+  Sessions: [['TokenHash','s'],['UserID','s'],['CreatedAt','t'],['ExpiresAt','n']],
+  ResetTokens: [['TokenHash','s'],['UserID','s'],['ExpiresAt','n'],['Used','b'],['CreatedAt','t']]
+};
+var USERS = 'Users', SESSIONS = 'Sessions', RESETS = 'ResetTokens';
+
+/** Column schema for any table (tenant or master). */
+function schemaOf_(name) { return SCHEMA[name] || MASTER_SCHEMA[name]; }
+
+/* Per-request tenant context. In multi-user mode every user has their own spreadsheet. */
+var TENANT_ID_ = '';
+var CACHE_PFX_ = 'MT_';
+
+/** True when the system runs in multi-user mode (set by runMultiUserSetup). */
+function isMulti_() { return PropertiesService.getScriptProperties().getProperty('MULTI_USER') === '1'; }
+
+/** Secrets live in Script Properties, one set per tenant in multi-user mode. */
+function secretKey_(name) { return TENANT_ID_ ? name + '_' + TENANT_ID_ : name; }
+function getSecret_(name) { return PropertiesService.getScriptProperties().getProperty(secretKey_(name)); }
+function setSecret_(name, v) { PropertiesService.getScriptProperties().setProperty(secretKey_(name), v); }
+function delSecret_(name) { PropertiesService.getScriptProperties().deleteProperty(secretKey_(name)); }
 
 var MOVEMENT_TYPES = ['Sample','Consignment','Sale','Return','Pullout','Adjustment'];
 var ACCOUNT_TYPES = ['Doctor','Pharmacy','Hospital','Clinic'];

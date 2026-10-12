@@ -12,7 +12,7 @@ In the Sheet: **Extensions → Apps Script**. A code editor opens.
 ## 3. Paste the files
 1. Delete the sample `Code.gs` content.
 2. Click **+** next to *Files* and add these, naming them exactly (the editor adds the extension itself):
-   - Script files: `Code`, `Config`, `Setup`, `Data`, `Alerts`, `Reports`
+   - Script files: `Code`, `Config`, `Setup`, `Data`, `Alerts`, `Reports`, `Auth`
    - HTML files: `Index`, `Styles`, `JavaScript`
 3. Paste the matching contents from this folder into each file.
 4. Click ⚙ **Project Settings**, tick **Show "appsscript.json" manifest file**, go back to the editor, open `appsscript.json` and paste in the provided one.
@@ -48,6 +48,26 @@ In the Sheet: **Extensions → Apps Script**. A code editor opens.
 - **Colors:** More → Settings → **Personalize**. Pick a style or your own colors; you see the change right away. Tap **Save settings** to keep it (it also colors your email alerts and reports). Expiry warning colors (red, amber, blue, green) never change.
 - **Where reports are saved:** More → Settings → **Where to save reports**. In Google Drive open your folder, copy its address from the browser and paste it. From then on every PDF or Excel report is saved in that folder automatically (you still get the download). The folder must be in the same Google account that owns MedTrack.
 - After updating the files, redeploy: **Deploy → Manage deployments → ✏ → Version: New version → Deploy**.
+
+## 10. Selling to several medreps (own login for each)
+This turns MedTrack into a multi-user system. Everyone signs in with their email and a password; each medrep gets their **own private spreadsheet**, created automatically inside a Drive folder called **MedTrack Clients** in *your* account.
+
+1. Add a new script file named **Auth** and paste `Auth.gs`. Replace the other changed files too, then save.
+2. Run the function **runMultiUserSetup** (Setup.gs is not needed; pick it from the Auth.gs file). Allow the permissions. A message shows **your admin email and a temporary password** (also in the Execution log).
+3. **Deploy → Manage deployments → ✏ → Version: New version**, and set **Who has access: Anyone**. (Medreps do not need a Google account. Login is handled by MedTrack.) Deploy and copy the web app link.
+4. Open the link, sign in as admin with the temporary password. MedTrack asks you to choose your own password.
+5. **More → Manage users → Add medrep**: enter their name and email. You get a card with the **link, email and temporary password**. Tap **Copy all details** and send it to them. The password is shown only once.
+6. The medrep signs in, and is asked to choose their own password before anything else.
+- **Forgot password:** on the sign-in screen they tap *Forgot password?*. An email with a one-time link (valid 60 minutes) is sent from your Gmail.
+- **Lost password / new device:** Manage users → tap the medrep → *Reset password* gives a new temporary password.
+- **Leaving medrep:** Manage users → *Switch off*. Their data stays in Drive.
+- Passwords are stored only as a salted hash, never as readable text.
+
+**Good to know**
+- Alerts run from an hourly check, one medrep at a time, at the hour each medrep chose in Settings.
+- Emails (alerts and password resets) are sent from your Google account. A free Gmail account can send about 100 emails a day, Google Workspace about 1,500. For many medreps use Workspace.
+- Every medrep's data lives in a spreadsheet you own. You can open it from Manage users. Tell your clients this, and keep their data private.
+- To go back to single-user mode run **stopMultiUser** and deploy with *Only myself*.
 
 ## Daily use
 - **Delivery arrives:** More → Receive delivery (or the dashboard button).

@@ -5,8 +5,11 @@
  */
 
 /** Serves the single-page app. Access is restricted by the deployment ("Only myself"). */
-function doGet() {
+function doGet(e) {
   var tpl = HtmlService.createTemplateFromFile('Index');
+  var reset = e && e.parameter && /^[A-Za-z0-9]{30,64}$/.test(e.parameter.reset || '') ? e.parameter.reset : '';
+  tpl.multiJson = isMulti_() ? 'true' : 'false';
+  tpl.resetJson = JSON.stringify(reset);
   return tpl.evaluate()
     .setTitle('MedTrack')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
@@ -37,27 +40,47 @@ function actions_() {
     exportPdf: function (p) { return exportReportPdf_(p); },
     exportXlsx: function (p) { return exportReportXlsx_(p); },
     validateImport: function () { return validateImport_(); },
-    runImport: function (p) { return runImport_(p); }
+    runImport: function (p) { return runImport_(p); },
+    login: login_,
+    logout: logout_,
+    changePassword: changePassword_,
+    requestReset: requestReset_,
+    resetPassword: resetPassword_,
+    adminListUsers: adminListUsers_,
+    adminCreateUser: adminCreateUser_,
+    adminResetPassword: adminResetPassword_,
+    adminSetActive: adminSetActive_
   };
 }
 
+/** Actions that work before sign-in (multi-user mode). */
+var PUBLIC_ACTIONS_ = { login: 1, requestReset: 1, resetPassword: 1 };
+
 /**
  * Single entry point for the client. Always returns a JSON string:
- * {ok:true, ...result} or {ok:false, error:"human readable message"}.
- * Raw errors are logged but never shown to the user.
+ * {ok:true, ...result} or {ok:false, error:"human readable message", code?:"AUTH"}.
+ * In multi-user mode every action except login/reset needs a valid session token, and all data
+ * access is switched to that user's own spreadsheet. Raw errors are logged, never shown.
  */
-function api(action, json) {
+function api(action, json, token) {
   try {
     var fn = actions_()[action];
     if (!fn) throw userError_('That action is not available.');
-    if (action === 'loadAll') return loadAll_();
+    var user = null;
+    if (isMulti_() && !PUBLIC_ACTIONS_[action]) {
+      user = authenticate_(token);
+      if (user.MustChange && action !== 'changePassword' && action !== 'logout') { var ce = userError_('Please choose your own password first.'); ce.code = 'CHANGE'; throw ce; }
+    }
+    if (action === 'loadAll') return loadAll_(user);
     var payload = json ? JSON.parse(json) : {};
-    var out = fn(payload) || {};
+    var out = fn(payload, user, token) || {};
     out.ok = true;
     return JSON.stringify(out);
   } catch (e) {
     if (!e || !e.isUser) console.error('api(' + action + ') failed: ' + (e && e.stack ? e.stack : e));
     var msg = e && e.isUser ? e.message : 'Something went wrong on our side. Your data is safe, please try again.';
-    return JSON.stringify({ ok: false, error: msg });
+    var res = { ok: false, error: msg };
+    if (e && e.code) res.code = e.code;
+    return JSON.stringify(res);
   }
 }

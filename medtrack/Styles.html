@@ -279,5 +279,14 @@ h1,h2,h3,p{margin:0}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
 }
+/* ---- Icon sizing inside lists, chips and avatars (prevents oversized SVGs) ---- */
+.item>svg{width:18px;height:18px;flex:none;color:var(--muted)}
+.avatar svg{width:20px;height:20px}
+.chip svg{width:16px;height:16px;flex:none}
+.link svg,.tag svg{width:16px;height:16px}
+/* ---- Sign-in screens ---- */
+.auth-mode .topbar,.auth-mode .sidebar,.auth-mode .bottomnav,.auth-mode .fab{display:none!important}
+.auth-mode .view{margin:0 auto;max-width:520px;padding:calc(24px + env(safe-area-inset-top)) 16px 40px}
+.authwrap{max-width:440px;margin:6vh auto 0;padding:26px 22px;display:flex;flex-direction:column;gap:14px;animation:rise .28s var(--ease);box-shadow:var(--shadow-2)}
 @media print{.topbar,.bottomnav,.sidebar,.fab,.toasts{display:none!important}}
 </style>

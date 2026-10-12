@@ -14,6 +14,7 @@
     try { var t = localStorage.getItem('mt_theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}
     try { var bv = JSON.parse(localStorage.getItem('mt_brandvars') || 'null'); if (bv) for (var k in bv) document.documentElement.style.setProperty(k, bv[k]); } catch (e) {}
   </script>
+  <script>window.MT_MULTI = <?!= multiJson ?>; window.MT_RESET = <?!= resetJson ?>;</script>
   <?!= include('Styles'); ?>
 </head>
 <body>

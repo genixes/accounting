@@ -8,8 +8,8 @@
 /* ----------------------------- Sheet I/O ----------------------------- */
 
 /** Returns a sheet by name or throws a friendly error if setup was not run. */
-function getSheet_(name) {
-  var sh = getSS_().getSheetByName(name);
+function getSheet_(name, ss) {
+  var sh = (ss || getSS_()).getSheetByName(name);
   if (!sh) throw userError_('The "' + name + '" sheet is missing. Please run runSetup from the Apps Script editor.');
   return sh;
 }
@@ -31,9 +31,9 @@ function convertCell_(v, type) {
 }
 
 /** Reads a whole table with ONE getDataRange().getValues() call. Returns {sheet, rows}; each row has _row (sheet row number). */
-function readTable_(name) {
-  var sheet = getSheet_(name);
-  var cols = SCHEMA[name];
+function readTable_(name, ss) {
+  var sheet = getSheet_(name, ss);
+  var cols = schemaOf_(name);
   var values = sheet.getDataRange().getValues();
   var rows = [];
   for (var i = 1; i < values.length; i++) {
@@ -48,7 +48,7 @@ function readTable_(name) {
 
 /** Converts an object to a row array in schema order. */
 function objToRow_(name, o) {
-  return SCHEMA[name].map(function (c) {
+  return schemaOf_(name).map(function (c) {
     var v = o[c[0]];
     if (v == null) return c[1] === 'n' ? 0 : (c[1] === 'b' ? false : '');
     return v;
@@ -56,27 +56,27 @@ function objToRow_(name, o) {
 }
 
 /** Appends many rows with a single setValues() call and sets their _row numbers. */
-function appendRows_(name, objs) {
+function appendRows_(name, objs, ss) {
   if (!objs.length) return;
-  var sheet = getSheet_(name);
+  var sheet = getSheet_(name, ss);
   var start = sheet.getLastRow() + 1;
   if (start + objs.length - 1 > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), Math.max(objs.length, 500));
   var values = objs.map(function (o) { return objToRow_(name, o); });
-  sheet.getRange(start, 1, values.length, SCHEMA[name].length).setValues(values);
+  sheet.getRange(start, 1, values.length, schemaOf_(name).length).setValues(values);
   objs.forEach(function (o, i) { o._row = start + i; });
 }
 
 /** Overwrites one existing row (object must carry _row). */
-function updateRow_(name, o) {
-  getSheet_(name).getRange(o._row, 1, 1, SCHEMA[name].length).setValues([objToRow_(name, o)]);
+function updateRow_(name, o, ss) {
+  getSheet_(name, ss).getRange(o._row, 1, 1, schemaOf_(name).length).setValues([objToRow_(name, o)]);
 }
 
 /** Overwrites a whole table's body in one call (used for bulk status refresh). */
-function rewriteTable_(name, objs) {
+function rewriteTable_(name, objs, ss) {
   if (!objs.length) return;
-  var sheet = getSheet_(name);
+  var sheet = getSheet_(name, ss);
   var values = objs.map(function (o) { return objToRow_(name, o); });
-  sheet.getRange(2, 1, values.length, SCHEMA[name].length).setValues(values);
+  sheet.getRange(2, 1, values.length, schemaOf_(name).length).setValues(values);
 }
 
 /** Strips internal fields when serialising. */
@@ -105,8 +105,8 @@ function cachePut_(str) {
     var c = CacheService.getScriptCache();
     var n = Math.ceil(str.length / APP.CACHE_CHUNK);
     if (n > 90) return;
-    var o = { MT_N: String(n) };
-    for (var i = 0; i < n; i++) o['MT_C' + i] = str.substr(i * APP.CACHE_CHUNK, APP.CACHE_CHUNK);
+    var o = {}; o[CACHE_PFX_ + 'N'] = String(n);
+    for (var i = 0; i < n; i++) o[CACHE_PFX_ + 'C' + i] = str.substr(i * APP.CACHE_CHUNK, APP.CACHE_CHUNK);
     c.putAll(o, APP.CACHE_TTL);
   } catch (e) { /* caching is an optimisation only */ }
 }
@@ -115,15 +115,15 @@ function cachePut_(str) {
 function cacheGet_() {
   try {
     var c = CacheService.getScriptCache();
-    var n = parseInt(c.get('MT_N'), 10);
+    var n = parseInt(c.get(CACHE_PFX_ + 'N'), 10);
     if (!n) return null;
     var keys = [];
-    for (var i = 0; i < n; i++) keys.push('MT_C' + i);
+    for (var i = 0; i < n; i++) keys.push(CACHE_PFX_ + 'C' + i);
     var got = c.getAll(keys);
     var out = '';
     for (var j = 0; j < n; j++) {
-      if (got['MT_C' + j] == null) return null;
-      out += got['MT_C' + j];
+      if (got[CACHE_PFX_ + 'C' + j] == null) return null;
+      out += got[CACHE_PFX_ + 'C' + j];
     }
     return out;
   } catch (e) { return null; }
@@ -133,9 +133,9 @@ function cacheGet_() {
 function invalidateCache_() {
   try {
     var c = CacheService.getScriptCache();
-    var n = parseInt(c.get('MT_N'), 10) || 0;
-    var keys = ['MT_N'];
-    for (var i = 0; i < Math.max(n, 0); i++) keys.push('MT_C' + i);
+    var n = parseInt(c.get(CACHE_PFX_ + 'N'), 10) || 0;
+    var keys = [CACHE_PFX_ + 'N'];
+    for (var i = 0; i < Math.max(n, 0); i++) keys.push(CACHE_PFX_ + 'C' + i);
     c.removeAll(keys);
   } catch (e) { /* ignore */ }
 }
@@ -161,7 +161,7 @@ function getSettings_() {
   DEFAULT_SETTINGS.forEach(function (d) { map[d[0]] = d[1]; });
   var t = readTable_(SH.SETTINGS);
   t.rows.forEach(function (r) { if (r.Key) map[r.Key] = r.Value; });
-  if (!map.AlertEmail) {
+  if (!map.AlertEmail && !TENANT_ID_) {
     try { map.AlertEmail = Session.getEffectiveUser().getEmail() || ''; } catch (e) { /* ignore */ }
   }
   return map;
@@ -226,16 +226,15 @@ function saveSettings_(p) {
   if ('SmsContentType' in s) clean.SmsContentType = (s.SmsContentType === 'json') ? 'json' : 'form';
   if ('SmsBodyTemplate' in s) clean.SmsBodyTemplate = str_(s.SmsBodyTemplate, 600);
 
-  var props = PropertiesService.getScriptProperties();
   var secrets = p.secrets || {};
   if (typeof secrets.telegramToken === 'string' && secrets.telegramToken) {
-    if (secrets.telegramToken === '__REMOVE__') props.deleteProperty('TELEGRAM_BOT_TOKEN');
+    if (secrets.telegramToken === '__REMOVE__') delSecret_('TELEGRAM_BOT_TOKEN');
     else if (!/^\d{5,}:[A-Za-z0-9_-]{20,}$/.test(secrets.telegramToken.trim())) throw userError_('That Telegram bot token does not look right. Copy it again from BotFather.');
-    else props.setProperty('TELEGRAM_BOT_TOKEN', secrets.telegramToken.trim());
+    else setSecret_('TELEGRAM_BOT_TOKEN', secrets.telegramToken.trim());
   }
   if (typeof secrets.smsApiKey === 'string' && secrets.smsApiKey) {
-    if (secrets.smsApiKey === '__REMOVE__') props.deleteProperty('SMS_API_KEY');
-    else props.setProperty('SMS_API_KEY', secrets.smsApiKey.trim());
+    if (secrets.smsApiKey === '__REMOVE__') delSecret_('SMS_API_KEY');
+    else setSecret_('SMS_API_KEY', secrets.smsApiKey.trim());
   }
 
   var timeChanged = false;
@@ -255,7 +254,7 @@ function saveSettings_(p) {
     if (sheet.getLastRow() > 1) sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).clearContent();
     sheet.getRange(2, 1, merged.length, 3).setValues(merged.map(function (m) { return [m.Key, m.Value, m.Description]; }));
   });
-  if (timeChanged) installDailyTrigger_();
+  if (timeChanged) { if (TENANT_ID_) syncAlertHour_(); else installDailyTrigger_(); }
   return { settings: getSettings_(), flags: secretFlags_() };
 }
 
@@ -270,8 +269,7 @@ function driveFolderId_(u) {
 
 /** Tells the client which secrets exist without ever returning them. */
 function secretFlags_() {
-  var props = PropertiesService.getScriptProperties();
-  return { telegramTokenSet: !!props.getProperty('TELEGRAM_BOT_TOKEN'), smsKeySet: !!props.getProperty('SMS_API_KEY') };
+  return { telegramTokenSet: !!getSecret_('TELEGRAM_BOT_TOKEN'), smsKeySet: !!getSecret_('SMS_API_KEY') };
 }
 
 /* ------------------------------ Ledger ------------------------------ */
@@ -390,7 +388,7 @@ function buildDataset_() {
 }
 
 /** Returns the full dataset as a JSON string (cached). One call powers the whole app. */
-function loadAll_() {
+function loadAll_(user) {
   var json = cacheGet_();
   if (!json) {
     json = JSON.stringify(buildDataset_(), jsonReplacer_);
@@ -401,10 +399,11 @@ function loadAll_() {
   var flags = secretFlags_();
   flags.sheetUrl = ss.getUrl() + (imp ? '#gid=' + imp.getSheetId() : '');
   flags.version = APP.VERSION;
+  flags.multi = isMulti_();
   var appUrl = '';
   try { appUrl = ScriptApp.getService().getUrl() || ''; } catch (e) { /* ignore */ }
   flags.appUrl = appUrl;
-  return '{"ok":true,"today":"' + todayYMD_() + '","flags":' + JSON.stringify(flags) + ',"data":' + json + '}';
+  return '{"ok":true,"today":"' + todayYMD_() + '","flags":' + JSON.stringify(flags) + ',"user":' + JSON.stringify(user ? publicUser_(user) : null) + ',"data":' + json + '}';
 }
 
 /* ------------------------- Products / Accounts ------------------------ */

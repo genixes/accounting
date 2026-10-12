@@ -8,6 +8,7 @@
 
 /** (Re)creates the daily time-driven trigger at the time saved in Settings. */
 function installDailyTrigger_() {
+  if (isMulti_()) return installMultiTrigger_();
   var t = (getSettings_().DailyAlertTime || '07:00').split(':');
   var hour = parseInt(t[0], 10), minute = parseInt(t[1], 10);
   if (isNaN(hour)) hour = 7;
@@ -20,6 +21,7 @@ function installDailyTrigger_() {
 
 /** Entry point for the daily trigger: refresh statuses, then send the digest if anything is due. */
 function dailyAlertJob() {
+  if (isMulti_()) return multiAlertJob_();
   try { recalcStatuses_(); } catch (e) { console.error('Status refresh failed: ' + e); }
   return runAlertEngine_();
 }
@@ -84,13 +86,12 @@ function groupItems_(items) {
 
 /** Which channels are switched on and have what they need. Returns [{name, ready, why}]. */
 function activeChannels_(s) {
-  var props = PropertiesService.getScriptProperties();
   var out = [];
   if (toBool_(s.EmailEnabled)) out.push({ name: 'Email', ready: !!s.AlertEmail, why: 'No alert email address is set.' });
-  if (toBool_(s.TelegramEnabled) && (props.getProperty('TELEGRAM_BOT_TOKEN') || s.TelegramChatId)) {
-    out.push({ name: 'Telegram', ready: !!(props.getProperty('TELEGRAM_BOT_TOKEN') && s.TelegramChatId), why: 'Telegram bot token or chat ID is missing.' });
+  if (toBool_(s.TelegramEnabled) && (getSecret_('TELEGRAM_BOT_TOKEN') || s.TelegramChatId)) {
+    out.push({ name: 'Telegram', ready: !!(getSecret_('TELEGRAM_BOT_TOKEN') && s.TelegramChatId), why: 'Telegram bot token or chat ID is missing.' });
   }
-  if (toBool_(s.SmsEnabled)) out.push({ name: 'SMS', ready: !!(props.getProperty('SMS_API_KEY') && s.SmsRecipient && s.SmsEndpoint), why: 'SMS key, number or provider address is missing.' });
+  if (toBool_(s.SmsEnabled)) out.push({ name: 'SMS', ready: !!(getSecret_('SMS_API_KEY') && s.SmsRecipient && s.SmsEndpoint), why: 'SMS key, number or provider address is missing.' });
   return out;
 }
 
@@ -263,7 +264,7 @@ function buildTelegramText_(groups, s, today) {
 
 /** Sends a Telegram message, splitting at line breaks when it exceeds the 4096-character limit. */
 function sendTelegram_(text, s) {
-  var token = PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN');
+  var token = getSecret_('TELEGRAM_BOT_TOKEN');
   if (!token || !s.TelegramChatId) return { ok: false, error: 'Telegram bot token or chat ID is missing.' };
   var chunks = [], cur = '';
   text.split('\n').forEach(function (line) {
@@ -296,7 +297,7 @@ function buildSmsText_(groups) {
 
 /** Sends an SMS through any provider described by endpoint + body template in Settings. */
 function sendSms_(text, s) {
-  var key = PropertiesService.getScriptProperties().getProperty('SMS_API_KEY');
+  var key = getSecret_('SMS_API_KEY');
   if (!key || !s.SmsRecipient || !s.SmsEndpoint) return { ok: false, error: 'SMS key, number or provider address is missing.' };
   var isJson = s.SmsContentType === 'json';
   var vals = { apikey: key, number: s.SmsRecipient, message: text, sender: s.SmsSender || '' };
@@ -336,7 +337,7 @@ function sendTestAlert_() {
 
 /** Finds the Telegram chat ID after he sends a message to his bot. */
 function detectTelegramChat_() {
-  var token = PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN');
+  var token = getSecret_('TELEGRAM_BOT_TOKEN');
   if (!token) throw userError_('Save your Telegram bot token first, then try again.');
   var resp = UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/getUpdates', { muteHttpExceptions: true });
   var body = {};
