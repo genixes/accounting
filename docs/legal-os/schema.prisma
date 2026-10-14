@@ -1,0 +1,694 @@
+// =============================================================================
+// LEGAL PRACTICE OS — Data model sketch (Prisma / PostgreSQL)
+// Matter-centric. Multi-tenant (one Tenant = one law firm).
+// Sketch only: not wired into /prisma/schema.prisma. Merge when ready.
+//
+// Conventions
+//  - Every business table carries tenantId (row-level isolation).
+//  - Money = Decimal(14,2) + currency. Never Float.
+//  - Ledger tables (TrustLedgerEntry, AuditLog) are APPEND-ONLY:
+//    corrections are reversing entries, never UPDATE/DELETE
+//    (enforce with DB triggers / revoked privileges in the real migration).
+//  - Soft-archive via status enums, not deletedAt, for legal records.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------------------------
+
+enum Role {
+  OWNER_PARTNER
+  PARTNER
+  ASSOCIATE
+  PARALEGAL
+  ACCOUNTANT
+  SECRETARY
+  CLIENT // portal user
+}
+
+enum ClientType {
+  INDIVIDUAL
+  COMPANY
+}
+
+enum MatterStatus {
+  INTAKE
+  OPEN
+  ON_HOLD
+  CLOSED
+  ARCHIVED
+}
+
+enum BillingArrangement {
+  HOURLY
+  FIXED_FEE
+  CONTINGENCY
+  RETAINER
+  MIXED
+}
+
+enum PartyRole {
+  CLIENT
+  OPPOSING_PARTY
+  OPPOSING_COUNSEL
+  CO_COUNSEL
+  WITNESS
+  JUDGE
+  EXPERT
+  OTHER
+}
+
+enum ConflictResult {
+  CLEAR
+  POTENTIAL
+  CONFLICT
+  WAIVED
+}
+
+enum TimeEntryStatus {
+  SUGGESTED // AI/auto-captured, awaiting lawyer approval
+  DRAFT
+  APPROVED
+  BILLED
+  WRITTEN_OFF
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING_REVIEW // partner review
+  SENT
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  VOID
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CHECK
+  CARD
+  CASH
+  TRUST_TRANSFER // applied from client trust funds
+}
+
+enum TrustEntryType {
+  DEPOSIT
+  DISBURSEMENT
+  TRANSFER_TO_OPERATING // earned fees moved out
+  REFUND
+  ADJUSTMENT_REVERSAL
+}
+
+enum DeadlineKind {
+  COURT_FILING
+  HEARING
+  STATUTE_OF_LIMITATIONS
+  INTERNAL
+  CLIENT_COMMITMENT
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+}
+
+enum Confidentiality {
+  NORMAL
+  RESTRICTED // only matter team
+  ETHICAL_WALL // explicit exclusions apply
+}
+
+// ---------------------------------------------------------------------------
+// TENANCY, USERS, ACCESS
+// ---------------------------------------------------------------------------
+
+model Tenant {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  name         String
+  baseCurrency String   @default("PHP")
+  timezone     String   @default("Asia/Manila")
+  createdAt    DateTime @default(now())
+
+  branding  TenantBranding?
+  offices   Office[]
+  users     User[]
+  clients   Client[]
+  contacts  Contact[]
+  matters   Matter[]
+  rateCards RateCard[]
+  invoices  Invoice[]
+  trustAccounts TrustAccount[]
+  documents Document[]
+  auditLogs AuditLog[]
+}
+
+model TenantBranding {
+  tenantId String @id
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  firmName String
+  logoUrl  String?
+  ink      String @default("#0B1220") // deep navy
+  accent   String @default("#B08D57") // champagne gold
+  invoiceFooter String @default("")
+}
+
+model Office {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name     String
+  city     String
+  users    User[]
+  matters  Matter[]
+
+  @@index([tenantId])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  officeId     String?
+  office       Office?  @relation(fields: [officeId], references: [id])
+  name         String
+  email        String
+  passwordHash String
+  role         Role
+  barNumber    String? // IBP / bar roll no.
+  initials     String
+  hourlyCost   Decimal? @db.Decimal(14, 2) // internal cost, for profitability
+  active       Boolean  @default(true)
+  mfaEnabled   Boolean  @default(false)
+  clientId     String? // set when role = CLIENT (portal)
+  createdAt    DateTime @default(now())
+
+  matterTeam   MatterTeamMember[]
+  timeEntries  TimeEntry[]
+  tasks        Task[]           @relation("TaskAssignee")
+  responsibleFor Matter[]       @relation("ResponsibleAttorney")
+  originated   Matter[]         @relation("OriginatingAttorney")
+  wallExclusions EthicalWall[]
+  auditLogs    AuditLog[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, role])
+}
+
+// ---------------------------------------------------------------------------
+// CLIENTS & CONTACTS
+// ---------------------------------------------------------------------------
+
+model Client {
+  id          String     @id @default(cuid())
+  tenantId    String
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type        ClientType
+  displayName String
+  legalName   String?
+  taxId       String? // TIN
+  email       String?
+  phone       String?
+  address     String?
+  kycVerifiedAt DateTime? // AML / KYC
+  engagementLetterSigned Boolean @default(false)
+  notes       String?
+  createdAt   DateTime   @default(now())
+
+  matters  Matter[]
+  invoices Invoice[]
+  trustAccounts TrustAccount[]
+  contacts Contact[]
+
+  @@index([tenantId, displayName])
+}
+
+// Any person/entity that can appear on a matter (also used for conflict search).
+model Contact {
+  id        String  @id @default(cuid())
+  tenantId  String
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientId  String?
+  client    Client? @relation(fields: [clientId], references: [id])
+  name      String
+  aliases   String[] // alternate spellings, former names — powers fuzzy conflict check
+  organization String?
+  email     String?
+  phone     String?
+
+  parties MatterParty[]
+
+  @@index([tenantId, name])
+}
+
+// ---------------------------------------------------------------------------
+// MATTERS (the center of gravity)
+// ---------------------------------------------------------------------------
+
+model Matter {
+  id            String       @id @default(cuid())
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  officeId      String?
+  office        Office?      @relation(fields: [officeId], references: [id])
+  clientId      String
+  client        Client       @relation(fields: [clientId], references: [id])
+  number        String // e.g. 2026-LIT-0042
+  title         String
+  practiceArea  String // Litigation, Corporate, Property, Family, IP, Labor...
+  status        MatterStatus @default(INTAKE)
+  confidentiality Confidentiality @default(NORMAL)
+  responsibleId String
+  responsible   User         @relation("ResponsibleAttorney", fields: [responsibleId], references: [id])
+  originatingId String?
+  originating   User?        @relation("OriginatingAttorney", fields: [originatingId], references: [id])
+  openedAt      DateTime     @default(now())
+  closedAt      DateTime?
+  description   String?
+
+  // Court / proceeding info (nullable for non-litigation)
+  court         String?
+  caseNumber    String?
+  jurisdiction  String?
+
+  billing       BillingArrangement @default(HOURLY)
+  fixedFeeAmount Decimal?  @db.Decimal(14, 2)
+  contingencyPct Decimal?  @db.Decimal(5, 2)
+  budgetAmount   Decimal?  @db.Decimal(14, 2) // for budget-vs-actual alerts
+  budgetAlertPct Int       @default(80)
+  rateCardId     String?
+  rateCard       RateCard? @relation(fields: [rateCardId], references: [id])
+
+  team        MatterTeamMember[]
+  parties     MatterParty[]
+  conflictChecks ConflictCheck[]
+  timeEntries TimeEntry[]
+  expenses    MatterExpense[]
+  invoices    Invoice[]
+  deadlines   Deadline[]
+  tasks       Task[]
+  documents   Document[]
+  communications Communication[]
+  ethicalWalls EthicalWall[]
+  trustEntries TrustLedgerEntry[]
+  aiInteractions AiInteraction[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@index([tenantId, clientId])
+  @@index([tenantId, practiceArea])
+}
+
+model MatterTeamMember {
+  matterId String
+  matter   Matter @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+  roleOnMatter String // Lead, Second chair, Paralegal...
+  rateOverride Decimal? @db.Decimal(14, 2)
+
+  @@id([matterId, userId])
+}
+
+model MatterParty {
+  id        String    @id @default(cuid())
+  matterId  String
+  matter    Matter    @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  contactId String
+  contact   Contact   @relation(fields: [contactId], references: [id])
+  role      PartyRole
+
+  @@index([matterId])
+  @@index([contactId])
+}
+
+// New-client / new-matter conflict screen. Immutable record of what was searched.
+model ConflictCheck {
+  id          String         @id @default(cuid())
+  matterId    String
+  matter      Matter         @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  searchTerms String[]
+  hits        Json // [{contactId, matterId, role, score}]
+  result      ConflictResult
+  resolutionNote String?
+  waiverDocumentId String?
+  runAt       DateTime       @default(now())
+  runById     String
+}
+
+// Ethical wall: users excluded from a matter (and optionally its documents).
+model EthicalWall {
+  id        String @id @default(cuid())
+  matterId  String
+  matter    Matter @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User   @relation(fields: [userId], references: [id])
+  reason    String
+  createdAt DateTime @default(now())
+
+  @@unique([matterId, userId])
+}
+
+// ---------------------------------------------------------------------------
+// TIME, EXPENSES, RATES
+// ---------------------------------------------------------------------------
+
+model RateCard {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name     String // "Standard 2026", "Corporate client — discounted"
+  currency String @default("PHP")
+  lines    RateCardLine[]
+  matters  Matter[]
+}
+
+model RateCardLine {
+  id         String   @id @default(cuid())
+  rateCardId String
+  rateCard   RateCard @relation(fields: [rateCardId], references: [id], onDelete: Cascade)
+  role       Role?
+  userId     String? // specific timekeeper override
+  hourlyRate Decimal  @db.Decimal(14, 2)
+  validFrom  DateTime
+  validTo    DateTime?
+}
+
+model TimeEntry {
+  id          String          @id @default(cuid())
+  matterId    String
+  matter      Matter          @relation(fields: [matterId], references: [id])
+  userId      String
+  user        User            @relation(fields: [userId], references: [id])
+  workDate    DateTime        @db.Date
+  minutes     Int // store minutes; bill in 6-min units via firm setting
+  description String
+  activityCode String? // UTBMS: L110, L210, etc.
+  rate        Decimal         @db.Decimal(14, 2) // rate snapshot at approval
+  amount      Decimal         @db.Decimal(14, 2)
+  billable    Boolean         @default(true)
+  status      TimeEntryStatus @default(DRAFT)
+  source      String          @default("MANUAL") // MANUAL | TIMER | CALENDAR | EMAIL | DOCUMENT | AI
+  sourceRef   String? // event id / email id / document id
+  aiConfidence Decimal?       @db.Decimal(4, 3)
+  invoiceLineId String?
+  invoiceLine InvoiceLine?    @relation(fields: [invoiceLineId], references: [id])
+  createdAt   DateTime        @default(now())
+
+  @@index([matterId, status])
+  @@index([userId, workDate])
+}
+
+model MatterExpense {
+  id         String   @id @default(cuid())
+  matterId   String
+  matter     Matter   @relation(fields: [matterId], references: [id])
+  incurredOn DateTime @db.Date
+  category   String // Filing fee, Courier, Notarial, Travel, Expert...
+  description String
+  amount     Decimal  @db.Decimal(14, 2)
+  markupPct  Decimal? @db.Decimal(5, 2)
+  billable   Boolean  @default(true)
+  receiptDocumentId String?
+  paidFromTrust Boolean @default(false)
+  invoiceLineId String?
+  invoiceLine InvoiceLine? @relation(fields: [invoiceLineId], references: [id])
+
+  @@index([matterId])
+}
+
+// ---------------------------------------------------------------------------
+// BILLING
+// ---------------------------------------------------------------------------
+
+model Invoice {
+  id         String        @id @default(cuid())
+  tenantId   String
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientId   String
+  client     Client        @relation(fields: [clientId], references: [id])
+  matterId   String
+  matter     Matter        @relation(fields: [matterId], references: [id])
+  number     String // INV-2026-0187 (gapless per tenant)
+  status     InvoiceStatus @default(DRAFT)
+  issueDate  DateTime      @db.Date
+  dueDate    DateTime      @db.Date
+  periodFrom DateTime?     @db.Date
+  periodTo   DateTime?     @db.Date
+  currency   String        @default("PHP")
+  subtotal   Decimal       @db.Decimal(14, 2)
+  discount   Decimal       @default(0) @db.Decimal(14, 2)
+  taxAmount  Decimal       @default(0) @db.Decimal(14, 2) // VAT
+  total      Decimal       @db.Decimal(14, 2)
+  amountPaid Decimal       @default(0) @db.Decimal(14, 2)
+  notes      String?
+  approvedById String?
+  sentAt     DateTime?
+  pdfDocumentId String?
+
+  lines    InvoiceLine[]
+  payments Payment[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@index([clientId])
+}
+
+model InvoiceLine {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  kind        String // TIME | EXPENSE | FIXED_FEE | ADJUSTMENT
+  description String
+  quantity    Decimal @db.Decimal(10, 2) // hours
+  unitPrice   Decimal @db.Decimal(14, 2)
+  amount      Decimal @db.Decimal(14, 2)
+  sortOrder   Int
+
+  timeEntries TimeEntry[]
+  expenses    MatterExpense[]
+}
+
+model Payment {
+  id         String        @id @default(cuid())
+  invoiceId  String
+  invoice    Invoice       @relation(fields: [invoiceId], references: [id])
+  method     PaymentMethod
+  amount     Decimal       @db.Decimal(14, 2)
+  receivedOn DateTime      @db.Date
+  reference  String?
+  trustEntryId String? // when method = TRUST_TRANSFER
+  trustEntry TrustLedgerEntry? @relation(fields: [trustEntryId], references: [id])
+  recordedById String
+}
+
+// ---------------------------------------------------------------------------
+// TRUST ACCOUNTING (client funds) — the compliance crown jewel
+// Rule: per-client sub-ledger balance may NEVER go below zero.
+// ---------------------------------------------------------------------------
+
+model TrustAccount {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id])
+  bankName    String
+  accountNo   String
+  currency    String   @default("PHP")
+  openedAt    DateTime @default(now())
+
+  entries         TrustLedgerEntry[]
+  reconciliations TrustReconciliation[]
+
+  @@index([tenantId, clientId])
+}
+
+// APPEND-ONLY. Balance = running total; check constraint enforces >= 0 per sub-ledger.
+model TrustLedgerEntry {
+  id             String         @id @default(cuid())
+  trustAccountId String
+  trustAccount   TrustAccount   @relation(fields: [trustAccountId], references: [id])
+  matterId       String?
+  matter         Matter?        @relation(fields: [matterId], references: [id])
+  type           TrustEntryType
+  amount         Decimal        @db.Decimal(14, 2) // signed: + in, - out
+  runningBalance Decimal        @db.Decimal(14, 2)
+  entryDate      DateTime       @db.Date
+  payeeOrPayor   String
+  reference      String? // check no. / transfer ref
+  memo           String
+  reversesEntryId String? // set only on ADJUSTMENT_REVERSAL
+  clearedAt      DateTime? // bank-cleared (for reconciliation)
+  createdById    String
+  approvedById   String? // two-person rule above a threshold
+  createdAt      DateTime       @default(now())
+
+  payments Payment[]
+
+  @@index([trustAccountId, entryDate])
+  @@index([matterId])
+}
+
+// Three-way reconciliation: bank statement = trust journal = sum of client sub-ledgers.
+model TrustReconciliation {
+  id             String       @id @default(cuid())
+  trustAccountId String
+  trustAccount   TrustAccount @relation(fields: [trustAccountId], references: [id])
+  periodEnd      DateTime     @db.Date
+  bankBalance    Decimal      @db.Decimal(14, 2)
+  journalBalance Decimal      @db.Decimal(14, 2)
+  clientLedgerTotal Decimal   @db.Decimal(14, 2)
+  outstandingItems Json
+  balanced       Boolean
+  signedOffById  String?
+  signedOffAt    DateTime?
+  reportDocumentId String?
+
+  @@unique([trustAccountId, periodEnd])
+}
+
+// ---------------------------------------------------------------------------
+// DEADLINES, TASKS, CALENDAR
+// ---------------------------------------------------------------------------
+
+model Deadline {
+  id         String       @id @default(cuid())
+  matterId   String
+  matter     Matter       @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  kind       DeadlineKind
+  title      String
+  dueAt      DateTime
+  triggerEvent String? // "Service of summons"
+  triggerDate DateTime?
+  ruleRef    String? // e.g. "Rules of Court, Rule 11 §1 — 30 days"
+  computedBy String       @default("MANUAL") // MANUAL | RULE_ENGINE
+  remindDaysBefore Int[]  // [14, 7, 3, 1]
+  completedAt DateTime?
+  assigneeId String?
+
+  @@index([matterId, dueAt])
+}
+
+model Task {
+  id         String     @id @default(cuid())
+  matterId   String
+  matter     Matter     @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  title      String
+  status     TaskStatus @default(TODO)
+  assigneeId String?
+  assignee   User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  dueDate    DateTime?  @db.Date
+  priority   Int        @default(2)
+  createdAt  DateTime   @default(now())
+
+  @@index([matterId, status])
+}
+
+// ---------------------------------------------------------------------------
+// DOCUMENTS & COMMUNICATIONS
+// ---------------------------------------------------------------------------
+
+model Document {
+  id         String          @id @default(cuid())
+  tenantId   String
+  tenant     Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  matterId   String?
+  matter     Matter?         @relation(fields: [matterId], references: [id])
+  name       String
+  category   String // Pleading, Contract, Evidence, Correspondence, Invoice...
+  confidentiality Confidentiality @default(NORMAL)
+  legalHold  Boolean         @default(false)
+  tags       String[]
+  currentVersion Int         @default(1)
+  uploadedById String
+  createdAt  DateTime        @default(now())
+
+  versions DocumentVersion[]
+
+  @@index([tenantId, matterId])
+}
+
+model DocumentVersion {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  version    Int
+  storageKey String // object storage key
+  sizeBytes  Int
+  sha256     String
+  extractedText String? // for full-text + AI retrieval
+  createdAt  DateTime @default(now())
+  createdById String
+
+  @@unique([documentId, version])
+}
+
+model Communication {
+  id        String   @id @default(cuid())
+  matterId  String
+  matter    Matter   @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  channel   String // EMAIL | CALL | MEETING | PORTAL_MESSAGE | NOTE
+  direction String // IN | OUT | INTERNAL
+  subject   String?
+  body      String
+  occurredAt DateTime
+  authorId  String?
+  privileged Boolean @default(true)
+
+  @@index([matterId, occurredAt])
+}
+
+// ---------------------------------------------------------------------------
+// AI + AUDIT
+// ---------------------------------------------------------------------------
+
+// Every AI output is logged; lawyers review, AI never files or sends on its own.
+model AiInteraction {
+  id        String   @id @default(cuid())
+  matterId  String?
+  matter    Matter?  @relation(fields: [matterId], references: [id])
+  userId    String
+  purpose   String // SUMMARIZE | DRAFT | SEARCH | TIME_SUGGEST | DEADLINE_EXTRACT
+  prompt    String
+  output    String
+  citations Json // [{documentId, version, page, quote}]
+  reviewedById String?
+  accepted  Boolean?
+  createdAt DateTime @default(now())
+
+  @@index([matterId, createdAt])
+}
+
+// APPEND-ONLY immutable audit trail (who/what/when/before/after/IP).
+model AuditLog {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String // e.g. trust.disburse, invoice.send, document.view
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  ip         String?
+  userAgent  String?
+  prevHash   String? // hash chain for tamper evidence
+  hash       String
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, createdAt])
+}
