@@ -40,6 +40,45 @@ TECH STACK
   60 appointments, 30 invoices, 50 inventory items)
 - Everything runs locally with one command (npm install && npm run dev)
 
+APPEARANCE SYSTEM: SURFACE STYLE (MANDATORY)
+The UI supports two interchangeable surface styles, switchable at runtime with
+no reload and no layout shift:
+- GLASS (default): glassmorphism. Translucent frosted cards over a soft
+  gradient background; backdrop-filter blur 16-24px, 1px light border,
+  subtle inner highlight, soft layered shadow, gentle depth on hover.
+- SOLID: opaque, flat surfaces. No blur, no transparency; solid card fills,
+  crisp 1px borders, minimal shadow, higher contrast. Same layout and spacing.
+Implementation:
+- All surfaces use design tokens only (never hard-coded per component), e.g.
+  --surface-bg, --surface-border, --surface-shadow, --surface-blur,
+  --surface-text-muted. Switching style swaps the token set via
+  data-surface="glass|solid" on <html>; combines with light/dark theme
+  (4 combinations: glass-light, glass-dark, solid-light, solid-dark).
+- Settings > Appearance page with live preview cards: Surface style (Glass /
+  Solid), Theme (Light / Dark / System), Density (Comfortable / Compact),
+  Accent (follows specialty pack or clinic brand color), Reduce motion.
+  Show a mini preview of the dashboard for each option.
+- Persistence: user preference overrides clinic default; the Clinic Owner sets
+  the clinic-wide default in Tenant Settings. Stored per user per tenant.
+- Quick toggle in the user menu ("Surface: Glass / Solid").
+Readability and safety guardrails (healthcare = readability first):
+- Never put text directly on a bare translucent layer: glass cards must keep
+  text contrast at WCAG AA (4.5:1) against the worst-case background. If a
+  contrast check would fail, the token layer increases card opacity.
+- Dense, data-critical areas are ALWAYS opaque even in Glass mode: data tables,
+  EMR/SOAP editor, prescription and billing forms, lab results, modals with
+  forms, printed/PDF documents, and receipts. Glass is for the shell:
+  sidebar, header, dashboard cards, drawers, command palette, toasts.
+- Automatic fallback to SOLID when: the browser lacks backdrop-filter support,
+  the OS/browser requests reduced transparency (prefers-reduced-transparency)
+  or increased contrast (prefers-contrast: more), or the device is low-power;
+  show a small note in Appearance explaining why it was switched.
+- Performance: limit blurred layers per screen, no blur on large scrolling
+  lists, GPU-friendly transitions only.
+- Print, PDF, and exports always use solid black-on-white styling.
+- Provide a Storybook-style "Surface Style Gallery" dev page showing every
+  component in all four combinations to verify consistency and contrast.
+
 FUNCTIONAL-ONLY UI RULE (MANDATORY)
 Every element on every screen must serve a task. Luxury comes from typography,
 spacing, restraint, and polish, never from decoration.
@@ -66,7 +105,8 @@ DESIGN SYSTEM (base; the EDITION OVERRIDE section below wins on any conflict)
 - Palette: ink navy #0B1B2B, champagne gold #C8A96A, ivory #FAF7F2,
   teal accent #2FA39A, success #3FB68B, warning #E0A800, danger #D64545
 - Typography: Cormorant Garamond/Playfair Display for headings, Inter for body
-- Glassmorphism cards, soft shadows, 16px radius, generous whitespace
+- Surface style: Glass (default) or Solid, user-switchable, see APPEARANCE SYSTEM
+- Soft shadows, 16px radius, generous whitespace
 - Dark and light mode toggle, smooth page transitions, skeleton loaders,
   empty states, toasts, tooltips
 - Collapsible sidebar with logo, top bar with global search, notifications
