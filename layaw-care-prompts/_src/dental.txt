@@ -1,0 +1,35 @@
+PALETTE: pearl white #FBFBFD, mint #7FD1C0, deep teal #0F4C5C, gold accent
+#C8A96A. Fresh, clean, clinical-luxury.
+GREETING EXAMPLE: "Maayong buntag, Dr. Santos. 6 ka pasyente karong adlawa."
+
+SPECIALTY MODULES
+1. Interactive Odontogram: SVG chart of 32 permanent + 20 primary teeth (FDI
+   and Universal numbering toggle). Click a tooth/surface (M, O, D, B, L) to
+   mark conditions: caries, filling, crown, missing, implant, root canal,
+   extraction, bridge. Color-coded legend, per-tooth history, undo.
+2. Treatment Plan Builder: multi-phase plans (Phase 1 Urgent, Phase 2
+   Restorative, Phase 3 Cosmetic), per-procedure price, estimate total,
+   patient e-signature approval, installment schedule (downpayment + monthly),
+   progress bar of completed procedures.
+3. Orthodontics Tracker: braces/aligner case, bracket type, wire sequence,
+   monthly adjustment log, payment ledger, retainer status, before/after photos.
+4. Dental Imaging Gallery: X-ray (periapical, panoramic, bitewing), intraoral
+   photos, side-by-side compare, zoom and annotate (mock).
+5. Periodontal Chart: pocket depth grid, bleeding-on-probing markers.
+6. Lab Case Tracker: dental lab orders (crowns, dentures, aligners), due dates,
+   status (Sent, In Fabrication, Received, Fitted).
+7. Sterilization and Instrument Log: autoclave cycles, instrument sets,
+   compliance checklist.
+8. Chair Management: chair occupancy board with live procedure timers.
+
+EDITION DATA MODEL: Tooth, ToothSurfaceCondition, TreatmentPlan,
+TreatmentPhase, TreatmentProcedure, OrthoCase, OrthoAdjustment, DentalImage,
+PerioChart, LabCase, SterilizationCycle, DentalChair.
+
+DASHBOARD KPIs: chair utilization %, treatment-plan acceptance rate, production
+per dentist, collections vs. production, recall due list (6-month cleaning),
+active ortho cases, overdue lab cases.
+
+SEED SERVICES (PHP): Oral Prophylaxis 1,200; Composite Filling 1,500;
+Extraction 1,800; Root Canal 8,000; Porcelain Crown 12,000; Braces Package
+45,000; Implant 65,000; Teeth Whitening 8,500.

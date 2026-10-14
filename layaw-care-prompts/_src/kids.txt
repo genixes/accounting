@@ -1,0 +1,33 @@
+PALETTE: sky #BFE3F5, sunshine #FFD76A, mint #A8E6CF, navy text #1E2A3A. Rounded
+friendly UI that is still professional and premium; subtle playful micro-
+animations, never childish.
+GREETING EXAMPLE: "Maayong adlaw, Dra. Cruz. Naghulat si Baby Mika."
+
+SPECIALTY MODULES
+1. Growth Charts: WHO/CDC percentile curves for weight, height/length, head
+   circumference, BMI; plot measurements over time; flag under/overweight.
+2. Immunization Tracker: vaccine schedule (BCG, Hep B, Pentavalent, OPV, PCV,
+   MMR, Flu, etc.), due/overdue/completed status, lot numbers, printable
+   vaccination card, reminder campaign to parents.
+3. Family Account: parent/guardian linked to multiple children, one login,
+   switch child profile, authorized pickup persons.
+4. Developmental Milestones Checklist by age (motor, language, social) with
+   concern flags.
+5. Weight-based Dose Calculator: auto-compute pediatric dosing from weight with
+   max-dose safety warnings.
+6. Sick vs. Well-baby Visit Templates: newborn screening, feeding history,
+   sleep, rashes, fever diary.
+7. Parent Portal: book visits, download vaccine card, growth chart, school
+   medical certificate request, chat with clinic.
+8. Waiting Room Display: kid-friendly queue screen with avatars/nicknames.
+
+EDITION DATA MODEL: Guardian, Child, GrowthMeasurement, VaccineSchedule,
+VaccineRecord, MilestoneAssessment, DoseCalculation, SchoolCertificate.
+
+DASHBOARD KPIs: vaccine coverage %, overdue vaccines list, new vs. returning
+patients, top diagnoses (URTI, gastroenteritis), average visit duration,
+recall conversion.
+
+SEED DATA: children aged 0-12 with guardians, vaccine records, growth points.
+Services (PHP): Well-baby Check-up 800; Sick Visit 700; Flu Vaccine 1,400;
+MMR 1,200; Newborn Screening 1,800.

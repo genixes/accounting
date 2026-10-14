@@ -1,0 +1,36 @@
+PALETTE: blush #F3D9D2, rose gold #B76E79, espresso #2B1B17, champagne #D9B88F,
+ivory #FFF9F5. Elegant serif headings, airy spacing. Luxury spa meets medical
+clinic.
+GREETING EXAMPLE: "Maayong adlaw, Dra. Villanueva. Ang imong mga kliyente andam na."
+
+SPECIALTY MODULES
+1. Skin Analysis and Face Mapping: interactive face/body diagram where staff pin
+   treatment zones (forehead, cheeks, jawline), units of botulinum/filler per
+   zone, injection history heatmap.
+2. Before/After Photo Studio: standardized photo angles, drag-slider compare,
+   progress timeline, consent-based gallery, watermark toggle.
+3. Treatment Packages and Sessions: package builder (e.g., 6x Laser Hair
+   Removal), remaining-sessions counter, expiry date, transfer/gift option,
+   session redemption with signature.
+4. Membership and Loyalty ("Layaw Circle" Silver/Gold/Platinum): points, birthday
+   perks, referral rewards, prepaid wallet balance.
+5. Product Retail POS: skincare products, barcodes, bundles, regimen
+   recommendations per skin type, reorder reminders.
+6. Consent and Waivers: digital multi-form signing (Botox, laser, peels),
+   photo-release consent, audit trail.
+7. Machine and Consumables Tracking: laser device usage count, filler/toxin lot
+   numbers and expiry, per-treatment consumption deduction.
+8. Skincare Routine Planner: AM/PM routine sent to patient portal with product
+   links and follow-up reminders.
+9. Practitioner Commission: per-treatment commission rules and reports.
+
+EDITION DATA MODEL: SkinAssessment, TreatmentZone, InjectionRecord (product,
+lot, units), PhotoSet, Package, PackageSession, WalletTransaction,
+RetailProduct, Consent, DeviceUsageLog.
+
+DASHBOARD KPIs: package utilization, retention rate, average spend per client,
+top treatments, membership MRR, rebooking rate, product attach rate.
+
+SEED SERVICES (PHP): Diamond Peel 2,500; Hydrafacial 4,500; Botox per unit 350;
+Filler per syringe 18,000; Laser Hair Removal underarm 1,800; Pico Laser 6,500;
+Glutathione drip 3,000; Acne Facial 1,800.

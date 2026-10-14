@@ -1,0 +1,28 @@
+PALETTE: slate #2D3748, electric teal #14B8A6, white, soft grey #EDF2F7, gold
+accent #C8A96A. Athletic, energetic, but refined.
+GREETING EXAMPLE: "Maayong adlaw, Coach Rey. 9 ka session karong adlawa."
+
+SPECIALTY MODULES
+1. Assessment and Goal Setting: pain-scale body map, range-of-motion
+   measurements, functional scores, SMART goals with progress percentage.
+2. Session Package Tracker: bought vs. used sessions, auto-deduct per visit,
+   expiry alerts, renewal prompts.
+3. Home Exercise Program Builder: exercise library with thumbnails, sets/reps,
+   send to patient portal with checklist and adherence tracking.
+4. Progress Analytics: pain trend, ROM improvement, outcome charts per patient.
+5. Therapist Scheduling: therapist skill matching, treatment rooms, equipment
+   booking (ultrasound, TENS, traction).
+6. Sports and Occupational Programs: corporate wellness accounts, team rosters,
+   return-to-play tracker.
+7. Discharge Summary generator with outcomes and maintenance plan.
+
+EDITION DATA MODEL: Assessment, PainMap, RomMeasurement, Goal, SessionPackage,
+SessionLog, Exercise, HomeProgram, AdherenceLog, EquipmentBooking,
+CorporateAccount.
+
+DASHBOARD KPIs: session utilization, average sessions to discharge, patient
+outcome improvement %, therapist productivity, package renewal rate, no-show
+rate.
+
+SEED SERVICES (PHP): Initial Assessment 1,200; PT Session 900; 10-Session
+Package 8,000; Sports Massage 1,000; Dry Needling 1,500.

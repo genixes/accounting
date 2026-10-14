@@ -1,0 +1,34 @@
+PALETTE: lavender #E6DDF5, rose gold #C98B8B, cream #FFF8F2, plum #3B2A4A.
+Soft, calming, reassuring luxury.
+GREETING EXAMPLE: "Maayong adlaw, Dra. Bautista. 5 ka mama ang naka-schedule karon."
+
+SPECIALTY MODULES
+1. Pregnancy Timeline: LMP and EDD calculator (Naegele), gestational age in
+   weeks/days, trimester progress ring, milestone cards.
+2. Prenatal Visit Tracker: fundal height, BP, weight-gain curve, fetal heart
+   tone, urine tests, next-visit scheduler.
+3. Ultrasound Records: biometry (BPD, HC, AC, FL), estimated fetal weight,
+   image gallery, anomaly-scan checklist.
+4. Risk Flagging: auto-alerts for high-risk pregnancy (age, hypertension,
+   gestational diabetes) with visual badge.
+5. Labor and Delivery Board: admitted patients, partograph (mock), room
+   assignment, delivery log, newborn record auto-created.
+6. Postpartum and Newborn Follow-up: 1-week and 6-week visits, breastfeeding
+   notes, newborn screening status.
+7. Gynecology Module: Pap smear schedule, contraception counseling, menstrual
+   cycle log, fertility tracking.
+8. Maternity Package Builder: prenatal + delivery bundles with installment
+   billing and PhilHealth/HMO deductions.
+9. Patient Portal ("Mama Journey"): pregnancy journey page, reminders, lab
+   results, birth plan form.
+
+EDITION DATA MODEL: Pregnancy, PrenatalVisit, UltrasoundScan, RiskFactor,
+LaborDeliveryRecord, Newborn, PostpartumVisit, PapSmearRecord,
+MaternityPackage.
+
+DASHBOARD KPIs: active pregnancies by trimester, expected deliveries this
+month, high-risk count, C-section vs. normal delivery rate, prenatal visit
+compliance.
+
+SEED SERVICES (PHP): Prenatal Check-up 800; Pelvic Ultrasound 1,200; Pap Smear
+1,500; Normal Delivery Package 45,000; C-section Package 95,000.

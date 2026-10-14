@@ -1,0 +1,28 @@
+PALETTE: deep indigo #1B1F4B, ice blue #CFE8F7, silver #C9CED6, white, gold
+accent #C8A96A. Clean, precise, high-tech.
+GREETING EXAMPLE: "Maayong adlaw, Dr. Lim. 12 ka eye exam ang naka-schedule."
+
+SPECIALTY MODULES
+1. Eye Exam Record: visual acuity (OD/OS), refraction (sphere, cylinder, axis,
+   add, PD), IOP, slit-lamp findings, fundus notes, interactive eye diagram.
+2. Prescription Generator: eyeglass and contact lens Rx, printable with
+   letterhead.
+3. Optical Retail POS: frames catalog with images, lens types (single vision,
+   progressive, blue-cut), coatings, price calculator, lab order, pickup
+   status (Ordered, Fabricating, Ready, Claimed).
+4. Surgery Scheduler: cataract/LASIK/pterygium cases, OR booking, pre-op
+   checklist, post-op follow-up schedule.
+5. Diagnostics Imaging: OCT, visual field, fundus photo gallery with compare.
+6. Optical Inventory: frames and lenses by SKU, size/color variants, low-stock
+   alerts, supplier orders.
+7. Recall: annual exam and lens-replacement reminders.
+
+EDITION DATA MODEL: EyeExam, Refraction, ContactLensRx, GlassesRx, Frame,
+LensType, OpticalOrder, SurgeryCase, DiagnosticImage.
+
+DASHBOARD KPIs: exams per day, optical sales, exam-to-purchase conversion,
+surgery pipeline, frame inventory turnover, top lens brands.
+
+SEED ITEMS (PHP): Comprehensive Eye Exam 800; Cataract Surgery per eye 45,000;
+LASIK 65,000; Progressive Lens Set 9,500; Blue-cut Lens 3,200; Designer Frame
+4,500-18,000.

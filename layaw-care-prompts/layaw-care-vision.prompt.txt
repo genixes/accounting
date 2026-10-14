@@ -1,0 +1,180 @@
+ROLE
+You are a world-class principal full-stack engineer and luxury product designer
+with 15+ years building enterprise healthcare SaaS. Build a premium, high-end,
+multi-function clinic management system called "LAYAW CARE VISION", a specialty
+edition of the LAYAW CARE platform for eye clinics and optical shops.
+
+BRAND IDENTITY
+- Product name: LAYAW CARE VISION (master brand "LAYAW" in refined serif uppercase,
+  "Care" in light sans, edition name "Vision" as a small gold tag)
+- Tagline: "Care, the way you deserve."
+- Meaning: "Layaw" is Cebuano for to cherish and pamper. Brand promise: every
+  patient is treated as a VIP and every clinic runs with effortless,
+  concierge-level precision.
+- Voice: warm, gracious, professional. Light Cebuano/Filipino touches in
+  greetings and empty states, never overdone.
+  Examples:
+  * Dashboard greeting: "Maayong adlaw, Dr. Reyes. Andam na ang imong mga
+    pasyente."
+  * Empty queue: "Walay naghulat karon. Pahulay sa kadiyot."
+  * Success toast: "Malampuson nga na-save."
+  * Patient portal: "Welcome balik, Maria. Giatiman ka namo."
+  * Footer: "Gihimo uban sa pagpaluyo. Layaw Care (c) 2026"
+- Logo concept: wordmark "LAYAW" in a refined serif with wide letter-spacing
+  and "Care" in light sans beneath; icon is a minimal open palm cradling a
+  small heart/leaf. Provide as inline SVG, plus a compact monogram "LC" for the
+  collapsed sidebar and favicon. Show the logo on login, sidebar, printed
+  receipts, prescriptions, certificates, and the patient portal header.
+
+GOAL
+Create a fully working SAMPLE/DEMO of the system (frontend with realistic mock
+data, no real patient data). It must look like a $50,000/year enterprise
+product: polished, luxurious, fast, and intuitive.
+
+TECH STACK
+- React + TypeScript + Vite (or Next.js App Router)
+- Tailwind CSS + shadcn/ui + Framer Motion
+- Recharts for charts, Lucide icons
+- Zustand or Redux Toolkit for state
+- Mock API layer with realistic seed data (at least 40 patients, 8 doctors,
+  60 appointments, 30 invoices, 50 inventory items)
+- Everything runs locally with one command (npm install && npm run dev)
+
+DESIGN SYSTEM (base; the EDITION OVERRIDE section below wins on any conflict)
+- Palette: ink navy #0B1B2B, champagne gold #C8A96A, ivory #FAF7F2,
+  teal accent #2FA39A, success #3FB68B, warning #E0A800, danger #D64545
+- Typography: Cormorant Garamond/Playfair Display for headings, Inter for body
+- Glassmorphism cards, soft shadows, 16px radius, generous whitespace
+- Dark and light mode toggle, smooth page transitions, skeleton loaders,
+  empty states, toasts, tooltips
+- Collapsible sidebar with logo, top bar with global search, notifications
+  bell, command palette (Ctrl+K), and user menu
+- Fully responsive (desktop, tablet, mobile)
+
+ROLE-BASED LOGIN (demo)
+Login screen with branding, tagline, an elegant hero panel, and a role
+switcher to demo: Clinic Owner, Doctor, Nurse, Receptionist, Cashier,
+Pharmacist, Patient. Each role sees only its permitted menus and widgets.
+
+CORE MODULES AND PAGES (build all, adapted to the edition)
+1. Command Center Dashboard
+   - KPI cards, revenue line chart (30 days), appointments by service (donut),
+     doctor utilization (bar), live patient queue, low-stock alerts,
+     upcoming birthdays, top services table
+   - "Layaw Score": VIP patient-experience score (0-100) combining wait time,
+     NPS, rebooking rate, and follow-up compliance, shown as a gold ring gauge.
+2. Patient 360
+   - Searchable/filterable table with VIP tags; profile with demographics,
+     allergies banner, emergency contacts, insurance, visit timeline,
+     documents, vitals trends, outstanding balance, family members,
+     preferences (favorite doctor, preferred contact channel, notes)
+   - "Add Patient" multi-step form with validation
+3. Smart Scheduling
+   - Day/Week/Month calendar with drag-and-drop, color-coded by doctor/status,
+     room and doctor filters, walk-in queue board (Waiting, In Consultation,
+     Done), waitlist, conflict detection, one-click reschedule, reminder
+     status (SMS/Email/Viber)
+4. EMR / Consultation Workspace
+   - SOAP note editor with templates, vitals entry, ICD-10 diagnosis search,
+     e-prescription builder, lab ordering, attachments, printable medical
+     certificate, follow-up scheduling
+5. Billing & Insurance
+   - Invoice builder (services, products, discounts incl. Senior/PWD, tax),
+     payments (cash, card, GCash, bank, HMO), partial payments, printable
+     official receipt, HMO/PhilHealth claim tracker (Draft, Submitted,
+     Approved, Denied), receivables aging report
+6. Pharmacy & Inventory
+   - Stock with batch numbers, expiry color coding, reorder alerts, dispensing
+     linked to prescriptions, movement history, suppliers, purchase orders
+7. Laboratory & Imaging
+   - Order queue, result upload, abnormal flags, trend charts
+8. Telehealth
+   - Video consult room mock UI (camera tiles, chat, notes panel, screen
+     share), consult history
+9. Patient Portal (patient role)
+   - Upcoming appointments, online booking wizard, results, prescriptions,
+     invoices, certificates, membership and loyalty points
+10. Marketing and CRM ("Layaw Circle")
+   - Recall campaigns, birthday greetings, membership tiers (Silver, Gold,
+     Platinum) with points and perks, feedback with NPS and reviews
+11. Staff and Commission
+   - Directory, shift schedule, professional-fee sharing report
+12. Compliance and Audit
+   - Audit log (who viewed/edited which record), consent forms, role/permission
+     matrix editor, data export
+
+CROSS-CUTTING FEATURES
+- Global search (patients, appointments, invoices, products)
+- Notification center with real-time-style updates
+- Print-friendly views with LAYAW CARE letterhead and a clinic branding slot
+  (clinic uploads own logo; "Powered by Layaw Care" stays in footer = white-label)
+- Data tables with sorting, filtering, pagination, column toggle, CSV export
+- Form validation (zod), optimistic UI, keyboard shortcuts
+- i18n-ready: English, Filipino, and Cebuano (Bisaya) language toggle
+- Accessibility: WCAG AA, focus states, aria labels
+
+DATA MODEL (core)
+Clinic, Branch, Room, User, Doctor, Patient, Appointment, Encounter, Vitals,
+Diagnosis, Prescription, Medicine, InventoryBatch, LabOrder, LabResult,
+Invoice, InvoiceItem, Payment, InsuranceClaim, Membership, LoyaltyTransaction,
+Notification, AuditLog. Relationship: appointment -> encounter -> invoice ->
+payments. Add the edition-specific entities listed below.
+
+======================= EDITION OVERRIDE: VISION =======================
+Where this section conflicts with anything above (palette, typography, module
+names, dashboard KPIs, seed data), THIS SECTION WINS. It replaces generic
+clinical pages with the specialty workspace and adds the specialty modules.
+
+PALETTE: deep indigo #1B1F4B, ice blue #CFE8F7, silver #C9CED6, white, gold
+accent #C8A96A. Clean, precise, high-tech.
+GREETING EXAMPLE: "Maayong adlaw, Dr. Lim. 12 ka eye exam ang naka-schedule."
+
+SPECIALTY MODULES
+1. Eye Exam Record: visual acuity (OD/OS), refraction (sphere, cylinder, axis,
+   add, PD), IOP, slit-lamp findings, fundus notes, interactive eye diagram.
+2. Prescription Generator: eyeglass and contact lens Rx, printable with
+   letterhead.
+3. Optical Retail POS: frames catalog with images, lens types (single vision,
+   progressive, blue-cut), coatings, price calculator, lab order, pickup
+   status (Ordered, Fabricating, Ready, Claimed).
+4. Surgery Scheduler: cataract/LASIK/pterygium cases, OR booking, pre-op
+   checklist, post-op follow-up schedule.
+5. Diagnostics Imaging: OCT, visual field, fundus photo gallery with compare.
+6. Optical Inventory: frames and lenses by SKU, size/color variants, low-stock
+   alerts, supplier orders.
+7. Recall: annual exam and lens-replacement reminders.
+
+EDITION DATA MODEL: EyeExam, Refraction, ContactLensRx, GlassesRx, Frame,
+LensType, OpticalOrder, SurgeryCase, DiagnosticImage.
+
+DASHBOARD KPIs: exams per day, optical sales, exam-to-purchase conversion,
+surgery pipeline, frame inventory turnover, top lens brands.
+
+SEED ITEMS (PHP): Comprehensive Eye Exam 800; Cataract Surgery per eye 45,000;
+LASIK 65,000; Progressive Lens Set 9,500; Blue-cut Lens 3,200; Designer Frame
+4,500-18,000.
+===================================================================================
+
+SEED DATA
+Realistic Filipino (incl. Cebuano) and international names, Philippine
+locations (Cebu City, Davao, Manila), PHP currency, realistic specialty
+services and prices. No lorem ipsum. Fake data only.
+
+CODE QUALITY
+- Clean structure (features/, components/, lib/, hooks/, store/, mocks/)
+- Reusable components, strict TypeScript
+- README with setup steps, folder map, and screenshot checklist
+- "Production Roadmap" section: real backend (Node/NestJS + PostgreSQL),
+  JWT/OAuth, HL7/FHIR integration, encryption at rest, multi-tenant
+  white-labeling, Philippine Data Privacy Act and HIPAA-aligned compliance
+
+DELIVERABLE ORDER
+1. Show the project structure.
+2. Design system, logo SVGs, and layout shell first.
+3. Build modules one by one: Dashboard, Patient 360, Scheduling, the
+   specialty workspace, then Billing, then the rest.
+4. Finish with README and run instructions.
+
+IMPORTANT
+Use only fake/sample data. Make every screen look finished, premium, and
+demo-ready. Prioritize visual polish, brand consistency, and smooth UX.
