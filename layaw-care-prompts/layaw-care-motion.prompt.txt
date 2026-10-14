@@ -40,6 +40,28 @@ TECH STACK
   60 appointments, 30 invoices, 50 inventory items)
 - Everything runs locally with one command (npm install && npm run dev)
 
+FUNCTIONAL-ONLY UI RULE (MANDATORY)
+Every element on every screen must serve a task. Luxury comes from typography,
+spacing, restraint, and polish, never from decoration.
+- NO decorative quote cards, slogan banners, stock/lifestyle photos, hero
+  illustrations, leaf/plant artwork, or filler widgets on app screens
+  (dashboard, patients, scheduling, EMR, billing, etc.).
+- The page header is compact: greeting + date/time + one-line status only.
+- The brand logo and tagline appear ONLY on login, the sidebar logo area,
+  printed documents, and marketing pages (landing, pricing).
+- Space freed by removing decoration must go to actionable content (alerts,
+  tasks, pending items), never to ornaments.
+- Dashboard widgets must be actionable: each has a clear purpose, a "view all"
+  or click-through, and an empty state. If a widget does not help the current
+  role do their job today, do not show it.
+- Dashboards are role-aware: Doctor = my queue, my schedule, pending labs and
+  notes; Receptionist = queue, appointments, check-ins; Cashier = unpaid
+  balances, today's collections; Owner = revenue, utilization, stock, claims.
+  Hide financial widgets from clinical roles.
+- All numbers on a screen must reconcile from one mock dataset (e.g., today's
+  appointments = donut total = schedule count) and dates/weekdays are computed
+  from the real current date, never hardcoded.
+
 DESIGN SYSTEM (base; the EDITION OVERRIDE section below wins on any conflict)
 - Palette: ink navy #0B1B2B, champagne gold #C8A96A, ivory #FAF7F2,
   teal accent #2FA39A, success #3FB68B, warning #E0A800, danger #D64545
