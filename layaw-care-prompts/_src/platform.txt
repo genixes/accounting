@@ -1,0 +1,111 @@
+THIS IS ONE PLATFORM, NOT SIX PRODUCTS. "LAYAW CARE" is a single multi-tenant
+SaaS. Each clinic that signs up is a TENANT with its own isolated records.
+During signup the clinic chooses its CLINIC TYPE, which activates a SPECIALTY
+PACK (modules, forms, dashboard KPIs, theme accents, seed templates). The core
+platform is identical for everyone; only the activated pack changes.
+
+1. TENANCY AND DATA ISOLATION
+- Every record carries tenantId (and branchId where relevant). All queries, the
+  mock API, search, exports, and audit logs are scoped by the active tenant.
+  A user can never see another tenant's data, enforce this in the data layer,
+  not just the UI.
+- Demo implementation: mock database namespaced per tenant (e.g.,
+  db[tenantId].patients), persisted in localStorage under "layaw:<tenantId>:*".
+  Include a visible "Tenant Isolation" proof in the Super Admin console.
+- Seed three demo tenants: "Smile Studio Cebu" (Dental), "Glow by Dra. Ana"
+  (Aesthetic), "Little Steps Pediatrics" (Kids), each with different patients,
+  staff, branding, and data. A tenant switcher in the demo toolbar logs in as
+  each tenant to prove the records are separate.
+- Tenant-level settings: clinic name, logo upload, brand accent color, address,
+  branches, operating hours, currency, tax, languages, receipt letterhead.
+
+2. SIGNUP AND ONBOARDING WIZARD ("Welcome to Layaw Care")
+Step 1 Account: owner name, email, password, clinic name.
+Step 2 Choose Clinic Type (large visual cards with icon, one-line pitch, and
+  preview of included features). Multi-select allowed for multi-specialty
+  clinics. Options:
+    General Clinic, Dental, Aesthetic/Derma ("Glow"), Pediatrics ("Kids"),
+    OB-GYN/Maternity ("Mama"), Eye/Optical ("Vision"), Rehab/Physio ("Motion").
+  Live preview panel on the right changes palette, sidebar, and sample
+  dashboard as the user hovers each type.
+Step 3 Clinic Profile: branches, rooms/chairs, services and prices (prefilled
+  from the pack's service template, editable), operating hours.
+Step 4 Team: invite staff by role (Doctor, Nurse, Receptionist, Cashier,
+  Pharmacist, Lab Tech).
+Step 5 Choose Plan: Starter, Pro, Enterprise (see Plans) with monthly/annual
+  toggle and a free 14-day trial option.
+Step 6 Finish: animated "We're setting up your clinic" screen, then land on the
+  dashboard with a guided product tour and checklist ("Add your first patient").
+Clinics can later add or change specialty packs from Settings > Specialty Packs
+(add-on packs are shown as upsells).
+
+3. PLANS (feature flags drive what each tenant sees)
+- Starter: Patient 360, Scheduling, basic EMR, billing and receipts, 1 branch,
+  3 users, 1 specialty pack.
+- Pro: everything in Starter + inventory/pharmacy, lab, patient portal, SMS and
+  email reminders, Layaw Circle loyalty, analytics, up to 5 branches, 15
+  users, 2 specialty packs.
+- Enterprise: everything in Pro + unlimited branches/users/packs, telehealth,
+  HMO claims, API access, audit and compliance suite, white-label, priority
+  support.
+Locked features appear in the UI with a gold lock badge and an
+"Upgrade to Pro" modal (never hide them silently).
+
+4. PACK ENGINE (how specialty modules plug in)
+- A pack registry defines for each pack: id, name, icon, theme accent, sidebar
+  items, routes, EMR template, dashboard widgets, data-model extensions,
+  service/price templates, forms/consents, and seed data.
+- The sidebar, dashboard, patient profile tabs, and EMR workspace are rendered
+  from the active packs. Multiple packs can coexist (e.g., Dental + Aesthetic),
+  sharing the same patient record with pack-specific tabs.
+- Patient 360 always shows a unified timeline; pack tabs (Odontogram, Growth
+  Chart, Prenatal, Eye Exam, Face Map, Session Tracker) appear only when the
+  pack is active.
+- New packs can be added by dropping a config file into /packs without touching
+  core code. Document this in the README with an example.
+
+5. SUPER ADMIN CONSOLE (Layaw Care company staff only)
+- Tenant list with clinic type, plan, status (Trial, Active, Past due,
+  Suspended), signup date, MRR.
+- Tenant detail: usage (patients, users, storage), enabled packs and flags,
+  impersonate (read-only, logged), suspend/reactivate.
+- Platform analytics: total tenants, MRR/ARR, churn, signups by clinic type
+  (donut), trial-to-paid conversion, most-used modules.
+- Billing: subscription invoices, plan changes, coupon codes.
+- Announcements and release notes pushed to all tenants.
+
+6. TENANT ADMIN AREA (Clinic Owner)
+- Settings: profile, branding/white-label, branches, roles and permissions,
+  specialty packs, plan and billing (invoices, upgrade/downgrade), data export
+  (all records as CSV/JSON), notification templates, integrations.
+- Data ownership page: "Your records belong to you" with export and a
+  request-deletion flow.
+
+7. SECURITY AND COMPLIANCE (reflect in UI and README roadmap)
+- Role-based access per tenant, audit log of every record view/edit, consent
+  management, session timeout, 2FA setup screen (mock), encryption-at-rest and
+  per-tenant backup notes, Philippine Data Privacy Act and HIPAA-aligned
+  practices.
+- Production roadmap: Postgres with row-level security on tenantId (or
+  schema-per-tenant for Enterprise), JWT/OAuth with tenant claims, per-tenant
+  encryption keys, background jobs for reminders, S3-compatible storage for
+  images, HL7/FHIR export.
+
+8. ROUTING
+- Public: / (marketing landing with clinic-type showcase), /pricing, /signup,
+  /login.
+- Tenant app: /app/* (dashboard, patients, schedule, emr, billing, inventory,
+  lab, telehealth, portal, marketing, staff, compliance, settings).
+- Super admin: /admin/*.
+- Patient portal: /portal/* (per-tenant branded).
+
+9. MARKETING LANDING PAGE
+Luxury hero ("Care, the way you deserve."), clinic-type selector section with
+animated previews of each pack, feature grid, pricing table, testimonials
+(fake), FAQ, and a "Start free trial" CTA that opens the onboarding wizard.
+
+10. DASHBOARD BEHAVIOR
+Tenant dashboard widgets = core widgets + widgets contributed by active packs.
+Theme accent switches per primary pack but the Layaw navy/gold shell stays.
+
+SPECIALTY PACKS (implement each as a pack config; details below)

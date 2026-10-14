@@ -1,0 +1,473 @@
+ROLE
+You are a world-class principal full-stack engineer and luxury product designer
+with 15+ years building enterprise healthcare SaaS. Build a premium, high-end,
+multi-function clinic management system called "LAYAW CARE", a multi-tenant
+platform serving many clinics and specialties.
+
+BRAND IDENTITY
+- Product name: LAYAW CARE (master brand "LAYAW" in refined serif uppercase,
+  "Care" in light sans, the active specialty pack shown as a small gold tag)
+- Tagline: "Care, the way you deserve."
+- Meaning: "Layaw" is Cebuano for to cherish and pamper. Brand promise: every
+  patient is treated as a VIP and every clinic runs with effortless,
+  concierge-level precision.
+- Voice: warm, gracious, professional. Light Cebuano/Filipino touches in
+  greetings and empty states, never overdone.
+  Examples:
+  * Dashboard greeting: "Maayong adlaw, Dr. Reyes. Andam na ang imong mga
+    pasyente."
+  * Empty queue: "Walay naghulat karon. Pahulay sa kadiyot."
+  * Success toast: "Malampuson nga na-save."
+  * Patient portal: "Welcome balik, Maria. Giatiman ka namo."
+  * Footer: "Gihimo uban sa pagpaluyo. Layaw Care (c) 2026"
+- Logo concept: wordmark "LAYAW" in a refined serif with wide letter-spacing
+  and "Care" in light sans beneath; icon is a minimal open palm cradling a
+  small heart/leaf. Provide as inline SVG, plus a compact monogram "LC" for the
+  collapsed sidebar and favicon. Show the logo on login, sidebar, printed
+  receipts, prescriptions, certificates, and the patient portal header.
+
+GOAL
+Create a fully working SAMPLE/DEMO of the system (frontend with realistic mock
+data, no real patient data). It must look like a $50,000/year enterprise
+product: polished, luxurious, fast, and intuitive.
+
+TECH STACK
+- React + TypeScript + Vite (or Next.js App Router)
+- Tailwind CSS + shadcn/ui + Framer Motion
+- Recharts for charts, Lucide icons
+- Zustand or Redux Toolkit for state
+- Mock API layer with realistic seed data (at least 40 patients, 8 doctors,
+  60 appointments, 30 invoices, 50 inventory items)
+- Everything runs locally with one command (npm install && npm run dev)
+
+DESIGN SYSTEM (base; the EDITION OVERRIDE section below wins on any conflict)
+- Palette: ink navy #0B1B2B, champagne gold #C8A96A, ivory #FAF7F2,
+  teal accent #2FA39A, success #3FB68B, warning #E0A800, danger #D64545
+- Typography: Cormorant Garamond/Playfair Display for headings, Inter for body
+- Glassmorphism cards, soft shadows, 16px radius, generous whitespace
+- Dark and light mode toggle, smooth page transitions, skeleton loaders,
+  empty states, toasts, tooltips
+- Collapsible sidebar with logo, top bar with global search, notifications
+  bell, command palette (Ctrl+K), and user menu
+- Fully responsive (desktop, tablet, mobile)
+
+ROLE-BASED LOGIN (demo)
+Login screen with branding, tagline, an elegant hero panel, and a role
+switcher to demo: Clinic Owner, Doctor, Nurse, Receptionist, Cashier,
+Pharmacist, Patient. Each role sees only its permitted menus and widgets.
+
+CORE MODULES AND PAGES (build all, adapted to the edition)
+1. Command Center Dashboard
+   - KPI cards, revenue line chart (30 days), appointments by service (donut),
+     doctor utilization (bar), live patient queue, low-stock alerts,
+     upcoming birthdays, top services table
+   - "Layaw Score": VIP patient-experience score (0-100) combining wait time,
+     NPS, rebooking rate, and follow-up compliance, shown as a gold ring gauge.
+2. Patient 360
+   - Searchable/filterable table with VIP tags; profile with demographics,
+     allergies banner, emergency contacts, insurance, visit timeline,
+     documents, vitals trends, outstanding balance, family members,
+     preferences (favorite doctor, preferred contact channel, notes)
+   - "Add Patient" multi-step form with validation
+3. Smart Scheduling
+   - Day/Week/Month calendar with drag-and-drop, color-coded by doctor/status,
+     room and doctor filters, walk-in queue board (Waiting, In Consultation,
+     Done), waitlist, conflict detection, one-click reschedule, reminder
+     status (SMS/Email/Viber)
+4. EMR / Consultation Workspace
+   - SOAP note editor with templates, vitals entry, ICD-10 diagnosis search,
+     e-prescription builder, lab ordering, attachments, printable medical
+     certificate, follow-up scheduling
+5. Billing & Insurance
+   - Invoice builder (services, products, discounts incl. Senior/PWD, tax),
+     payments (cash, card, GCash, bank, HMO), partial payments, printable
+     official receipt, HMO/PhilHealth claim tracker (Draft, Submitted,
+     Approved, Denied), receivables aging report
+6. Pharmacy & Inventory
+   - Stock with batch numbers, expiry color coding, reorder alerts, dispensing
+     linked to prescriptions, movement history, suppliers, purchase orders
+7. Laboratory & Imaging
+   - Order queue, result upload, abnormal flags, trend charts
+8. Telehealth
+   - Video consult room mock UI (camera tiles, chat, notes panel, screen
+     share), consult history
+9. Patient Portal (patient role)
+   - Upcoming appointments, online booking wizard, results, prescriptions,
+     invoices, certificates, membership and loyalty points
+10. Marketing and CRM ("Layaw Circle")
+   - Recall campaigns, birthday greetings, membership tiers (Silver, Gold,
+     Platinum) with points and perks, feedback with NPS and reviews
+11. Staff and Commission
+   - Directory, shift schedule, professional-fee sharing report
+12. Compliance and Audit
+   - Audit log (who viewed/edited which record), consent forms, role/permission
+     matrix editor, data export
+
+CROSS-CUTTING FEATURES
+- Global search (patients, appointments, invoices, products)
+- Notification center with real-time-style updates
+- Print-friendly views with LAYAW CARE letterhead and a clinic branding slot
+  (clinic uploads own logo; "Powered by Layaw Care" stays in footer = white-label)
+- Data tables with sorting, filtering, pagination, column toggle, CSV export
+- Form validation (zod), optimistic UI, keyboard shortcuts
+- i18n-ready: English, Filipino, and Cebuano (Bisaya) language toggle
+- Accessibility: WCAG AA, focus states, aria labels
+
+DATA MODEL (core; every entity includes tenantId; add Tenant, Subscription, PackActivation, FeatureFlag, Plan)
+Clinic, Branch, Room, User, Doctor, Patient, Appointment, Encounter, Vitals,
+Diagnosis, Prescription, Medicine, InventoryBatch, LabOrder, LabResult,
+Invoice, InvoiceItem, Payment, InsuranceClaim, Membership, LoyaltyTransaction,
+Notification, AuditLog. Relationship: appointment -> encounter -> invoice ->
+payments. Add the edition-specific entities listed below.
+
+======================= PLATFORM ARCHITECTURE AND SPECIALTY PACKS =======================
+This section defines multi-tenancy, onboarding, plans, and the pack engine.
+Where it conflicts with anything above, THIS SECTION WINS.
+
+THIS IS ONE PLATFORM, NOT SIX PRODUCTS. "LAYAW CARE" is a single multi-tenant
+SaaS. Each clinic that signs up is a TENANT with its own isolated records.
+During signup the clinic chooses its CLINIC TYPE, which activates a SPECIALTY
+PACK (modules, forms, dashboard KPIs, theme accents, seed templates). The core
+platform is identical for everyone; only the activated pack changes.
+
+1. TENANCY AND DATA ISOLATION
+- Every record carries tenantId (and branchId where relevant). All queries, the
+  mock API, search, exports, and audit logs are scoped by the active tenant.
+  A user can never see another tenant's data, enforce this in the data layer,
+  not just the UI.
+- Demo implementation: mock database namespaced per tenant (e.g.,
+  db[tenantId].patients), persisted in localStorage under "layaw:<tenantId>:*".
+  Include a visible "Tenant Isolation" proof in the Super Admin console.
+- Seed three demo tenants: "Smile Studio Cebu" (Dental), "Glow by Dra. Ana"
+  (Aesthetic), "Little Steps Pediatrics" (Kids), each with different patients,
+  staff, branding, and data. A tenant switcher in the demo toolbar logs in as
+  each tenant to prove the records are separate.
+- Tenant-level settings: clinic name, logo upload, brand accent color, address,
+  branches, operating hours, currency, tax, languages, receipt letterhead.
+
+2. SIGNUP AND ONBOARDING WIZARD ("Welcome to Layaw Care")
+Step 1 Account: owner name, email, password, clinic name.
+Step 2 Choose Clinic Type (large visual cards with icon, one-line pitch, and
+  preview of included features). Multi-select allowed for multi-specialty
+  clinics. Options:
+    General Clinic, Dental, Aesthetic/Derma ("Glow"), Pediatrics ("Kids"),
+    OB-GYN/Maternity ("Mama"), Eye/Optical ("Vision"), Rehab/Physio ("Motion").
+  Live preview panel on the right changes palette, sidebar, and sample
+  dashboard as the user hovers each type.
+Step 3 Clinic Profile: branches, rooms/chairs, services and prices (prefilled
+  from the pack's service template, editable), operating hours.
+Step 4 Team: invite staff by role (Doctor, Nurse, Receptionist, Cashier,
+  Pharmacist, Lab Tech).
+Step 5 Choose Plan: Starter, Pro, Enterprise (see Plans) with monthly/annual
+  toggle and a free 14-day trial option.
+Step 6 Finish: animated "We're setting up your clinic" screen, then land on the
+  dashboard with a guided product tour and checklist ("Add your first patient").
+Clinics can later add or change specialty packs from Settings > Specialty Packs
+(add-on packs are shown as upsells).
+
+3. PLANS (feature flags drive what each tenant sees)
+- Starter: Patient 360, Scheduling, basic EMR, billing and receipts, 1 branch,
+  3 users, 1 specialty pack.
+- Pro: everything in Starter + inventory/pharmacy, lab, patient portal, SMS and
+  email reminders, Layaw Circle loyalty, analytics, up to 5 branches, 15
+  users, 2 specialty packs.
+- Enterprise: everything in Pro + unlimited branches/users/packs, telehealth,
+  HMO claims, API access, audit and compliance suite, white-label, priority
+  support.
+Locked features appear in the UI with a gold lock badge and an
+"Upgrade to Pro" modal (never hide them silently).
+
+4. PACK ENGINE (how specialty modules plug in)
+- A pack registry defines for each pack: id, name, icon, theme accent, sidebar
+  items, routes, EMR template, dashboard widgets, data-model extensions,
+  service/price templates, forms/consents, and seed data.
+- The sidebar, dashboard, patient profile tabs, and EMR workspace are rendered
+  from the active packs. Multiple packs can coexist (e.g., Dental + Aesthetic),
+  sharing the same patient record with pack-specific tabs.
+- Patient 360 always shows a unified timeline; pack tabs (Odontogram, Growth
+  Chart, Prenatal, Eye Exam, Face Map, Session Tracker) appear only when the
+  pack is active.
+- New packs can be added by dropping a config file into /packs without touching
+  core code. Document this in the README with an example.
+
+5. SUPER ADMIN CONSOLE (Layaw Care company staff only)
+- Tenant list with clinic type, plan, status (Trial, Active, Past due,
+  Suspended), signup date, MRR.
+- Tenant detail: usage (patients, users, storage), enabled packs and flags,
+  impersonate (read-only, logged), suspend/reactivate.
+- Platform analytics: total tenants, MRR/ARR, churn, signups by clinic type
+  (donut), trial-to-paid conversion, most-used modules.
+- Billing: subscription invoices, plan changes, coupon codes.
+- Announcements and release notes pushed to all tenants.
+
+6. TENANT ADMIN AREA (Clinic Owner)
+- Settings: profile, branding/white-label, branches, roles and permissions,
+  specialty packs, plan and billing (invoices, upgrade/downgrade), data export
+  (all records as CSV/JSON), notification templates, integrations.
+- Data ownership page: "Your records belong to you" with export and a
+  request-deletion flow.
+
+7. SECURITY AND COMPLIANCE (reflect in UI and README roadmap)
+- Role-based access per tenant, audit log of every record view/edit, consent
+  management, session timeout, 2FA setup screen (mock), encryption-at-rest and
+  per-tenant backup notes, Philippine Data Privacy Act and HIPAA-aligned
+  practices.
+- Production roadmap: Postgres with row-level security on tenantId (or
+  schema-per-tenant for Enterprise), JWT/OAuth with tenant claims, per-tenant
+  encryption keys, background jobs for reminders, S3-compatible storage for
+  images, HL7/FHIR export.
+
+8. ROUTING
+- Public: / (marketing landing with clinic-type showcase), /pricing, /signup,
+  /login.
+- Tenant app: /app/* (dashboard, patients, schedule, emr, billing, inventory,
+  lab, telehealth, portal, marketing, staff, compliance, settings).
+- Super admin: /admin/*.
+- Patient portal: /portal/* (per-tenant branded).
+
+9. MARKETING LANDING PAGE
+Luxury hero ("Care, the way you deserve."), clinic-type selector section with
+animated previews of each pack, feature grid, pricing table, testimonials
+(fake), FAQ, and a "Start free trial" CTA that opens the onboarding wizard.
+
+10. DASHBOARD BEHAVIOR
+Tenant dashboard widgets = core widgets + widgets contributed by active packs.
+Theme accent switches per primary pack but the Layaw navy/gold shell stays.
+
+SPECIALTY PACKS (implement each as a pack config; details below)
+
+GENERAL CLINIC PACK (default, no extras): uses the core modules only.
+
+----- DENTAL PACK (clinic type: Dental) -----
+PALETTE: pearl white #FBFBFD, mint #7FD1C0, deep teal #0F4C5C, gold accent
+#C8A96A. Fresh, clean, clinical-luxury.
+GREETING EXAMPLE: "Maayong buntag, Dr. Santos. 6 ka pasyente karong adlawa."
+
+SPECIALTY MODULES
+1. Interactive Odontogram: SVG chart of 32 permanent + 20 primary teeth (FDI
+   and Universal numbering toggle). Click a tooth/surface (M, O, D, B, L) to
+   mark conditions: caries, filling, crown, missing, implant, root canal,
+   extraction, bridge. Color-coded legend, per-tooth history, undo.
+2. Treatment Plan Builder: multi-phase plans (Phase 1 Urgent, Phase 2
+   Restorative, Phase 3 Cosmetic), per-procedure price, estimate total,
+   patient e-signature approval, installment schedule (downpayment + monthly),
+   progress bar of completed procedures.
+3. Orthodontics Tracker: braces/aligner case, bracket type, wire sequence,
+   monthly adjustment log, payment ledger, retainer status, before/after photos.
+4. Dental Imaging Gallery: X-ray (periapical, panoramic, bitewing), intraoral
+   photos, side-by-side compare, zoom and annotate (mock).
+5. Periodontal Chart: pocket depth grid, bleeding-on-probing markers.
+6. Lab Case Tracker: dental lab orders (crowns, dentures, aligners), due dates,
+   status (Sent, In Fabrication, Received, Fitted).
+7. Sterilization and Instrument Log: autoclave cycles, instrument sets,
+   compliance checklist.
+8. Chair Management: chair occupancy board with live procedure timers.
+
+EDITION DATA MODEL: Tooth, ToothSurfaceCondition, TreatmentPlan,
+TreatmentPhase, TreatmentProcedure, OrthoCase, OrthoAdjustment, DentalImage,
+PerioChart, LabCase, SterilizationCycle, DentalChair.
+
+DASHBOARD KPIs: chair utilization %, treatment-plan acceptance rate, production
+per dentist, collections vs. production, recall due list (6-month cleaning),
+active ortho cases, overdue lab cases.
+
+SEED SERVICES (PHP): Oral Prophylaxis 1,200; Composite Filling 1,500;
+Extraction 1,800; Root Canal 8,000; Porcelain Crown 12,000; Braces Package
+45,000; Implant 65,000; Teeth Whitening 8,500.
+
+----- GLOW PACK (clinic type: Aesthetic/Derma) -----
+PALETTE: blush #F3D9D2, rose gold #B76E79, espresso #2B1B17, champagne #D9B88F,
+ivory #FFF9F5. Elegant serif headings, airy spacing. Luxury spa meets medical
+clinic.
+GREETING EXAMPLE: "Maayong adlaw, Dra. Villanueva. Ang imong mga kliyente andam na."
+
+SPECIALTY MODULES
+1. Skin Analysis and Face Mapping: interactive face/body diagram where staff pin
+   treatment zones (forehead, cheeks, jawline), units of botulinum/filler per
+   zone, injection history heatmap.
+2. Before/After Photo Studio: standardized photo angles, drag-slider compare,
+   progress timeline, consent-based gallery, watermark toggle.
+3. Treatment Packages and Sessions: package builder (e.g., 6x Laser Hair
+   Removal), remaining-sessions counter, expiry date, transfer/gift option,
+   session redemption with signature.
+4. Membership and Loyalty ("Layaw Circle" Silver/Gold/Platinum): points, birthday
+   perks, referral rewards, prepaid wallet balance.
+5. Product Retail POS: skincare products, barcodes, bundles, regimen
+   recommendations per skin type, reorder reminders.
+6. Consent and Waivers: digital multi-form signing (Botox, laser, peels),
+   photo-release consent, audit trail.
+7. Machine and Consumables Tracking: laser device usage count, filler/toxin lot
+   numbers and expiry, per-treatment consumption deduction.
+8. Skincare Routine Planner: AM/PM routine sent to patient portal with product
+   links and follow-up reminders.
+9. Practitioner Commission: per-treatment commission rules and reports.
+
+EDITION DATA MODEL: SkinAssessment, TreatmentZone, InjectionRecord (product,
+lot, units), PhotoSet, Package, PackageSession, WalletTransaction,
+RetailProduct, Consent, DeviceUsageLog.
+
+DASHBOARD KPIs: package utilization, retention rate, average spend per client,
+top treatments, membership MRR, rebooking rate, product attach rate.
+
+SEED SERVICES (PHP): Diamond Peel 2,500; Hydrafacial 4,500; Botox per unit 350;
+Filler per syringe 18,000; Laser Hair Removal underarm 1,800; Pico Laser 6,500;
+Glutathione drip 3,000; Acne Facial 1,800.
+
+----- KIDS PACK (clinic type: Pediatrics) -----
+PALETTE: sky #BFE3F5, sunshine #FFD76A, mint #A8E6CF, navy text #1E2A3A. Rounded
+friendly UI that is still professional and premium; subtle playful micro-
+animations, never childish.
+GREETING EXAMPLE: "Maayong adlaw, Dra. Cruz. Naghulat si Baby Mika."
+
+SPECIALTY MODULES
+1. Growth Charts: WHO/CDC percentile curves for weight, height/length, head
+   circumference, BMI; plot measurements over time; flag under/overweight.
+2. Immunization Tracker: vaccine schedule (BCG, Hep B, Pentavalent, OPV, PCV,
+   MMR, Flu, etc.), due/overdue/completed status, lot numbers, printable
+   vaccination card, reminder campaign to parents.
+3. Family Account: parent/guardian linked to multiple children, one login,
+   switch child profile, authorized pickup persons.
+4. Developmental Milestones Checklist by age (motor, language, social) with
+   concern flags.
+5. Weight-based Dose Calculator: auto-compute pediatric dosing from weight with
+   max-dose safety warnings.
+6. Sick vs. Well-baby Visit Templates: newborn screening, feeding history,
+   sleep, rashes, fever diary.
+7. Parent Portal: book visits, download vaccine card, growth chart, school
+   medical certificate request, chat with clinic.
+8. Waiting Room Display: kid-friendly queue screen with avatars/nicknames.
+
+EDITION DATA MODEL: Guardian, Child, GrowthMeasurement, VaccineSchedule,
+VaccineRecord, MilestoneAssessment, DoseCalculation, SchoolCertificate.
+
+DASHBOARD KPIs: vaccine coverage %, overdue vaccines list, new vs. returning
+patients, top diagnoses (URTI, gastroenteritis), average visit duration,
+recall conversion.
+
+SEED DATA: children aged 0-12 with guardians, vaccine records, growth points.
+Services (PHP): Well-baby Check-up 800; Sick Visit 700; Flu Vaccine 1,400;
+MMR 1,200; Newborn Screening 1,800.
+
+----- MAMA PACK (clinic type: OB-GYN/Maternity) -----
+PALETTE: lavender #E6DDF5, rose gold #C98B8B, cream #FFF8F2, plum #3B2A4A.
+Soft, calming, reassuring luxury.
+GREETING EXAMPLE: "Maayong adlaw, Dra. Bautista. 5 ka mama ang naka-schedule karon."
+
+SPECIALTY MODULES
+1. Pregnancy Timeline: LMP and EDD calculator (Naegele), gestational age in
+   weeks/days, trimester progress ring, milestone cards.
+2. Prenatal Visit Tracker: fundal height, BP, weight-gain curve, fetal heart
+   tone, urine tests, next-visit scheduler.
+3. Ultrasound Records: biometry (BPD, HC, AC, FL), estimated fetal weight,
+   image gallery, anomaly-scan checklist.
+4. Risk Flagging: auto-alerts for high-risk pregnancy (age, hypertension,
+   gestational diabetes) with visual badge.
+5. Labor and Delivery Board: admitted patients, partograph (mock), room
+   assignment, delivery log, newborn record auto-created.
+6. Postpartum and Newborn Follow-up: 1-week and 6-week visits, breastfeeding
+   notes, newborn screening status.
+7. Gynecology Module: Pap smear schedule, contraception counseling, menstrual
+   cycle log, fertility tracking.
+8. Maternity Package Builder: prenatal + delivery bundles with installment
+   billing and PhilHealth/HMO deductions.
+9. Patient Portal ("Mama Journey"): pregnancy journey page, reminders, lab
+   results, birth plan form.
+
+EDITION DATA MODEL: Pregnancy, PrenatalVisit, UltrasoundScan, RiskFactor,
+LaborDeliveryRecord, Newborn, PostpartumVisit, PapSmearRecord,
+MaternityPackage.
+
+DASHBOARD KPIs: active pregnancies by trimester, expected deliveries this
+month, high-risk count, C-section vs. normal delivery rate, prenatal visit
+compliance.
+
+SEED SERVICES (PHP): Prenatal Check-up 800; Pelvic Ultrasound 1,200; Pap Smear
+1,500; Normal Delivery Package 45,000; C-section Package 95,000.
+
+----- VISION PACK (clinic type: Eye/Optical) -----
+PALETTE: deep indigo #1B1F4B, ice blue #CFE8F7, silver #C9CED6, white, gold
+accent #C8A96A. Clean, precise, high-tech.
+GREETING EXAMPLE: "Maayong adlaw, Dr. Lim. 12 ka eye exam ang naka-schedule."
+
+SPECIALTY MODULES
+1. Eye Exam Record: visual acuity (OD/OS), refraction (sphere, cylinder, axis,
+   add, PD), IOP, slit-lamp findings, fundus notes, interactive eye diagram.
+2. Prescription Generator: eyeglass and contact lens Rx, printable with
+   letterhead.
+3. Optical Retail POS: frames catalog with images, lens types (single vision,
+   progressive, blue-cut), coatings, price calculator, lab order, pickup
+   status (Ordered, Fabricating, Ready, Claimed).
+4. Surgery Scheduler: cataract/LASIK/pterygium cases, OR booking, pre-op
+   checklist, post-op follow-up schedule.
+5. Diagnostics Imaging: OCT, visual field, fundus photo gallery with compare.
+6. Optical Inventory: frames and lenses by SKU, size/color variants, low-stock
+   alerts, supplier orders.
+7. Recall: annual exam and lens-replacement reminders.
+
+EDITION DATA MODEL: EyeExam, Refraction, ContactLensRx, GlassesRx, Frame,
+LensType, OpticalOrder, SurgeryCase, DiagnosticImage.
+
+DASHBOARD KPIs: exams per day, optical sales, exam-to-purchase conversion,
+surgery pipeline, frame inventory turnover, top lens brands.
+
+SEED ITEMS (PHP): Comprehensive Eye Exam 800; Cataract Surgery per eye 45,000;
+LASIK 65,000; Progressive Lens Set 9,500; Blue-cut Lens 3,200; Designer Frame
+4,500-18,000.
+
+----- MOTION PACK (clinic type: Rehab/Physio) -----
+PALETTE: slate #2D3748, electric teal #14B8A6, white, soft grey #EDF2F7, gold
+accent #C8A96A. Athletic, energetic, but refined.
+GREETING EXAMPLE: "Maayong adlaw, Coach Rey. 9 ka session karong adlawa."
+
+SPECIALTY MODULES
+1. Assessment and Goal Setting: pain-scale body map, range-of-motion
+   measurements, functional scores, SMART goals with progress percentage.
+2. Session Package Tracker: bought vs. used sessions, auto-deduct per visit,
+   expiry alerts, renewal prompts.
+3. Home Exercise Program Builder: exercise library with thumbnails, sets/reps,
+   send to patient portal with checklist and adherence tracking.
+4. Progress Analytics: pain trend, ROM improvement, outcome charts per patient.
+5. Therapist Scheduling: therapist skill matching, treatment rooms, equipment
+   booking (ultrasound, TENS, traction).
+6. Sports and Occupational Programs: corporate wellness accounts, team rosters,
+   return-to-play tracker.
+7. Discharge Summary generator with outcomes and maintenance plan.
+
+EDITION DATA MODEL: Assessment, PainMap, RomMeasurement, Goal, SessionPackage,
+SessionLog, Exercise, HomeProgram, AdherenceLog, EquipmentBooking,
+CorporateAccount.
+
+DASHBOARD KPIs: session utilization, average sessions to discharge, patient
+outcome improvement %, therapist productivity, package renewal rate, no-show
+rate.
+
+SEED SERVICES (PHP): Initial Assessment 1,200; PT Session 900; 10-Session
+Package 8,000; Sports Massage 1,000; Dry Needling 1,500.
+
+PACK RULE: each pack's PALETTE becomes that pack's accent theme (applied to
+charts, badges, and highlights), not a full replacement of the Layaw shell.
+===================================================================================
+
+SEED DATA
+Realistic Filipino (incl. Cebuano) and international names, Philippine
+locations (Cebu City, Davao, Manila), PHP currency, realistic specialty
+services and prices. No lorem ipsum. Fake data only.
+
+CODE QUALITY
+- Clean structure (features/, components/, lib/, hooks/, store/, mocks/)
+- Reusable components, strict TypeScript
+- README with setup steps, folder map, and screenshot checklist
+- "Production Roadmap" section: real backend (Node/NestJS + PostgreSQL),
+  JWT/OAuth, HL7/FHIR integration, encryption at rest, multi-tenant
+  white-labeling, Philippine Data Privacy Act and HIPAA-aligned compliance
+
+DELIVERABLE ORDER
+1. Show the project structure.
+2. Design system, logo SVGs, and layout shell first.
+3. Build modules one by one: Dashboard, Patient 360, Scheduling, the
+   specialty workspace, then Billing, then the rest.
+4. Finish with README and run instructions.
+
+IMPORTANT
+Use only fake/sample data. Make every screen look finished, premium, and
+demo-ready. Prioritize visual polish, brand consistency, and smooth UX.
