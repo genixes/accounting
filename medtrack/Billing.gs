@@ -273,7 +273,7 @@ function sendBillingEmail_(u, kind, a, bill, extra) {
     }
     var how = showPay ? '<div style="margin-top:16px;padding:14px 16px;background:#F3F6F9;border-radius:12px;color:#334A60;font-size:13px;line-height:1.55">' + (bill.instructions ? nl2br_(bill.instructions) + '<br><br>' : '') + 'After paying, just <b>reply to this email</b> with your reference number or a screenshot. We confirm it quickly.</div>' : '';
     var html = '<div style="background:#F3F6F9;padding:24px 12px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif"><div style="max-width:520px;margin:auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 6px 24px rgba(15,42,68,.10)">' +
-      '<div style="background:' + brand + ';padding:24px 28px"><div style="color:#fff;font-size:22px;font-weight:800">MedTrack</div><div style="color:' + accent + ';font-size:12px;font-weight:700;letter-spacing:.12em;margin-top:2px">SUBSCRIPTION</div></div>' +
+      emailHeader_(brand, accent, 'SUBSCRIPTION') +
       '<div style="padding:28px"><h2 style="margin:0 0 8px;color:#0F2A44;font-size:20px">' + esc_(title) + '</h2>' +
       '<p style="margin:0 0 18px;color:#334A60;font-size:14.5px;line-height:1.55">Hi ' + esc_(u.Name) + ', ' + lead + '</p>' +
       '<table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border:1px solid #E6ECF2;border-radius:12px;border-collapse:separate;overflow:hidden">' + rows + '</table>' +

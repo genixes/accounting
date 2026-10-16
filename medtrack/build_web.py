@@ -66,23 +66,11 @@ self.addEventListener('fetch', e => {
 });
 ''')
 
-def icon(size):
-    s = size * 2
-    im = Image.new('RGBA', (s, s))
-    px = im.load()
-    for y in range(s):
-        for x in range(s):
-            t = (x + y) / (2 * s)
-            px[x, y] = (int(15 + (14 - 15) * t), int(42 + (154 - 42) * t), int(68 + (167 - 68) * t), 255)
-    layer = Image.new('RGBA', (s, s), (0, 0, 0, 0))
-    d = ImageDraw.Draw(layer)
-    w, h = int(s * 0.62), int(s * 0.25)
-    cx, cy = s // 2, s // 2
-    d.rounded_rectangle([cx - w // 2, cy - h // 2, cx + w // 2, cy + h // 2], radius=h // 2, fill=(255, 255, 255, 255))
-    d.line([cx, cy - h // 2 + 6, cx, cy + h // 2 - 6], fill=(14, 154, 167, 255), width=max(4, s // 60))
-    layer = layer.rotate(40, resample=Image.BICUBIC)
-    im = Image.alpha_composite(im, layer).convert('RGB')
-    return im.resize((size, size), Image.LANCZOS)
+brand = os.path.join(here, 'brand')
+def resized(src, size):
+    return Image.open(os.path.join(brand, src)).convert('RGBA').resize((size, size), Image.LANCZOS)
+# full-bleed profile picture = PWA / home-screen icons (safe for maskable); rounded mark = logo used in emails and the page
 for name, size in [('icon-192.png', 192), ('icon-512.png', 512), ('apple-touch-icon.png', 180)]:
-    icon(size).save(os.path.join(out, name), optimize=True)
+    resized('medtrack-profile-picture-1024.png', size).convert('RGB').save(os.path.join(out, name), optimize=True)
+resized('medtrack-icon-1024.png', 256).save(os.path.join(out, 'logo-mark.png'), optimize=True)
 print('built', out, sorted(os.listdir(out)))

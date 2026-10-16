@@ -94,8 +94,9 @@ h1,h2,h3,p{margin:0}
 .app{min-height:100vh}
 .topbar{position:fixed;top:0;left:0;right:0;z-index:30;height:calc(var(--top-h) + env(safe-area-inset-top));padding:env(safe-area-inset-top) 12px 0;display:flex;align-items:center;gap:8px;border-width:0 0 1px 0;box-shadow:var(--shadow-1)}
 .topbar .title{font-weight:700;font-size:17px;letter-spacing:-.01em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.logo{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,var(--navy),var(--teal));display:grid;place-items:center;color:#fff;flex:none}
-.logo svg{width:18px;height:18px}
+.logo{width:32px;height:32px;border-radius:22.6%;background:linear-gradient(135deg,#0F2A44,#0E9AA7);display:block;overflow:hidden;color:#fff;flex:none;box-shadow:0 1px 2px rgba(15,42,68,.25)}
+.logo svg{width:100%;height:100%;display:block}
+.logo.xl{width:76px;height:76px;margin:0 auto 14px;box-shadow:0 10px 26px -8px rgba(14,154,167,.55),0 2px 6px rgba(15,42,68,.25)}
 .view{padding:calc(var(--top-h) + env(safe-area-inset-top) + 14px) 16px calc(var(--nav-h) + env(safe-area-inset-bottom) + 96px);max-width:1100px;margin:0 auto;outline:none}
 .bottomnav{position:fixed;left:10px;right:10px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:30;height:var(--nav-h);border-radius:22px;display:grid;grid-template-columns:repeat(5,1fr);padding:6px;box-shadow:var(--shadow-3)}
 .navbtn{border:0;background:transparent;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:600;color:var(--muted);min-height:44px;transition:background .18s var(--ease),color .18s var(--ease),transform .12s}
@@ -421,6 +422,7 @@ var ICONS = {
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.5"/>',
   minus: '<path d="M5 12h14"/>'
 };
+var LOGO = '<svg viewBox="0 0 512 512" aria-hidden="true"><g transform="translate(256 256) rotate(-40)"><rect x="-168" y="-68" width="336" height="136" rx="68" fill="#fff"/><rect x="-5" y="-62" width="10" height="124" fill="#0E9AA7"/></g></svg>';
 function ico(name) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>'; }
 
 function illus(kind) {
@@ -822,10 +824,10 @@ function renderChrome() {
   var biz = S.data ? S.data.settings.BusinessName : '';
   var sub = (r === 'accounts' && S.route.id) || (MORE_ROUTES[r] && r !== 'more');
   if (r === 'accounts' && S.route.id) title = 'Account';
-  var left = sub ? '<button class="iconbtn" data-a="goBack" aria-label="Back">' + ico('back') + '</button>' : '<div class="logo">' + ico('pill') + '</div>';
+  var left = sub ? '<button class="iconbtn" data-a="goBack" aria-label="Back">' + ico('back') + '</button>' : '<div class="logo">' + LOGO + '</div>';
   $('#topbar').innerHTML = left + '<div class="title">' + esc(title) + '</div><button class="sync-badge" id="syncBadge" data-a="openSync"></button>' +
     '<button class="iconbtn" data-a="doRefresh" aria-label="Refresh data" title="Refresh">' + (S.refreshing ? '<span class="spinner"></span>' : ico('sync')) + '</button>';
-  $('#sidebar').innerHTML = '<div class="brand"><div class="logo">' + ico('pill') + '</div><div><b>MedTrack</b><small>' + esc(biz || 'Expiry monitoring') + '</small></div></div>' +
+  $('#sidebar').innerHTML = '<div class="brand"><div class="logo">' + LOGO + '</div><div><b>MedTrack</b><small>' + esc(biz || 'Expiry monitoring') + '</small></div></div>' +
     SIDE.concat(MULTI && S.user && S.user.role === 'Admin' ? [['users', 'Subscribers', 'users']] : []).map(function (s) { var on = s[0] === r || (r === 'accounts' && s[0] === 'accounts'); return '<button class="navlink' + (on ? ' active' : '') + '" data-a="nav" data-to="' + s[0] + '">' + ico(s[2]) + s[1] + '</button>'; }).join('') +
     '<button class="navlink' + (r === 'more' ? ' active' : '') + '" data-a="nav" data-to="more" style="margin-top:8px">' + ico('more') + (MULTI ? 'Account &amp; style' : 'Style &amp; theme') + '</button>' +
     '<div class="side-foot">Powered by ' + LAYAW_LINK + '<br>v' + esc(S.flags.version || '1.0.0') + '</div>';
@@ -1862,7 +1864,7 @@ function authGate() {
 function drawAuth() {
   if (S.auth.mode === 'login' && !S.pub && !S.pubTried) { S.pubTried = true; loadPublicInfo(); }
   var m = S.auth.mode, msg = S.auth.msg ? '<div class="banner ' + (S.auth.ok ? 'ok' : 'warn') + '">' + ico(S.auth.ok ? 'check' : 'info') + '<span>' + esc(S.auth.msg) + '</span></div>' : '';
-  var head = '<div style="text-align:center;margin-bottom:6px"><div class="logo" style="width:56px;height:56px;border-radius:18px;margin:0 auto 14px"><span style="width:30px;height:30px;display:block">' + ico('pill') + '</span></div>', body = '';
+  var head = '<div style="text-align:center;margin-bottom:6px"><div class="logo xl">' + LOGO + '</div>', body = '';
   if (m === 'login') body = head + '<div class="h1">Welcome back</div><div class="sub">Sign in to your MedTrack</div></div>' + msg + '<div class="form">' + fld('au_email', 'Email', { type: 'email', value: S.auth.email || '', attrs: 'autocomplete="username" autocapitalize="off" inputmode="email" data-in="authEnter"' }) + pwField('au_pw', 'Password', 'current-password') + '<button class="btn primary block" id="auGo" data-a="doLogin" style="min-height:54px;font-size:16px">Sign in</button><button class="link" data-a="goForgot" style="align-self:center">Forgot password?</button>' + (S.pub && S.pub.signupOpen ? '<div class="authsep"><span>New to MedTrack?</span></div><button class="btn block" data-a="goSignup" style="min-height:50px">Create a free account</button>' : '') + '</div>';
   else if (m === 'signup') body = head + '<div class="h1">Create your account</div><div class="sub">Free for ' + ((S.pub && S.pub.trialDays) || 7) + ' days. No payment needed to start.</div></div>' + msg + '<div class="form">' + fld('su_name', 'Your name', { attrs: 'autocomplete="name" maxlength="80"', value: S.auth.name || '' }) + fld('au_email', 'Email', { type: 'email', value: S.auth.email || '', attrs: 'autocomplete="username" autocapitalize="off" inputmode="email"' }) + pwField('au_new', 'Choose a password', 'new-password') + pwField('au_new2', 'Type the password again', 'new-password') + '<div style="position:absolute;left:-5000px;height:0;overflow:hidden" aria-hidden="true"><input id="su_web" tabindex="-1" autocomplete="off" type="text"></div><p class="hint">We will email you a link to confirm your address, then your account opens right away.</p><button class="btn primary block" id="auGo" data-a="doSignup" style="min-height:54px;font-size:16px">Create my free account</button><button class="link" data-a="goLogin" style="align-self:center">I already have an account</button></div>';
   else if (m === 'sent') body = head + '<div class="h1">Check your email</div><div class="sub">We sent a confirmation link to <b>' + esc(S.auth.email || '') + '</b>. Tap it to open your account. It may take a minute, and please look in spam too.</div></div>' + msg + '<div class="form"><button class="btn block" data-a="goLogin" style="min-height:50px">Back to sign in</button></div>';

@@ -230,14 +230,7 @@ function requestReset_(p) {
     });
     var url = appUrl_();
     var link = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'reset=' + raw;
-    var html = '<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:480px;margin:auto;padding:24px;color:#0F2A44">' +
-      '<h2 style="margin:0 0 8px">Reset your MedTrack password</h2><p>Hi ' + esc_(u.Name) + ', tap the button to choose a new password. The link works once and expires in ' + RESET_MINUTES + ' minutes.</p>' +
-      '<p style="margin:22px 0"><a href="' + esc_(link) + '" style="background:#0E9AA7;color:#fff;text-decoration:none;font-weight:700;padding:13px 24px;border-radius:12px;display:inline-block">Choose a new password</a></p>' +
-      '<p style="color:#5B6F83;font-size:12px;word-break:break-all">Button not working? Copy this address into your browser:<br>' + esc_(link) + '</p>' +
-      '<p style="color:#5B6F83;font-size:13px">If you did not ask for this, you can ignore this email. Your password stays the same.</p>' +
-      '<p style="color:#7A8B9C;font-size:11px;margin-top:24px">Powered by <a href="' + APP.URL + '" style="color:#5B6F83">LAYAW SYSTEM</a></p></div>';
-    try { MailApp.sendEmail({ to: u.Email, subject: 'Reset your MedTrack password', htmlBody: html, body: 'Reset your MedTrack password: ' + link + '\n(Works once, expires in ' + RESET_MINUTES + ' minutes.)', name: 'MedTrack' }); }
-    catch (e) { console.error('Reset email failed: ' + e); }
+    simpleMail_(u.Email, 'Reset your MedTrack password', 'Reset your password', 'Hi ' + esc_(u.Name) + ', tap the button to choose a new password. The link works once and expires in ' + RESET_MINUTES + ' minutes.', 'Choose a new password', link, 'If you did not ask for this, you can ignore this email. Your password stays the same.');
   }
   return { sent: true };
 }
@@ -290,7 +283,7 @@ function simpleMail_(to, subject, title, leadHtml, btnLabel, btnUrl, note) {
   try {
     var brand = '#0F2A44', accent = '#0E9AA7';
     var html = '<div style="background:#F3F6F9;padding:24px 12px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif"><div style="max-width:520px;margin:auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 6px 24px rgba(15,42,68,.10)">' +
-      '<div style="background:' + brand + ';padding:24px 28px"><div style="color:#fff;font-size:22px;font-weight:800">MedTrack</div><div style="color:' + accent + ';font-size:12px;font-weight:700;letter-spacing:.12em;margin-top:2px">INVENTORY &amp; EXPIRY MONITORING</div></div>' +
+      emailHeader_(brand, accent, 'INVENTORY &amp; EXPIRY MONITORING') +
       '<div style="padding:28px"><h2 style="margin:0 0 10px;color:#0F2A44;font-size:20px">' + esc_(title) + '</h2><p style="margin:0 0 18px;color:#334A60;font-size:14.5px;line-height:1.55">' + leadHtml + '</p>' +
       (btnUrl ? '<p style="margin:22px 0"><a href="' + esc_(btnUrl) + '" style="background:' + accent + ';color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:12px;display:inline-block">' + esc_(btnLabel) + '</a></p><p style="margin:0 0 6px;color:#5B6F83;font-size:12.5px;word-break:break-all">Button not working? Open this address:<br><a href="' + esc_(btnUrl) + '" style="color:' + accent + '">' + esc_(btnUrl) + '</a></p>' : '') +
       (note ? '<p style="margin:16px 0 0;color:#7A8B9C;font-size:12.5px;line-height:1.5">' + esc_(note) + '</p>' : '') +
@@ -420,6 +413,21 @@ function createTenantSpreadsheet_(name, email, id) {
   return ss;
 }
 
+/** The logo picture for emails: only available when the website (not a script.google.com link) is the app address. */
+function logoUrl_() {
+  var u = ''; try { u = appUrl_(); } catch (e) { u = ''; }
+  var m = String(u).match(/^(https:\/\/[^\/?#]+)/);
+  return m && !/script\.google\.com|googleusercontent\.com/.test(m[1]) ? m[1] + '/logo-mark.png' : '';
+}
+
+/** Header band used by every MedTrack email: logo (when available) + name + a small caption. */
+function emailHeader_(brand, accent, caption) {
+  var img = logoUrl_();
+  return '<div style="background:' + brand + ';padding:22px 28px"><table role="presentation" cellspacing="0" cellpadding="0"><tr>' +
+    (img ? '<td style="padding-right:14px;vertical-align:middle"><img src="' + esc_(img) + '" width="46" height="46" alt="" style="display:block;border:0;border-radius:11px"></td>' : '') +
+    '<td style="vertical-align:middle"><div style="color:#fff;font-size:22px;font-weight:800;line-height:1.1">MedTrack</div><div style="color:' + accent + ';font-size:11px;font-weight:700;letter-spacing:.12em;margin-top:3px">' + caption + '</div></td></tr></table></div>';
+}
+
 /**
  * Branded welcome / new-password email with the sign-in details. Returns true when it was sent.
  * kind: 'welcome' (new account) or 'reset' (admin issued a new temporary password).
@@ -435,7 +443,7 @@ function sendCredentialEmail_(name, email, temp, url, kind, trialEnds) {
     var row = function (k, v, big) { return '<tr><td style="padding:12px 16px;border-bottom:1px solid #E6ECF2;color:#5B6F83;font-size:13px;width:38%">' + k + '</td><td style="padding:12px 16px;border-bottom:1px solid #E6ECF2;color:#0F2A44;font-weight:700;' + (big ? 'font-size:20px;letter-spacing:.06em;font-family:Consolas,Menlo,monospace;' : 'font-size:14px;') + 'word-break:break-all">' + v + '</td></tr>'; };
     var html = '<div style="background:#F3F6F9;padding:24px 12px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif">' +
       '<div style="max-width:520px;margin:auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 6px 24px rgba(15,42,68,.10)">' +
-      '<div style="background:' + brand + ';padding:26px 28px"><div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:.2px">MedTrack</div><div style="color:' + accent + ';font-size:12px;font-weight:700;letter-spacing:.12em;margin-top:2px">INVENTORY &amp; EXPIRY MONITORING</div></div>' +
+      emailHeader_(brand, accent, 'INVENTORY &amp; EXPIRY MONITORING') +
       '<div style="padding:28px">' +
       '<h2 style="margin:0 0 8px;color:#0F2A44;font-size:20px">' + title + '</h2>' +
       '<p style="margin:0 0 18px;color:#334A60;font-size:14.5px;line-height:1.55">Hi ' + esc_(name) + ', ' + intro + (trialEnds ? ' Your <b>free trial</b> runs until <b>' + esc_(fmtDate_(trialEnds)) + '</b>.' : '') + '</p>' +
