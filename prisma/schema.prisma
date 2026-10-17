@@ -11,37 +11,46 @@ datasource db {
 // TENANTS
 // ---------------------------------------------------------------------------
 
-model Tenant {
-  id        String   @id @default(cuid())
-  slug      String   @unique
-  name      String
-  createdAt DateTime @default(now())
+enum TenantKind {
+  CONSTRUCTION
+  SELLER
+}
 
-  branding TenantBranding?
-  features TenantFeature[]
-  users    User[]
-  projects Project[]
-  accounts Account[]
-  listItems ListItem[]
-  expenses    Expense[]
-  payrolls    Payroll[]
-  collections Collection[]
-  transfers   Transfer[]
-  auditLogs   AuditLog[]
+model Tenant {
+  id        String     @id @default(cuid())
+  slug      String     @unique
+  name      String
+  kind      TenantKind @default(CONSTRUCTION)
+  createdAt DateTime   @default(now())
+
+  branding       TenantBranding?
+  features       TenantFeature[]
+  users          User[]
+  projects       Project[]
+  accounts       Account[]
+  listItems      ListItem[]
+  expenses       Expense[]
+  payrolls       Payroll[]
+  collections    Collection[]
+  transfers      Transfer[]
+  auditLogs      AuditLog[]
   entrySequences EntrySequence[]
+  order          Order?
+  deadlines      ComplianceDeadline[]
+  consults       Consult[]
 }
 
 model TenantBranding {
   tenantId String @id
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  company  String @default("")
-  ink      String @default("#101634")
-  accent   String @default("#2E4ABE")
-  accent2  String @default("#32A9DC")
-  positive String @default("#0C6B59")
-  negative String @default("#C0242E")
-  paper    String @default("#EEF1F7")
+  company  String  @default("")
+  ink      String  @default("#101634")
+  accent   String  @default("#2E4ABE")
+  accent2  String  @default("#32A9DC")
+  positive String  @default("#0C6B59")
+  negative String  @default("#C0242E")
+  paper    String  @default("#EEF1F7")
   logoUrl  String?
 }
 
@@ -74,6 +83,8 @@ model User {
   tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name      String
+  /// Client-portal sign-in identity (email one-time code). Null for legacy PIN users.
+  email     String?
   pinHash   String
   role      Role
   active    Boolean  @default(true)
@@ -82,6 +93,8 @@ model User {
   projects UserProject[]
 
   @@unique([tenantId, name])
+  @@unique([tenantId, email])
+  @@index([email])
 }
 
 model UserProject {
@@ -98,14 +111,14 @@ model UserProject {
 // ---------------------------------------------------------------------------
 
 model Project {
-  id       String   @id @default(cuid())
-  tenantId String
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  no       String?
-  name     String
-  client   String?
-  contract Decimal  @default(0) @db.Decimal(14, 2)
-  status   String   @default("Ongoing")
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  no        String?
+  name      String
+  client    String?
+  contract  Decimal   @default(0) @db.Decimal(14, 2)
+  status    String    @default("Ongoing")
   startDate DateTime?
   endDate   DateTime?
   notes     String?
@@ -284,4 +297,200 @@ model AuditLog {
   at       DateTime @default(now())
 
   @@index([tenantId, at])
+}
+
+// ===========================================================================
+// FIRM SIDE — lead capture, payments, client onboarding, staff
+// ===========================================================================
+
+/// A prospect who finished the readiness quiz. One row per email (re-taking
+/// the quiz updates it). Consent is recorded with the version of the notice
+/// shown, as the Data Privacy Act expects.
+model Lead {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String
+  phone          String?
+  businessName   String
+  consentAt      DateTime
+  consentVersion String
+  quizVersion    String
+  answers        Json
+  score          Int
+  planKey        String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  orders   Order[]
+  consults Consult[]
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+}
+
+/// Amounts are integer centavos — never floats — and `PAID` is only ever
+/// reached through the webhook/verification path (see src/lib/billing).
+model Order {
+  id              String      @id @default(cuid())
+  leadId          String
+  lead            Lead        @relation(fields: [leadId], references: [id])
+  planKey         String
+  amount          Int
+  currency        String      @default("PHP")
+  status          OrderStatus @default(PENDING)
+  /// Our own reference sent to the provider and echoed back to us.
+  referenceNumber String      @unique
+  providerRef     String?     @unique
+  checkoutUrl     String?
+  expiresAt       DateTime?
+  paidAt          DateTime?
+  /// Set exactly once, when payment provisions the client workspace.
+  tenantId        String?     @unique
+  tenant          Tenant?     @relation(fields: [tenantId], references: [id])
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([leadId])
+  @@index([status, createdAt])
+}
+
+/// Every webhook we receive, stored verbatim before anything is acted on.
+/// The unique key makes redelivery a no-op and gives us a replayable record.
+model PaymentEvent {
+  id              String    @id @default(cuid())
+  provider        String
+  providerEventId String
+  type            String
+  payload         Json
+  receivedAt      DateTime  @default(now())
+  processedAt     DateTime?
+  outcome         String?
+
+  @@unique([provider, providerEventId])
+}
+
+enum OtpPurpose {
+  CLIENT
+  STAFF
+}
+
+/// One-time sign-in codes. Only a hash of the code is stored.
+model OtpChallenge {
+  id         String     @id @default(cuid())
+  email      String
+  purpose    OtpPurpose
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int        @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime   @default(now())
+
+  @@index([email, purpose, createdAt])
+}
+
+enum StaffRole {
+  ADMIN
+  PARTNER
+  SUPPORT
+}
+
+model StaffUser {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String
+  role      StaffRole
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  consults Consult[]
+  audits   StaffAudit[]
+}
+
+/// Append-only record of what staff did and to whom.
+model StaffAudit {
+  id         String    @id @default(cuid())
+  staffId    String
+  staff      StaffUser @relation(fields: [staffId], references: [id])
+  action     String
+  targetType String
+  targetId   String
+  details    String?
+  at         DateTime  @default(now())
+
+  @@index([targetType, targetId])
+  @@index([at])
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+/// Transactional outbox: an email is written in the same transaction as the
+/// thing that caused it, then delivered afterwards. `dedupeKey` makes a retried
+/// transaction unable to queue the same message twice.
+model EmailOutbox {
+  id        String      @id @default(cuid())
+  to        String
+  subject   String
+  textBody  String
+  htmlBody  String?
+  status    EmailStatus @default(PENDING)
+  attempts  Int         @default(0)
+  lastError String?
+  dedupeKey String?     @unique
+  createdAt DateTime    @default(now())
+  sentAt    DateTime?
+
+  @@index([status, createdAt])
+}
+
+enum ConsultStatus {
+  REQUESTED
+  SCHEDULED
+  DONE
+  CANCELLED
+}
+
+model Consult {
+  id           String        @id @default(cuid())
+  leadId       String
+  lead         Lead          @relation(fields: [leadId], references: [id])
+  tenantId     String?
+  tenant       Tenant?       @relation(fields: [tenantId], references: [id])
+  status       ConsultStatus @default(REQUESTED)
+  scheduledFor DateTime?
+  meetUrl      String?
+  notes        String?
+  assignedToId String?
+  assignedTo   StaffUser?    @relation(fields: [assignedToId], references: [id])
+  createdAt    DateTime      @default(now())
+
+  @@index([status, scheduledFor])
+}
+
+enum DeadlineStatus {
+  OPEN
+  DONE
+}
+
+/// Entered by the firm's accountant per client. Deliberately NOT generated
+/// from hard-coded tax rules: those must come from a CPA, per client.
+model ComplianceDeadline {
+  id          String         @id @default(cuid())
+  tenantId    String
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title       String
+  dueDate     DateTime       @db.Date
+  status      DeadlineStatus @default(OPEN)
+  notes       String?
+  completedAt DateTime?
+  createdAt   DateTime       @default(now())
+
+  @@index([tenantId, dueDate])
 }
