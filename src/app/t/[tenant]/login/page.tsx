@@ -6,6 +6,7 @@ import LoginForm from "./LoginForm";
 export default async function LoginPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant: slug } = await params;
   const tenant = await loadTenant(slug);
+  if (tenant.kind === "SELLER") redirect("/login"); // sellers sign in by email code, not PIN
   const session = await getSession(slug);
   if (session) redirect(`/t/${slug}/dashboard`);
 

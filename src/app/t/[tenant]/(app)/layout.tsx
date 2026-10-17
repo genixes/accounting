@@ -66,7 +66,7 @@ export default async function AppLayout({
   if (vocab.seller && session.perms.canReport) admin.push({ href: "summary", label: "Monthly summary", icon: <FileBarChart2 {...ic()} /> });
   if (session.perms.canReport && tenant.features.reports) admin.push({ href: "reports", label: "Reports", icon: <FileBarChart2 {...ic()} /> });
   if (session.perms.canManageUsers && tenant.features.users) admin.push({ href: "users", label: "Users", icon: <Users {...ic()} /> });
-  if (admin.length) groups.push({ label: "Admin", items: admin });
+  if (admin.length) groups.push({ label: vocab.seller ? "Reports" : "Admin", items: admin });
 
   const logout = logoutAction.bind(null, slug);
   const initial = (tenant.branding.company || tenant.name || "?").trim().charAt(0).toUpperCase();

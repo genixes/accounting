@@ -45,3 +45,69 @@ The seed script prints each demo user's name and PIN to the console.
 - Every write is audited (`AuditLog`).
 - Role permissions (Encoder / Foreman / Bookkeeper / Owner) are enforced
   server-side only — see `src/lib/roles.ts`.
+
+
+---
+
+# Bookkeeping firm (Tala Books) — Phase 1
+
+A second product on the same multi-tenant core: a funnel and back office for
+selling bookkeeping and tax-readiness to online sellers and freelancers.
+The brand name is a placeholder in `src/lib/firm/brand.ts`.
+
+```
+/start            landing -> readiness quiz -> result -> checkout (PayMongo)
+                  payment clears -> workspace provisioned -> welcome email
+/login            client sign-in by emailed one-time code (no passwords)
+/t/<slug>/...     the client's own ledger (Tenant.kind = SELLER)
+/admin            staff portal: clients, consults, filing dates, payments, staff
+```
+
+## Run it locally
+
+```bash
+npm install
+cp .env.example .env            # fill DATABASE_URL and JWT_SECRET
+npx prisma migrate deploy
+npm run seed                    # demo construction tenants
+npm run staff:create -- you@firm.ph "Your Name" ADMIN
+npm run dev                     # BILLING_PROVIDER=mock, EMAIL_DRIVER=console by default
+```
+
+Take the quiz at `/start`. At checkout you land on a local simulator
+(`/pay/mock/...`) that sends the same event PayMongo would. Sign-in codes are
+printed in the server log. `BILLING_PROVIDER=mock` is refused when
+`NODE_ENV=production`.
+
+## Tests
+
+```bash
+createdb accounting_test && DATABASE_URL=postgresql://.../accounting_test npx prisma migrate deploy
+DATABASE_URL_TEST=postgresql://.../accounting_test npm test
+```
+
+Unit tests always run. Integration tests (webhook idempotency, OTP, seller
+entries) run only when `DATABASE_URL_TEST` is set, and they TRUNCATE that database.
+
+## Money safety — how payments are handled
+
+- A payment only counts when the webhook's HMAC verifies over the **raw body**.
+- Every event is stored first; a unique key makes redelivery a no-op, and an event
+  that crashed half-way is finished on the next delivery.
+- Paid amount must equal the order amount. Unknown order, unknown amount or a
+  mismatch is recorded as `needs_review:*` (shown in /admin) and is **never**
+  auto-provisioned and never silently dropped.
+- "Paid", provisioning the workspace, the consult request and the emails are
+  one database transaction.
+
+## Before going live (not done in code)
+
+1. Verify the PayMongo event/response shapes in **test mode with real keys**
+   (see `parsePayMongoEvent`). Anything unparseable lands in `needs_review`.
+2. Confirm prices in `src/lib/firm/plans.ts` (placeholders).
+3. Have a lawyer review `/privacy` (it shows a draft banner) and the consent flow.
+4. Have a CPA confirm every statement in the quiz copy; the app deliberately
+   contains no tax rates or deadlines. Filing dates are entered per client by staff.
+5. Choose and configure the email provider; set `CRON_SECRET` and schedule
+   `POST /api/cron/email` every minute or two.
+6. Add a CSP header and rate limiting at the edge (Cloudflare/Vercel).

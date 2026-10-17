@@ -15,6 +15,8 @@ export const FEATURE_KEYS = [
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
+const SELLER_OFF: FeatureKey[] = ["payroll", "transfers", "users", "reports"];
+
 export type Branding = {
   company: string;
   ink: string;
@@ -68,6 +70,12 @@ export const loadTenant = cache(async (slug: string): Promise<TenantContext> => 
     paper: hex(b?.paper, "#EEF1F7"),
     logoUrl: b?.logoUrl && /^https?:\/\//i.test(b.logoUrl) ? b.logoUrl : null,
   };
+
+  // A seller workspace never has these modules, whatever rows exist. The rule
+  // lives here (not only in provisioning) so older rows can never leak them back in.
+  if (tenant.kind === "SELLER") {
+    for (const k of SELLER_OFF) features[k] = false;
+  }
 
   return { id: tenant.id, kind: tenant.kind, slug: tenant.slug, name: tenant.name, branding, features };
 });

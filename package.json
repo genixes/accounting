@@ -12,7 +12,8 @@
     "prisma:migrate": "prisma migrate dev",
     "seed": "tsx prisma/seed.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "staff:create": "tsx scripts/create-staff.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",
