@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { loadTenant } from "@/lib/tenant";
 import { getSession } from "@/lib/auth";
 import { getCalendar } from "@/lib/calendar";
-import { REGISTERS } from "@/lib/registers";
+import { registerFor } from "@/lib/vocab";
 import type { RegisterKey } from "@/lib/roles";
 import { peso, pesoShort, dmy } from "@/lib/format";
 
@@ -109,7 +109,7 @@ export default async function CalendarPage({
                   </div>
                   <div style={{ fontWeight: 600, marginTop: 3 }}>{x.label || ""}</div>
                   <div className="lab" style={{ marginTop: 5 }}>
-                    {REGISTERS[x.register as RegisterKey].title}{x.project ? ` · ${x.project}` : ""} &middot; {x.by}
+                    {registerFor(tenant.kind, x.register as RegisterKey).title}{x.project && tenant.kind !== "SELLER" ? ` · ${x.project}` : ""} &middot; {x.by}
                   </div>
                   {x.voided && <div style={{ marginTop: 7 }}><span className="tag void">Voided</span></div>}
                 </div>

@@ -7,6 +7,7 @@ import { getDashboard, getCashFlowSeries, defaultRange, type DashboardRange } fr
 import { scanAll } from "@/lib/aggregate";
 import { peso, pct, dmy } from "@/lib/format";
 import { REGISTER_ICON } from "@/components/register-icons";
+import { vocabFor } from "@/lib/vocab";
 import CashFlowChart from "@/components/CashFlowChart";
 import CategoryDonut from "@/components/CategoryDonut";
 
@@ -68,6 +69,7 @@ export default async function DashboardPage({
   const d = await getDashboard(tenant.id, session, range, all);
   const cashFlow = getCashFlowSeries(all, 6);
 
+  const vocab = vocabFor(tenant.kind);
   const topCats = d.categories.slice(0, 8);
   const base = `/t/${slug}/dashboard`;
 
@@ -76,7 +78,7 @@ export default async function DashboardPage({
       <div className="pagehd">
         <div>
           <h1>Dashboard</h1>
-          <div className="sub">Overview of your construction business performance</div>
+          <div className="sub">{vocab.dashboardSub}</div>
         </div>
         <div className="tools">
           <div style={{ display: "flex", gap: 6, background: "var(--sheet)", border: "1px solid var(--rule)", borderRadius: 10, padding: 4 }}>
@@ -96,7 +98,7 @@ export default async function DashboardPage({
       <div className="rack">
         <div className="k">
           <div className="top">
-            <span className="lab">Revenue</span>
+            <span className="lab">{vocab.revenueLabel}</span>
             <span className="icon ic-aqua"><TrendingUp /></span>
           </div>
           <div className="v">{peso(d.kpi.revenue.value)}</div>
@@ -118,6 +120,7 @@ export default async function DashboardPage({
           <div className="v" style={{ color: d.kpi.netIncome.value < 0 ? "var(--out)" : undefined }}>{peso(d.kpi.netIncome.value, true)}</div>
           <Delta change={d.kpi.netIncome.change} />
         </div>
+        {!vocab.seller && (
         <div className="k">
           <div className="top">
             <span className="lab">Receivable</span>
@@ -126,6 +129,7 @@ export default async function DashboardPage({
           <div className="v" style={{ color: d.kpi.receivable.value > 0 ? "var(--out)" : undefined }}>{peso(d.kpi.receivable.value, true)}</div>
           <div className="sub">as of {dmy(d.kpi.receivable.asOf)}</div>
         </div>
+        )}
         <div className="k">
           <div className="top">
             <span className="lab">Cash Balance</span>
@@ -164,6 +168,7 @@ export default async function DashboardPage({
         </div>
       </div>
 
+      {vocab.hasProjects && (
       <div className="sheet">
         <div className="hd">
           <div><span className="lab">Every job, every peso</span><h2>Project Summary</h2></div>
@@ -199,6 +204,8 @@ export default async function DashboardPage({
         </table></div></div>
       </div>
 
+      )}
+
       <div className="two" style={{ gridTemplateColumns: "1.3fr .8fr 1fr" }}>
         <div className="sheet">
           <div className="hd"><div><span className="lab">Latest first</span><h2>Recent Activity</h2></div></div>
@@ -229,11 +236,11 @@ export default async function DashboardPage({
         <div className="sheet">
           <div className="hd"><div><span className="lab">At a glance</span><h2>Quick Summary</h2></div></div>
           <div className="qstats">
-            <div className="row">
+            {!vocab.seller && (<div className="row">
               <span className="ic ic-yellow"><Landmark size={15} /></span>
               <span className="t">Receivable</span>
               <span className="v">{peso(d.kpi.receivable.value)}</span>
-            </div>
+            </div>)}
             <div className="row">
               <span className="ic ic-blue"><CreditCard size={15} /></span>
               <span className="t">Bank Balance</span>
@@ -244,11 +251,11 @@ export default async function DashboardPage({
               <span className="t">Cash on Hand</span>
               <span className="v">{peso(d.cashTotal)}</span>
             </div>
-            <div className="row">
+            {!vocab.seller && (<div className="row">
               <span className="ic ic-violet"><Building2 size={15} /></span>
               <span className="t">Active Projects</span>
               <span className="v">{d.counts.active} <span style={{ color: "var(--ink-3)", fontWeight: 400 }}>/ {d.counts.projects}</span></span>
-            </div>
+            </div>)}
           </div>
         </div>
 

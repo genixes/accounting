@@ -36,7 +36,7 @@ describe.skipIf(!hasDb)("payment webhook (integration)", () => {
     expect(t.projects.map((p) => p.name)).toEqual(["General"]);
     expect(t.accounts.length).toBe(3);
     expect(t.listItems.some((i) => i.type === "category" && i.value === "Platform fees")).toBe(true);
-    expect(t.features.filter((f) => !f.enabled).map((f) => f.key).sort()).toEqual(["payroll", "transfers", "users"]);
+    expect(t.features.filter((f) => !f.enabled).map((f) => f.key).sort()).toEqual(["payroll", "reports", "transfers", "users"]);
     expect(t.users).toHaveLength(1);
     expect(t.users[0]).toMatchObject({ role: "Owner", email: lead.email, active: true });
     expect(await db.consult.count({ where: { tenantId: t.id, status: "REQUESTED" } })).toBe(1);

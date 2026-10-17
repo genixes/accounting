@@ -4,6 +4,7 @@ import { nextEntryId } from "@/lib/registers";
 import { validateEntry } from "@/lib/validate";
 import { allLists } from "@/lib/lists";
 import { audit } from "@/lib/audit";
+import { DEFAULT_PROJECT } from "@/lib/firm/provisioning";
 import type { RegisterKey } from "@/lib/roles";
 import type { Session } from "@/lib/auth";
 
@@ -23,6 +24,13 @@ export async function addEntry(
 ): Promise<WriteResult> {
   if (!session.perms.add.includes(regKey)) {
     return { ok: false, errors: [`Your role (${session.role}) cannot add to ${regKey}.`] };
+  }
+
+  // A seller workspace has no construction projects: every entry files under the
+  // one default project, decided here on the server, never trusted from the client.
+  const tenantRow = await db.tenant.findUnique({ where: { id: session.tenantId }, select: { kind: true } });
+  if (tenantRow?.kind === "SELLER" && REGISTERS_WITH_PROJECT.includes(regKey)) {
+    payload = { ...payload, project: DEFAULT_PROJECT };
   }
 
   const lists = await allLists(session.tenantId);

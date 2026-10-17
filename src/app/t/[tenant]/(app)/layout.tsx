@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { LayoutDashboard, CalendarDays, ListChecks, FileBarChart2, Users } from "lucide-react";
+import { LayoutDashboard, CalendarDays, CalendarCheck, ListChecks, FileBarChart2, Users } from "lucide-react";
 import NavLink from "@/components/NavLink";
 import { REGISTER_ICON } from "@/components/register-icons";
 import { loadTenant, type FeatureKey } from "@/lib/tenant";
 import { getSession } from "@/lib/auth";
-import { REGISTERS } from "@/lib/registers";
+import { registerFor, vocabFor } from "@/lib/vocab";
 import type { RegisterKey } from "@/lib/roles";
 import { logoutAction } from "./logout-action";
 
@@ -39,6 +39,7 @@ export default async function AppLayout({
     return !feature || tenant.features[feature];
   });
 
+  const vocab = vocabFor(tenant.kind);
   const ic = (size = 17) => ({ size, strokeWidth: 2 });
 
   const groups: NavGroup[] = [];
@@ -47,6 +48,7 @@ export default async function AppLayout({
       items: [
         { href: "dashboard", label: "Dashboard", icon: <LayoutDashboard {...ic()} /> },
         { href: "calendar", label: "Calendar", icon: <CalendarDays {...ic()} /> },
+        ...(vocab.seller ? [{ href: "deadlines", label: "Filing dates", icon: <CalendarCheck {...ic()} /> }] : []),
       ],
     });
   }
@@ -55,12 +57,13 @@ export default async function AppLayout({
     items: [
       ...availableRegisters.map((r) => {
         const Icon = REGISTER_ICON[r];
-        return { href: `new/${r}`, label: `New ${REGISTERS[r].title}`, icon: <Icon {...ic()} /> };
+        return { href: `new/${r}`, label: `New ${registerFor(tenant.kind, r).title}`, icon: <Icon {...ic()} /> };
       }),
       { href: "ledger", label: "Ledger", icon: <ListChecks {...ic()} /> },
     ],
   });
   const admin: NavItem[] = [];
+  if (vocab.seller && session.perms.canReport) admin.push({ href: "summary", label: "Monthly summary", icon: <FileBarChart2 {...ic()} /> });
   if (session.perms.canReport && tenant.features.reports) admin.push({ href: "reports", label: "Reports", icon: <FileBarChart2 {...ic()} /> });
   if (session.perms.canManageUsers && tenant.features.users) admin.push({ href: "users", label: "Users", icon: <Users {...ic()} /> });
   if (admin.length) groups.push({ label: "Admin", items: admin });
@@ -85,7 +88,7 @@ export default async function AppLayout({
           )}
           <div className="txt">
             <div className="n">{tenant.branding.company || tenant.name}</div>
-            <div className="s">Project Control</div>
+            <div className="s">{vocab.appSub}</div>
           </div>
         </div>
         <nav>

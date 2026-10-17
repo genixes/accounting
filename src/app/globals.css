@@ -198,6 +198,8 @@ td .id{font-family:var(--data);font-size:11px;color:var(--ink-3);}
   background:color-mix(in srgb,var(--in) 12%,transparent);}
 .tag.hold{border-color:color-mix(in srgb,var(--hold) 45%,transparent);color:var(--hold);
   background:color-mix(in srgb,var(--hold) 12%,transparent);}
+.tag.bad{border-color:color-mix(in srgb,var(--out) 50%,transparent);color:var(--out);
+  background:color-mix(in srgb,var(--out) 12%,transparent);}
 .tag.void{border-color:var(--rule);color:var(--void);}
 .scroll{overflow-x:auto;}
 

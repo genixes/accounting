@@ -28,6 +28,7 @@ export type Branding = {
 
 export type TenantContext = {
   id: string;
+  kind: "CONSTRUCTION" | "SELLER";
   slug: string;
   name: string;
   branding: Branding;
@@ -68,5 +69,5 @@ export const loadTenant = cache(async (slug: string): Promise<TenantContext> => 
     logoUrl: b?.logoUrl && /^https?:\/\//i.test(b.logoUrl) ? b.logoUrl : null,
   };
 
-  return { id: tenant.id, slug: tenant.slug, name: tenant.name, branding, features };
+  return { id: tenant.id, kind: tenant.kind, slug: tenant.slug, name: tenant.name, branding, features };
 });

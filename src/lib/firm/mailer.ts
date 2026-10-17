@@ -33,7 +33,7 @@ async function send(e: { to: string; subject: string; textBody: string; htmlBody
     return;
   }
   // console driver: development only. Never log in production (codes are secrets).
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production" && !process.env.VITEST) {
     console.log(`\n--- EMAIL to ${e.to} ---\nSubject: ${e.subject}\n\n${e.textBody}\n--- end ---\n`);
   }
 }

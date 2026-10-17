@@ -27,7 +27,7 @@ export const SELLER_ACCOUNTS: { name: string; kind: "Bank" | "Cash" }[] = [
 /** A seller's ledger has no construction projects; every entry files under this one. */
 export const DEFAULT_PROJECT = "General";
 /** Modules a SELLER workspace does not use. */
-export const SELLER_DISABLED_FEATURES = ["payroll", "transfers", "users"] as const;
+export const SELLER_DISABLED_FEATURES = ["payroll", "transfers", "users", "reports"] as const;
 
 async function uniqueSlug(tx: Prisma.TransactionClient, business: string): Promise<string> {
   const base = slugify(business);

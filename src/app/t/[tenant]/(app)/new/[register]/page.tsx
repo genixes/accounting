@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { loadTenant, type FeatureKey } from "@/lib/tenant";
 import { getSession } from "@/lib/auth";
 import { REGISTERS } from "@/lib/registers";
+import { registerFor } from "@/lib/vocab";
 import type { RegisterKey } from "@/lib/roles";
 import { listsForSession } from "@/lib/lists";
 import EntryForm from "./EntryForm";
@@ -26,5 +27,5 @@ export default async function NewEntryPage({ params }: { params: Promise<{ tenan
 
   const lists = await listsForSession(tenant.id, session);
 
-  return <EntryForm slug={slug} regKey={regKey} cfg={REGISTERS[regKey]} lists={lists} />;
+  return <EntryForm slug={slug} regKey={regKey} cfg={registerFor(tenant.kind, regKey)} lists={lists} />;
 }

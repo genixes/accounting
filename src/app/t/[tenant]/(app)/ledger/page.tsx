@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { loadTenant, type FeatureKey } from "@/lib/tenant";
 import { getSession } from "@/lib/auth";
-import { REGISTERS } from "@/lib/registers";
+import { registerFor } from "@/lib/vocab";
 import type { RegisterKey } from "@/lib/roles";
 import { getRegisterRows } from "@/lib/register-view";
 import { listsForSession } from "@/lib/lists";
@@ -39,7 +39,7 @@ export default async function LedgerPage({
     }),
   ]);
 
-  const cfg = REGISTERS[regKey];
+  const cfg = registerFor(tenant.kind, regKey);
   const dirClass = cfg.dir === "in" ? "pos" : cfg.dir === "out" ? "neg" : "";
 
   return (
@@ -47,12 +47,14 @@ export default async function LedgerPage({
       <div className="hd"><div><span className="lab">Search and filter</span><h2>Ledger</h2></div></div>
       <form className="filters" method="get">
         <select name="r" defaultValue={regKey}>
-          {availableRegisters.map((r) => <option key={r} value={r}>{REGISTERS[r].plural}</option>)}
+          {availableRegisters.map((r) => <option key={r} value={r}>{registerFor(tenant.kind, r).plural}</option>)}
         </select>
-        <select name="p" defaultValue={sp.p || ""}>
-          <option value="">All projects</option>
-          {lists.projects.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
+        {tenant.kind !== "SELLER" && (
+          <select name="p" defaultValue={sp.p || ""}>
+            <option value="">All projects</option>
+            {lists.projects.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        )}
         <input type="search" name="q" placeholder="Search particulars, entry ID, person" defaultValue={sp.q || ""} />
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
           <input type="checkbox" name="hv" value="1" defaultChecked={sp.hv === "1"} style={{ width: "auto" }} /> Hide voided
@@ -65,14 +67,14 @@ export default async function LedgerPage({
           <div className="empty">Nothing matches. Try a wider filter.</div>
         ) : (
           <div className="scroll"><table>
-            <thead><tr><th>Entry</th><th>Date</th><th>Particulars</th><th>Project</th><th>By</th><th className="r">Amount</th>{result.canVoid && <th></th>}</tr></thead>
+            <thead><tr><th>Entry</th><th>Date</th><th>Particulars</th>{tenant.kind !== "SELLER" && <th>Project</th>}<th>By</th><th className="r">Amount</th>{result.canVoid && <th></th>}</tr></thead>
             <tbody>
               {result.rows.map((x) => (
                 <tr key={x.id} className={x.voided ? "voided" : ""}>
                   <td><span className="id">{x.id}</span>{x.voided && <> <span className="tag void">Void</span></>}</td>
                   <td>{dmy(x.date)}</td>
                   <td>{x.label}</td>
-                  <td>{x.project || "-"}</td>
+                  {tenant.kind !== "SELLER" && <td>{x.project || "-"}</td>}
                   <td>{x.by}</td>
                   <td className={`r ${dirClass}`} style={{ fontWeight: 600 }}>{peso(x.amount)}</td>
                   {result.canVoid && (
