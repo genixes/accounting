@@ -230,7 +230,86 @@ async function main() {
   });
 }
 
+// Demo real-estate tenant: syndication mode, USD reporting, one USD and one
+// PHP property so multi-currency conversion is visible out of the box.
+async function seedRealEstate() {
+  console.log("\n--- seeding realty ---");
+  const tenant = await db.tenant.upsert({
+    where: { slug: "realty" },
+    update: {},
+    create: { slug: "realty", name: "Harbor Capital Realty", vertical: "REAL_ESTATE", investorMode: "SYNDICATION", baseCurrency: "USD" },
+  });
+  await db.tenantBranding.upsert({
+    where: { tenantId: tenant.id },
+    update: {},
+    create: { tenantId: tenant.id, company: "Harbor Capital Realty", ink: "#14213D", accent: "#B8893B", accent2: "#2E6F95", positive: "#1F7A5A", negative: "#B23A2E", paper: "#F4F1EA" },
+  });
+  for (const u of [{ name: "Ana Harbor", role: "Owner" as const, pin: "1234" }, { name: "Ben Ledger", role: "Bookkeeper" as const, pin: "2222" }]) {
+    await db.user.upsert({
+      where: { tenantId_name: { tenantId: tenant.id, name: u.name } },
+      update: {},
+      create: { tenantId: tenant.id, name: u.name, role: u.role, pinHash: await hashPin(u.pin), active: true },
+    });
+  }
+  if ((await db.realProperty.count({ where: { tenantId: tenant.id } })) > 0) return;
+
+  const chart = [
+    ["1000", "Cash & Bank", "ASSET", true], ["1500", "Real Property", "ASSET", false], ["2000", "Mortgage / Loans Payable", "LIABILITY", false],
+    ["2100", "Tenant Deposits", "LIABILITY", false], ["3000", "Owner / Investor Capital", "EQUITY", false], ["4000", "Rental Income", "INCOME", false],
+    ["4100", "Other Income", "INCOME", false], ["4900", "Gain on Sale", "INCOME", false], ["5000", "Repairs & Maintenance", "EXPENSE", false],
+    ["5100", "Property Tax", "EXPENSE", false], ["5200", "Insurance", "EXPENSE", false], ["5300", "Utilities", "EXPENSE", false],
+    ["5400", "Management Fees", "EXPENSE", false], ["5500", "Loan Interest", "EXPENSE", false], ["5900", "Other Expense", "EXPENSE", false],
+  ] as const;
+  const acct: Record<string, string> = {};
+  for (const [code, name, type, isCash] of chart) {
+    const a = await db.ledgerAccount.upsert({
+      where: { tenantId_code: { tenantId: tenant.id, code } }, update: {},
+      create: { tenantId: tenant.id, code, name, type, isCash },
+    });
+    acct[code] = a.id;
+  }
+  await db.fxRate.create({ data: { tenantId: tenant.id, fromCcy: "PHP", toCcy: "USD", rate: 0.0172, asOf: new Date("2026-01-01"), source: "seed" } });
+
+  const mk = (name: string, currency: string, city: string, country: string, price: number, value: number, units: [string, number, string | null][]) =>
+    db.realProperty.create({
+      data: {
+        tenantId: tenant.id, name, type: "RESIDENTIAL", stage: "LEASED", currency, city, country,
+        purchasePrice: price, purchaseDate: new Date("2026-01-10"), closingCosts: price * 0.02, currentValue: value,
+        stageEvents: { create: [{ toStage: "PROSPECT", byName: "seed" }, { fromStage: "PROSPECT", toStage: "LEASED", byName: "seed", note: "Seeded as leased" }] },
+        units: { create: units.map(([label, rent, tenantName]) => ({
+          label, marketRent: rent,
+          ...(tenantName ? { leases: { create: { tenantName, monthlyRent: rent, startDate: new Date("2026-02-01") } } } : {}),
+        })) },
+      },
+    });
+  const austin = await mk("Maple Court Duplex", "USD", "Austin", "USA", 480000, 515000, [["A", 2100, "J. Rivera"], ["B", 2100, null]]);
+  const cebu = await mk("Cebu IT Park Condo", "PHP", "Cebu", "Philippines", 6500000, 6900000, [["12F", 38000, "K. Tan"]]);
+
+  let n = 0;
+  const post = (propertyId: string, currency: string, fx: number, date: string, memo: string, debit: string, credit: string, amount: number) =>
+    db.journalEntry.create({
+      data: {
+        tenantId: tenant.id, entryNo: `JE-2026-${String(++n).padStart(6, "0")}`, date: new Date(date), memo, propertyId, currency, fxToBase: fx,
+        byUserId: "seed", byName: "seed",
+        lines: { create: [{ accountId: acct[debit], debit: amount, credit: 0 }, { accountId: acct[credit], debit: 0, credit: amount }] },
+      },
+    });
+  for (const m of ["2026-03", "2026-04", "2026-05", "2026-06"]) {
+    await post(austin.id, "USD", 1, `${m}-05`, "Rent received: Unit A", "1000", "4000", 2100);
+    await post(cebu.id, "PHP", 0.0172, `${m}-05`, "Rent received: Unit 12F", "1000", "4000", 38000);
+  }
+  await post(austin.id, "USD", 1, "2026-04-18", "Repairs & maintenance: HVAC service", "5000", "1000", 640);
+  await post(austin.id, "USD", 1, "2026-05-02", "Property tax: Q2", "5100", "1000", 1800);
+  await post(cebu.id, "PHP", 0.0172, "2026-05-10", "Utilities: association dues", "5300", "1000", 9500);
+  await db.entrySequence.upsert({
+    where: { tenantId_register_year: { tenantId: tenant.id, register: "JOURNAL", year: 2026 } },
+    update: { lastNumber: n }, create: { tenantId: tenant.id, register: "JOURNAL", year: 2026, lastNumber: n },
+  });
+  console.log('Tenant "Harbor Capital Realty" ready at /t/realty — Ana Harbor (Owner) PIN 1234, Ben Ledger (Bookkeeper) PIN 2222.');
+}
+
 main()
+  .then(() => seedRealEstate())
   .then(async () => {
     await db.$disconnect();
   })

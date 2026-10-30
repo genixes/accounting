@@ -15,5 +15,5 @@ export async function loginAction(slug: string, _prev: LoginState, formData: For
   const result = await login(tenant.id, tenant.slug, name, pin);
   if (!result.ok) return { error: result.error };
 
-  redirect(`/t/${slug}/dashboard`);
+  redirect(`/t/${slug}`); // root page routes by tenant vertical
 }

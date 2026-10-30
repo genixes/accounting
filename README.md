@@ -45,3 +45,27 @@ The seed script prints each demo user's name and PIN to the console.
 - Every write is audited (`AuditLog`).
 - Role permissions (Encoder / Foreman / Bookkeeper / Owner) are enforced
   server-side only — see `src/lib/roles.ts`.
+
+## Real-estate vertical (Phase 1)
+
+A tenant's `vertical` is chosen at onboarding: `CONSTRUCTION` (the original
+project ledger) or `REAL_ESTATE`. Real-estate tenants also get an
+`investorMode` (`SOLO` or `SYNDICATION`, which enables investor stakes per
+property) and a `baseCurrency` that all portfolio totals are reported in.
+
+- **Lifecycle** — BUY → RENT → HOLD → SELL as a state machine
+  (`src/lib/finance/lifecycle.ts`); every stage change is recorded.
+- **Multi-currency** — each property books in its own currency; every posting
+  freezes the FX rate (`FxRate`) in effect on its date. Posting without a
+  rate is refused rather than assuming 1:1.
+- **Double-entry ledger** — `JournalEntry`/`JournalLine`, append-only with
+  void. Users pick a transaction type (rent received, repairs, ...) and the
+  debit/credit pair is derived. P&L and cash flow come from the lines.
+- **Rent roll** — units and leases per property, occupancy and monthly rent.
+- **Finance library** — `src/lib/finance/*` is pure and tested
+  (`npm test`): IRR/XIRR/NPV, cap rate, cash-on-cash, DSCR, amortization, FX.
+
+Demo: `npm run seed` also creates `/t/realty` (Ana Harbor / 1234).
+
+Not built yet: deal analyzer, loans, documents vault, market research
+automation, exit-strategy engine, investor portal, PDF statements.

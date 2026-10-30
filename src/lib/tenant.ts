@@ -30,6 +30,9 @@ export type TenantContext = {
   id: string;
   slug: string;
   name: string;
+  vertical: "CONSTRUCTION" | "REAL_ESTATE";
+  investorMode: "SOLO" | "SYNDICATION" | null;
+  baseCurrency: string;
   branding: Branding;
   features: Record<FeatureKey, boolean>;
 };
@@ -68,5 +71,9 @@ export const loadTenant = cache(async (slug: string): Promise<TenantContext> => 
     logoUrl: b?.logoUrl && /^https?:\/\//i.test(b.logoUrl) ? b.logoUrl : null,
   };
 
-  return { id: tenant.id, slug: tenant.slug, name: tenant.name, branding, features };
+  return {
+    id: tenant.id, slug: tenant.slug, name: tenant.name,
+    vertical: tenant.vertical, investorMode: tenant.investorMode, baseCurrency: tenant.baseCurrency,
+    branding, features,
+  };
 });

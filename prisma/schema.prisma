@@ -17,31 +17,56 @@ model Tenant {
   name      String
   createdAt DateTime @default(now())
 
-  branding TenantBranding?
-  features TenantFeature[]
-  users    User[]
-  projects Project[]
-  accounts Account[]
-  listItems ListItem[]
-  expenses    Expense[]
-  payrolls    Payroll[]
-  collections Collection[]
-  transfers   Transfer[]
-  auditLogs   AuditLog[]
+  // Set once at onboarding. CONSTRUCTION tenants keep the original
+  // project-ledger UI; REAL_ESTATE tenants get the property lifecycle UI.
+  vertical     Vertical      @default(CONSTRUCTION)
+  // Only meaningful for REAL_ESTATE: SOLO = one owner, SYNDICATION = several
+  // investors holding stakes in properties.
+  investorMode InvestorMode?
+  // Currency all portfolio totals are reported in.
+  baseCurrency String        @default("PHP")
+
+  branding       TenantBranding?
+  features       TenantFeature[]
+  users          User[]
+  projects       Project[]
+  accounts       Account[]
+  listItems      ListItem[]
+  expenses       Expense[]
+  payrolls       Payroll[]
+  collections    Collection[]
+  transfers      Transfer[]
+  auditLogs      AuditLog[]
   entrySequences EntrySequence[]
+
+  properties     RealProperty[]
+  ledgerAccounts LedgerAccount[]
+  journalEntries JournalEntry[]
+  fxRates        FxRate[]
+  investors      Investor[]
+}
+
+enum Vertical {
+  CONSTRUCTION
+  REAL_ESTATE
+}
+
+enum InvestorMode {
+  SOLO
+  SYNDICATION
 }
 
 model TenantBranding {
   tenantId String @id
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  company  String @default("")
-  ink      String @default("#101634")
-  accent   String @default("#2E4ABE")
-  accent2  String @default("#32A9DC")
-  positive String @default("#0C6B59")
-  negative String @default("#C0242E")
-  paper    String @default("#EEF1F7")
+  company  String  @default("")
+  ink      String  @default("#101634")
+  accent   String  @default("#2E4ABE")
+  accent2  String  @default("#32A9DC")
+  positive String  @default("#0C6B59")
+  negative String  @default("#C0242E")
+  paper    String  @default("#EEF1F7")
   logoUrl  String?
 }
 
@@ -98,14 +123,14 @@ model UserProject {
 // ---------------------------------------------------------------------------
 
 model Project {
-  id       String   @id @default(cuid())
-  tenantId String
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  no       String?
-  name     String
-  client   String?
-  contract Decimal  @default(0) @db.Decimal(14, 2)
-  status   String   @default("Ongoing")
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  no        String?
+  name      String
+  client    String?
+  contract  Decimal   @default(0) @db.Decimal(14, 2)
+  status    String    @default("Ongoing")
   startDate DateTime?
   endDate   DateTime?
   notes     String?
@@ -284,4 +309,206 @@ model AuditLog {
   at       DateTime @default(now())
 
   @@index([tenantId, at])
+}
+
+// ---------------------------------------------------------------------------
+// REAL ESTATE — property lifecycle (BUY → RENT → HOLD → SELL)
+// ---------------------------------------------------------------------------
+
+enum PropertyType {
+  RESIDENTIAL
+  COMMERCIAL
+  INDUSTRIAL
+  LAND
+  MIXED_USE
+}
+
+// Mirrors STAGES in src/lib/finance/lifecycle.ts.
+enum PropertyStage {
+  PROSPECT
+  UNDER_CONTRACT
+  OWNED
+  LEASED
+  HELD
+  LISTED
+  SOLD
+}
+
+model RealProperty {
+  id            String        @id @default(cuid())
+  tenantId      String
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name          String
+  type          PropertyType
+  stage         PropertyStage @default(PROSPECT)
+  // Each property is booked in its own currency; reports convert to the
+  // tenant's baseCurrency using FxRate.
+  currency      String
+  address       String?
+  city          String?
+  country       String?
+  purchasePrice Decimal?      @db.Decimal(18, 2)
+  purchaseDate  DateTime?
+  closingCosts  Decimal       @default(0) @db.Decimal(18, 2)
+  currentValue  Decimal?      @db.Decimal(18, 2)
+  salePrice     Decimal?      @db.Decimal(18, 2)
+  soldDate      DateTime?
+  notes         String?
+  createdAt     DateTime      @default(now())
+
+  units          Unit[]
+  stageEvents    PropertyStageEvent[]
+  journalEntries JournalEntry[]
+  stakes         PropertyStake[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, stage])
+}
+
+model PropertyStageEvent {
+  id         String         @id @default(cuid())
+  propertyId String
+  property   RealProperty   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  fromStage  PropertyStage?
+  toStage    PropertyStage
+  byName     String
+  note       String?
+  at         DateTime       @default(now())
+
+  @@index([propertyId, at])
+}
+
+model Unit {
+  id         String       @id @default(cuid())
+  propertyId String
+  property   RealProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  label      String
+  marketRent Decimal      @default(0) @db.Decimal(18, 2)
+
+  leases Lease[]
+
+  @@unique([propertyId, label])
+}
+
+model Lease {
+  id          String    @id @default(cuid())
+  unitId      String
+  unit        Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  tenantName  String
+  monthlyRent Decimal   @db.Decimal(18, 2)
+  deposit     Decimal   @default(0) @db.Decimal(18, 2)
+  startDate   DateTime
+  endDate     DateTime?
+  endedAt     DateTime?
+
+  @@index([unitId])
+}
+
+// Syndication mode: who holds how much of a property. Percentages for one
+// property must total 100 (enforced in the action, not the DB).
+model Investor {
+  id       String  @id @default(cuid())
+  tenantId String
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name     String
+  email    String?
+
+  stakes PropertyStake[]
+
+  @@unique([tenantId, name])
+}
+
+model PropertyStake {
+  investorId String
+  propertyId String
+  investor   Investor     @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  property   RealProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  percent    Decimal      @db.Decimal(7, 4)
+
+  @@id([investorId, propertyId])
+}
+
+// ---------------------------------------------------------------------------
+// FX
+// ---------------------------------------------------------------------------
+
+// "1 `fromCcy` = `rate` `toCcy`" as of a date. Rows are never edited; a new
+// rate is a new row, so historical reports stay reproducible.
+model FxRate {
+  id       String   @id @default(cuid())
+  tenantId String
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fromCcy  String
+  toCcy    String
+  rate     Decimal  @db.Decimal(20, 8)
+  asOf     DateTime
+  source   String   @default("manual")
+
+  @@index([tenantId, fromCcy, toCcy, asOf])
+}
+
+// ---------------------------------------------------------------------------
+// DOUBLE-ENTRY LEDGER — append-only, void by reversal flag like the registers
+// ---------------------------------------------------------------------------
+
+enum LedgerAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+model LedgerAccount {
+  id       String            @id @default(cuid())
+  tenantId String
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code     String
+  name     String
+  type     LedgerAccountType
+  // Cash & bank accounts feed the cash-flow statement.
+  isCash   Boolean           @default(false)
+
+  lines JournalLine[]
+
+  @@unique([tenantId, code])
+}
+
+model JournalEntry {
+  id         String        @id @default(cuid())
+  tenantId   String
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entryNo    String
+  date       DateTime
+  memo       String
+  propertyId String?
+  property   RealProperty? @relation(fields: [propertyId], references: [id])
+  // Currency the lines are written in, and its rate into the tenant's base
+  // currency on the entry date (frozen at posting time).
+  currency   String
+  fxToBase   Decimal       @default(1) @db.Decimal(20, 8)
+  voidedAt   DateTime?
+  voidReason String?
+  byUserId   String
+  byName     String
+  at         DateTime      @default(now())
+
+  lines JournalLine[]
+
+  @@unique([tenantId, entryNo])
+  @@index([tenantId, date])
+  @@index([propertyId, date])
+}
+
+model JournalLine {
+  id        String        @id @default(cuid())
+  entryId   String
+  entry     JournalEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  accountId String
+  account   LedgerAccount @relation(fields: [accountId], references: [id])
+  debit     Decimal       @default(0) @db.Decimal(18, 2)
+  credit    Decimal       @default(0) @db.Decimal(18, 2)
+
+  @@index([entryId])
+  @@index([accountId])
 }

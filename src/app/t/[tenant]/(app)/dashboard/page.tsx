@@ -56,6 +56,7 @@ export default async function DashboardPage({
   const tenant = await loadTenant(slug);
   const session = await getSession(slug);
   if (!session) redirect(`/t/${slug}/login`);
+  if (tenant.vertical === "REAL_ESTATE") redirect(`/t/${slug}/properties`);
   if (!session.perms.seeAllEntries) redirect(`/t/${slug}/ledger`);
 
   const activePreset = sp.range && PRESETS.some((p) => p.key === sp.range) ? sp.range : "90";

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { LayoutDashboard, CalendarDays, ListChecks, FileBarChart2, Users } from "lucide-react";
+import { LayoutDashboard, CalendarDays, ListChecks, FileBarChart2, Users, Building2, Coins } from "lucide-react";
 import NavLink from "@/components/NavLink";
 import { REGISTER_ICON } from "@/components/register-icons";
 import { loadTenant, type FeatureKey } from "@/lib/tenant";
@@ -42,26 +42,38 @@ export default async function AppLayout({
   const ic = (size = 17) => ({ size, strokeWidth: 2 });
 
   const groups: NavGroup[] = [];
-  if (session.perms.seeAllEntries) {
+  if (tenant.vertical === "REAL_ESTATE") {
+    if (session.perms.canReport) {
+      groups.push({
+        label: "Portfolio",
+        items: [
+          { href: "properties", label: "Properties", icon: <Building2 {...ic()} /> },
+          { href: "properties/fx", label: "FX rates", icon: <Coins {...ic()} /> },
+        ],
+      });
+    }
+  } else {
+    if (session.perms.seeAllEntries) {
+      groups.push({
+        items: [
+          { href: "dashboard", label: "Dashboard", icon: <LayoutDashboard {...ic()} /> },
+          { href: "calendar", label: "Calendar", icon: <CalendarDays {...ic()} /> },
+        ],
+      });
+    }
     groups.push({
+      label: "Accounting",
       items: [
-        { href: "dashboard", label: "Dashboard", icon: <LayoutDashboard {...ic()} /> },
-        { href: "calendar", label: "Calendar", icon: <CalendarDays {...ic()} /> },
+        ...availableRegisters.map((r) => {
+          const Icon = REGISTER_ICON[r];
+          return { href: `new/${r}`, label: `New ${REGISTERS[r].title}`, icon: <Icon {...ic()} /> };
+        }),
+        { href: "ledger", label: "Ledger", icon: <ListChecks {...ic()} /> },
       ],
     });
   }
-  groups.push({
-    label: "Accounting",
-    items: [
-      ...availableRegisters.map((r) => {
-        const Icon = REGISTER_ICON[r];
-        return { href: `new/${r}`, label: `New ${REGISTERS[r].title}`, icon: <Icon {...ic()} /> };
-      }),
-      { href: "ledger", label: "Ledger", icon: <ListChecks {...ic()} /> },
-    ],
-  });
   const admin: NavItem[] = [];
-  if (session.perms.canReport && tenant.features.reports) admin.push({ href: "reports", label: "Reports", icon: <FileBarChart2 {...ic()} /> });
+  if (tenant.vertical === "CONSTRUCTION" && session.perms.canReport && tenant.features.reports) admin.push({ href: "reports", label: "Reports", icon: <FileBarChart2 {...ic()} /> });
   if (session.perms.canManageUsers && tenant.features.users) admin.push({ href: "users", label: "Users", icon: <Users {...ic()} /> });
   if (admin.length) groups.push({ label: "Admin", items: admin });
 
@@ -85,7 +97,7 @@ export default async function AppLayout({
           )}
           <div className="txt">
             <div className="n">{tenant.branding.company || tenant.name}</div>
-            <div className="s">Project Control</div>
+            <div className="s">{tenant.vertical === "REAL_ESTATE" ? "Portfolio Control" : "Project Control"}</div>
           </div>
         </div>
         <nav>
