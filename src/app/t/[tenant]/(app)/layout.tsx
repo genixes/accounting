@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { LayoutDashboard, CalendarDays, ListChecks, FileBarChart2, Users, Building2, Coins } from "lucide-react";
 import NavLink from "@/components/NavLink";
+import RailPin from "@/components/RailPin";
 import { REGISTER_ICON } from "@/components/register-icons";
 import { loadTenant, type FeatureKey } from "@/lib/tenant";
 import { getSession } from "@/lib/auth";
@@ -19,7 +20,7 @@ const REGISTER_FEATURE: Partial<Record<RegisterKey, FeatureKey>> = {
 // serializable data / rendered elements can) — so we render each icon to a
 // plain element here, server-side, and hand NavLink the element, not the
 // component reference.
-type NavItem = { href: string; label: string; icon: ReactNode };
+type NavItem = { href: string; label: string; icon: ReactNode; exclude?: string };
 type NavGroup = { label?: string; items: NavItem[] };
 
 export default async function AppLayout({
@@ -47,7 +48,7 @@ export default async function AppLayout({
       groups.push({
         label: "Portfolio",
         items: [
-          { href: "properties", label: "Properties", icon: <Building2 {...ic()} /> },
+          { href: "properties", label: "Properties", icon: <Building2 {...ic()} />, exclude: "properties/fx" },
           { href: "properties/fx", label: "FX rates", icon: <Coins {...ic()} /> },
         ],
       });
@@ -83,12 +84,14 @@ export default async function AppLayout({
 
   return (
     <div id="app" style={{ display: "block" }}>
+      <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem("rail-pin")==="1")document.getElementById("app").setAttribute("data-pin","1")}catch(e){}` }} />
       <div className="mobhead">
         <div className="n">{tenant.branding.company || tenant.name}</div>
         <form action={logout}><button type="submit">Sign out</button></form>
       </div>
       <aside className="rail">
         <div className="brand">
+          <RailPin />
           {tenant.branding.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={tenant.branding.logoUrl} alt={tenant.branding.company} className="mark" style={{ background: "#fff", padding: 4 }} />
@@ -105,7 +108,7 @@ export default async function AppLayout({
             <div key={group.label || `g${i}`}>
               {group.label && <div className="grp">{group.label}</div>}
               {group.items.map((item) => (
-                <NavLink key={item.href} href={`/t/${slug}/${item.href}`} label={item.label} icon={item.icon} />
+                <NavLink key={item.href} href={`/t/${slug}/${item.href}`} label={item.label} icon={item.icon} exclude={item.exclude && `/t/${slug}/${item.exclude}`} />
               ))}
             </div>
           ))}
