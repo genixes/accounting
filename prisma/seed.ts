@@ -285,6 +285,8 @@ async function seedRealEstate() {
   const austin = await mk("Maple Court Duplex", "USD", "Austin", "USA", 480000, 515000, [["A", 2100, "J. Rivera"], ["B", 2100, null]]);
   const cebu = await mk("Cebu IT Park Condo", "PHP", "Cebu", "Philippines", 6500000, 6900000, [["12F", 38000, "K. Tan"]]);
 
+  await db.loan.create({ data: { propertyId: austin.id, lender: "Lone Star Bank", principal: 384000, annualRate: 0.065, termYears: 30, startDate: new Date("2026-02-01") } });
+
   let n = 0;
   const post = (propertyId: string, currency: string, fx: number, date: string, memo: string, debit: string, credit: string, amount: number) =>
     db.journalEntry.create({

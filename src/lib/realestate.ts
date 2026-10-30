@@ -8,6 +8,7 @@ import { isCurrency, round } from "@/lib/finance/money";
 import { validateLines, incomeStatement, cashFlow, type ReportLine, type PostingLine } from "@/lib/finance/ledger";
 import { canTransition, isOwnedStage, STAGE_LABEL, type Stage } from "@/lib/finance/lifecycle";
 import { capRate, occupancy } from "@/lib/finance/metrics";
+import { balanceAfter, paymentFor, paymentsElapsed } from "@/lib/finance/amortization";
 
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -371,5 +372,47 @@ export async function getPortfolio(tenantId: string, baseCurrency: string, yearS
       occupancy: occupancy(occ, units),
       fxMissing: rows.some((r) => r.fxMissing),
     },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Loans (HOLD)
+// ---------------------------------------------------------------------------
+
+export async function addLoan(
+  session: Session,
+  input: { propertyId: string; lender: string; principal: number; annualRatePct: number; termYears: number; startDate: Date }
+): Promise<Result> {
+  const prop = await db.realProperty.findFirst({ where: { id: input.propertyId, tenantId: session.tenantId } });
+  if (!prop) return { ok: false, error: "Property not found." };
+  const lender = input.lender.trim();
+  if (!lender) return { ok: false, error: "Lender is required." };
+  if (!(input.principal > 0) || !Number.isFinite(input.principal)) return { ok: false, error: "Principal must be greater than zero." };
+  if (!(input.annualRatePct >= 0 && input.annualRatePct < 100)) return { ok: false, error: "Interest rate must be between 0% and 100%." };
+  if (!(Number.isInteger(input.termYears) && input.termYears >= 1 && input.termYears <= 50)) return { ok: false, error: "Term must be a whole number of years (1–50)." };
+  if (Number.isNaN(input.startDate.getTime())) return { ok: false, error: "Invalid start date." };
+  await db.$transaction(async (tx) => {
+    await tx.loan.create({
+      data: { propertyId: prop.id, lender, principal: round(input.principal), annualRate: input.annualRatePct / 100, termYears: input.termYears, startDate: input.startDate },
+    });
+    await audit(tx, session.tenantId, session.userId, session.name, session.role, "LOAN_ADD", "PROPERTY", prop.id, `${lender} ${input.principal}`);
+  });
+  return { ok: true };
+}
+
+export type LoanStatus = {
+  id: string; lender: string; principal: number; annualRate: number; termYears: number; startDate: Date;
+  monthlyPayment: number; paid: number; totalPayments: number; balance: number;
+};
+
+export function loanStatus(
+  l: { id: string; lender: string; principal: Prisma.Decimal; annualRate: Prisma.Decimal; termYears: number; paymentsPerYear: number; startDate: Date },
+  asOf = new Date()
+): LoanStatus {
+  const terms = { principal: Number(l.principal), annualRate: Number(l.annualRate), years: l.termYears, paymentsPerYear: l.paymentsPerYear };
+  const paid = paymentsElapsed(l.startDate, asOf, l.termYears, l.paymentsPerYear);
+  return {
+    id: l.id, lender: l.lender, principal: terms.principal, annualRate: terms.annualRate, termYears: l.termYears, startDate: l.startDate,
+    monthlyPayment: round(paymentFor(terms)), paid, totalPayments: Math.round(l.termYears * l.paymentsPerYear), balance: balanceAfter(terms, paid),
   };
 }

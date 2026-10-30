@@ -3,10 +3,13 @@ import { notFound } from "next/navigation";
 import { guard } from "../guard";
 import Flash from "../Flash";
 import {
-  addUnitAction, changeStageAction, postTxnAction, setStakesAction, voidEntryAction,
+  addLoanAction, addUnitAction, changeStageAction, postTxnAction, setStakesAction, voidEntryAction,
 } from "../actions";
 import { db } from "@/lib/db";
-import { getPropertyReport, TXN_KINDS } from "@/lib/realestate";
+import { getPropertyReport, loanStatus, TXN_KINDS } from "@/lib/realestate";
+import { yearlySummary } from "@/lib/finance/amortization";
+import { dscr as dscrOf, ltv as ltvOf } from "@/lib/finance/metrics";
+import { AmortChart } from "@/components/FinanceCharts";
 import { formatMoney } from "@/lib/finance/money";
 import { allowedTransitions, PHASE_OF, STAGE_LABEL, type Stage } from "@/lib/finance/lifecycle";
 import { capRate as capRateOf, occupancy } from "@/lib/finance/metrics";
@@ -28,6 +31,7 @@ export default async function PropertyPage({
       units: { orderBy: { label: "asc" }, include: { leases: { where: { endedAt: null } } } },
       stageEvents: { orderBy: { at: "desc" }, take: 10 },
       stakes: { include: { investor: true } },
+      loans: { orderBy: { startDate: "asc" } },
     },
   });
   if (!p) notFound();
@@ -59,6 +63,12 @@ export default async function PropertyPage({
   const rentRoll = p.units.reduce((s, u) => s + u.leases.reduce((a, l) => a + Number(l.monthlyRent), 0), 0);
   const stakeTotal = p.stakes.reduce((s, x) => s + Number(x.percent), 0);
   const bookable = stage !== "SOLD";
+  const loans = p.loans.map((l) => loanStatus(l));
+  const debtBalance = loans.reduce((a, l) => a + l.balance, 0);
+  const annualDebtService = loans.reduce((a, l) => a + (l.paid < l.totalPayments ? l.monthlyPayment * 12 : 0), 0);
+  const ltv = ltvOf(debtBalance, Number(p.currentValue ?? p.purchasePrice ?? 0));
+  const dscr = dscrOf((report.pl.netIncome / days) * 365, annualDebtService);
+  const amort = p.loans[0] ? yearlySummary({ principal: Number(p.loans[0].principal), annualRate: Number(p.loans[0].annualRate), years: p.loans[0].termYears, paymentsPerYear: p.loans[0].paymentsPerYear }) : [];
 
   return (
     <>
@@ -167,6 +177,46 @@ export default async function PropertyPage({
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="sheet" style={{ marginTop: 18 }}>
+        <div className="hd"><h2>Financing</h2>
+          <span className="tag hold">LTV {ltv === null ? "—" : pct(ltv)}</span>
+        </div>
+        <div className="bd flush">
+          <table>
+            <thead><tr><th>Lender</th><th>Principal</th><th>Rate</th><th>Term</th><th>Payment / mo</th><th>Paid</th><th>Balance</th></tr></thead>
+            <tbody>
+              {loans.map((l) => (
+                <tr key={l.id}><td>{l.lender}</td><td>{m(l.principal)}</td><td>{(l.annualRate * 100).toFixed(2)}%</td><td>{l.termYears} yrs</td>
+                  <td>{m(l.monthlyPayment)}</td><td>{l.paid}/{l.totalPayments}</td><td>{m(l.balance)}</td></tr>
+              ))}
+              {!loans.length && <tr><td colSpan={7} style={{ color: "var(--ink-2)" }}>No loans — this property is unleveraged.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        {loans.length > 0 && (
+          <div className="bd">
+            <div className="sub" style={{ marginBottom: 10 }}>
+              Debt service {m(annualDebtService)}/yr · DSCR {dscr === null ? "—" : dscr.toFixed(2)}x · Principal vs interest by year ({p.loans[0].lender})
+            </div>
+            <AmortChart data={amort} currency={cur} />
+          </div>
+        )}
+        {canManage && (
+          <div className="bd">
+            <form action={addLoanAction.bind(null, slug, p.id)}>
+              <div className="grid2">
+                <div className="field"><label className="req" htmlFor="lender">Lender</label><input id="lender" name="lender" required /></div>
+                <div className="field money"><label htmlFor="principal">Principal ({cur})</label><input id="principal" name="principal" inputMode="decimal" required /></div>
+                <div className="field"><label htmlFor="rate">Interest rate (% / yr)</label><input id="rate" name="rate" inputMode="decimal" required /></div>
+                <div className="field"><label htmlFor="termYears">Term (years)</label><input id="termYears" name="termYears" inputMode="numeric" required /></div>
+                <div className="field"><label htmlFor="startDate">First payment month</label><input id="startDate" name="startDate" type="date" defaultValue={todayIso()} required /></div>
+              </div>
+              <button className="btn" type="submit">Add loan</button>
+            </form>
+          </div>
+        )}
       </div>
 
       <div className="sheet" style={{ marginTop: 18 }}>

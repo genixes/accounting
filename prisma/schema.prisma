@@ -360,6 +360,7 @@ model RealProperty {
   stageEvents    PropertyStageEvent[]
   journalEntries JournalEntry[]
   stakes         PropertyStake[]
+  loans          Loan[]
 
   @@unique([tenantId, name])
   @@index([tenantId, stage])
@@ -511,4 +512,25 @@ model JournalLine {
 
   @@index([entryId])
   @@index([accountId])
+}
+
+// ---------------------------------------------------------------------------
+// FINANCING (HOLD phase)
+// ---------------------------------------------------------------------------
+
+// Fully-amortising loan. Balance and payment are derived from the terms
+// (src/lib/finance/amortization.ts) instead of stored, so they can't drift.
+model Loan {
+  id              String       @id @default(cuid())
+  propertyId      String
+  property        RealProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  lender          String
+  principal       Decimal      @db.Decimal(18, 2)
+  annualRate      Decimal      @db.Decimal(8, 6)
+  termYears       Int
+  paymentsPerYear Int          @default(12)
+  startDate       DateTime
+  createdAt       DateTime     @default(now())
+
+  @@index([propertyId])
 }

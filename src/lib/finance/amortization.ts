@@ -37,3 +37,25 @@ export function balanceAfter(terms: LoanTerms, paid: number): number {
   if (paid >= rows.length) return 0;
   return rows[paid - 1].balance;
 }
+
+/** Whole payments that have fallen due between `start` and `asOf`, capped at the loan's term. */
+export function paymentsElapsed(start: Date, asOf: Date, termYears: number, paymentsPerYear = 12): number {
+  let months = (asOf.getUTCFullYear() - start.getUTCFullYear()) * 12 + (asOf.getUTCMonth() - start.getUTCMonth());
+  if (asOf.getUTCDate() < start.getUTCDate()) months -= 1;
+  const n = Math.floor((Math.max(months, 0) * paymentsPerYear) / 12);
+  return Math.min(n, Math.round(termYears * paymentsPerYear));
+}
+
+/** Principal vs interest totals per loan year, for charting. */
+export function yearlySummary(terms: LoanTerms): { year: number; principal: number; interest: number; balance: number }[] {
+  const per = terms.paymentsPerYear ?? 12;
+  const out: { year: number; principal: number; interest: number; balance: number }[] = [];
+  for (const r of schedule(terms)) {
+    const y = Math.ceil(r.n / per);
+    const row = out[y - 1] ?? (out[y - 1] = { year: y, principal: 0, interest: 0, balance: 0 });
+    row.principal = round(row.principal + r.principal);
+    row.interest = round(row.interest + r.interest);
+    row.balance = r.balance;
+  }
+  return out;
+}

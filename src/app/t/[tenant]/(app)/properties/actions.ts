@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { guard, dateOf, numOf, strOf } from "./guard";
 import {
-  addFxRate, addUnitWithLease, changeStage, createProperty, postTransaction, setStakes, voidEntry,
+  addFxRate, addLoan, addUnitWithLease, changeStage, createProperty, postTransaction, setStakes, voidEntry,
 } from "@/lib/realestate";
 import { STAGES, type Stage } from "@/lib/finance/lifecycle";
 
@@ -81,4 +81,16 @@ export async function addFxAction(slug: string, fd: FormData) {
   const r = await addFxRate(session, { from: strOf(fd.get("from")), to: strOf(fd.get("to")), rate: numOf(fd.get("rate")) ?? NaN, asOf });
   revalidatePath(`/t/${slug}/properties`);
   back(slug, "/fx", r.ok ? undefined : r.error, r.ok ? "Rate saved." : undefined);
+}
+
+export async function addLoanAction(slug: string, id: string, fd: FormData) {
+  const { session } = await guard(slug, true);
+  const startDate = dateOf(fd.get("startDate"));
+  if (!startDate) return back(slug, `/${id}`, "Enter a valid start date.");
+  const r = await addLoan(session, {
+    propertyId: id, lender: strOf(fd.get("lender")), principal: numOf(fd.get("principal")) ?? NaN,
+    annualRatePct: numOf(fd.get("rate")) ?? NaN, termYears: numOf(fd.get("termYears")) ?? NaN, startDate,
+  });
+  revalidatePath(`/t/${slug}/properties`);
+  back(slug, `/${id}`, r.ok ? undefined : r.error, r.ok ? "Loan added." : undefined);
 }

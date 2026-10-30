@@ -4,8 +4,9 @@ import { round, formatMoney, roundMoney } from "./money";
 import { findRate, convert } from "./fx";
 import { npv, irr, xirr, equityMultiple } from "./returns";
 import { capRate, cashOnCash, dscr, grm, netSaleProceeds, maxOfferForCapRate } from "./metrics";
-import { paymentFor, schedule, balanceAfter } from "./amortization";
+import { paymentFor, schedule, balanceAfter, paymentsElapsed, yearlySummary } from "./amortization";
 import { validateLines, incomeStatement, cashFlow } from "./ledger";
+import { analyzeDeal, validateDeal, type DealInput } from "./deal";
 import { canTransition, allowedTransitions } from "./lifecycle";
 
 const close = (a: number | null, b: number, eps = 1e-6) => {
@@ -101,4 +102,61 @@ test("lifecycle transitions", () => {
   assert.ok(!canTransition("PROSPECT", "SOLD"));
   assert.ok(!canTransition("LEASED", "PROSPECT"));
   assert.deepEqual(allowedTransitions("SOLD"), []);
+});
+
+const deal: DealInput = {
+  price: 1_000_000, closingCostPct: 0, downPaymentPct: 0.2, interestRate: 0, loanYears: 10, monthlyRent: 10_000,
+  vacancyPct: 0, opexPct: 0, annualRentGrowth: 0, annualAppreciation: 0, holdYears: 5, sellingCostPct: 0, targetCapRate: 0.1,
+};
+
+test("deal analyzer: hand-computed 0% loan case", () => {
+  const r = analyzeDeal(deal);
+  assert.equal(r.loanAmount, 800_000);
+  assert.equal(r.cashInvested, 200_000);
+  assert.equal(r.noi, 120_000);
+  assert.equal(r.annualDebtService, 80_000);
+  assert.equal(r.annualCashFlow, 40_000);
+  close(r.capRate, 0.12);
+  close(r.cashOnCash, 0.2);
+  close(r.dscr, 1.5);
+  close(r.grm, 1_000_000 / 120_000);
+  close(r.maxOffer!, 1_200_000);
+  // 5 years of 40k, then sale at 1,000,000 less the loan balance (800k - 5*80k = 400k) = 600k
+  // Payments are rounded to cents (6,666.67 x 60), so allow a few cents of drift.
+  [-200_000, 40_000, 40_000, 40_000, 40_000, 640_000].forEach((v, i) => close(r.flows[i], v, 1));
+  close(r.years[4].loanBalance, 400_000, 1);
+  close(r.equityMultiple, 800_000 / 200_000, 1e-4);
+  assert.ok(r.irr! > 0.3);
+});
+
+test("deal analyzer: growth, vacancy, costs and payoff inside hold", () => {
+  const r = analyzeDeal({ ...deal, vacancyPct: 0.1, opexPct: 0.3, annualRentGrowth: 0.03, annualAppreciation: 0.04, sellingCostPct: 0.05, loanYears: 3, holdYears: 5 });
+  assert.equal(r.years[3].debtService, 0); // loan paid off after year 3
+  assert.equal(r.years[3].loanBalance, 0);
+  close(r.years[1].noi, 120_000 * 1.03 * 0.9 * 0.7, 1);
+  close(r.years[4].saleProceeds, 1_000_000 * 1.04 ** 5 * 0.95, 1);
+});
+
+test("deal analyzer: all-cash has no DSCR and validation rejects bad input", () => {
+  const r = analyzeDeal({ ...deal, downPaymentPct: 1 });
+  assert.equal(r.loanAmount, 0);
+  assert.equal(r.dscr, null);
+  assert.equal(validateDeal(deal), null);
+  assert.match(validateDeal({ ...deal, price: 0 })!, /price/);
+  assert.match(validateDeal({ ...deal, downPaymentPct: 1.5 })!, /Down payment/);
+  assert.match(validateDeal({ ...deal, holdYears: 2.5 })!, /Hold/);
+});
+
+test("loan status helpers", () => {
+  const start = new Date("2026-01-15T00:00:00Z");
+  assert.equal(paymentsElapsed(start, new Date("2026-01-14T00:00:00Z"), 30), 0);
+  assert.equal(paymentsElapsed(start, new Date("2026-02-15T00:00:00Z"), 30), 1);
+  assert.equal(paymentsElapsed(start, new Date("2026-02-14T00:00:00Z"), 30), 0);
+  assert.equal(paymentsElapsed(start, new Date("2100-01-01T00:00:00Z"), 30), 360);
+  assert.equal(paymentsElapsed(start, new Date("2025-01-01T00:00:00Z"), 30), 0);
+  const ys = yearlySummary({ principal: 100_000, annualRate: 0.05, years: 5 });
+  assert.equal(ys.length, 5);
+  assert.equal(ys[4].balance, 0);
+  close(ys.reduce((s, r) => s + r.principal, 0), 100_000, 0.01);
+  assert.ok(ys[0].interest > ys[4].interest);
 });

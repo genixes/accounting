@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { LayoutDashboard, CalendarDays, ListChecks, FileBarChart2, Users, Building2, Coins } from "lucide-react";
+import { LayoutDashboard, CalendarDays, ListChecks, FileBarChart2, Users, Building2, Coins, Calculator } from "lucide-react";
 import NavLink from "@/components/NavLink";
 import RailPin from "@/components/RailPin";
+import ThemeToggle from "@/components/ThemeToggle";
 import { REGISTER_ICON } from "@/components/register-icons";
 import { loadTenant, type FeatureKey } from "@/lib/tenant";
 import { getSession } from "@/lib/auth";
@@ -49,6 +50,7 @@ export default async function AppLayout({
         label: "Portfolio",
         items: [
           { href: "properties", label: "Properties", icon: <Building2 {...ic()} />, exclude: "properties/fx" },
+          { href: "properties/analyzer", label: "Deal analyzer", icon: <Calculator {...ic()} /> },
           { href: "properties/fx", label: "FX rates", icon: <Coins {...ic()} /> },
         ],
       });
@@ -87,10 +89,11 @@ export default async function AppLayout({
       <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem("rail-pin")==="1")document.getElementById("app").setAttribute("data-pin","1")}catch(e){}` }} />
       <div className="mobhead">
         <div className="n">{tenant.branding.company || tenant.name}</div>
-        <form action={logout}><button type="submit">Sign out</button></form>
+        <div style={{ display: "flex", alignItems: "center" }}><ThemeToggle className="theme mob" /><form action={logout}><button type="submit">Sign out</button></form></div>
       </div>
       <aside className="rail">
         <div className="brand">
+          <ThemeToggle />
           <RailPin />
           {tenant.branding.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
