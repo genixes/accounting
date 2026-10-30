@@ -6,6 +6,7 @@ import { guard, dateOf, numOf, strOf } from "./guard";
 import {
   addFxRate, addLoan, addUnitWithLease, changeStage, createProperty, postTransaction, setStakes, voidEntry,
 } from "@/lib/realestate";
+import { uploadDocument, voidDocument } from "@/lib/documents";
 import { STAGES, type Stage } from "@/lib/finance/lifecycle";
 
 const back = (slug: string, path: string, err?: string, ok?: string) => {
@@ -93,4 +94,27 @@ export async function addLoanAction(slug: string, id: string, fd: FormData) {
   });
   revalidatePath(`/t/${slug}/properties`);
   back(slug, `/${id}`, r.ok ? undefined : r.error, r.ok ? "Loan added." : undefined);
+}
+
+export async function uploadDocAction(slug: string, id: string, fd: FormData) {
+  const { session } = await guard(slug);
+  const file = fd.get("file");
+  let r;
+  try {
+    r = await uploadDocument(session, {
+      propertyId: id, category: strOf(fd.get("category")), name: strOf(fd.get("name")),
+      file: file instanceof File ? file : null, expiresOn: dateOf(fd.get("expiresOn")),
+    });
+  } catch {
+    r = { ok: false as const, error: "The file could not be stored. Please try again." };
+  }
+  revalidatePath(`/t/${slug}/properties`);
+  back(slug, `/${id}`, r.ok ? undefined : r.error, r.ok ? "Document uploaded." : undefined);
+}
+
+export async function voidDocAction(slug: string, propertyId: string, docId: string, fd: FormData) {
+  const { session } = await guard(slug);
+  const r = await voidDocument(session, docId, strOf(fd.get("reason")));
+  revalidatePath(`/t/${slug}/properties`);
+  back(slug, `/${propertyId}`, r.ok ? undefined : r.error, r.ok ? "Document removed." : undefined);
 }

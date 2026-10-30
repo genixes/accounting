@@ -7,6 +7,7 @@ import { capRate, cashOnCash, dscr, grm, netSaleProceeds, maxOfferForCapRate } f
 import { paymentFor, schedule, balanceAfter, paymentsElapsed, yearlySummary } from "./amortization";
 import { validateLines, incomeStatement, cashFlow } from "./ledger";
 import { analyzeDeal, validateDeal, type DealInput } from "./deal";
+import { buildAlerts, daysUntil, severityFor } from "./alerts";
 import { canTransition, allowedTransitions } from "./lifecycle";
 
 const close = (a: number | null, b: number, eps = 1e-6) => {
@@ -159,4 +160,32 @@ test("loan status helpers", () => {
   assert.equal(ys[4].balance, 0);
   close(ys.reduce((s, r) => s + r.principal, 0), 100_000, 0.01);
   assert.ok(ys[0].interest > ys[4].interest);
+});
+
+test("alerts: windowing, severity and ordering", () => {
+  const today = new Date("2026-10-30T15:00:00Z");
+  const d = (s: string) => new Date(`${s}T00:00:00Z`);
+  assert.equal(daysUntil(d("2026-10-30"), today), 0);
+  assert.equal(daysUntil(d("2026-10-29"), today), -1);
+  assert.equal(severityFor(-1), "overdue");
+  assert.equal(severityFor(30), "soon");
+  assert.equal(severityFor(31), "upcoming");
+  const a = buildAlerts({
+    today,
+    leases: [
+      { propertyId: "p1", propertyName: "A", unit: "1", tenantName: "T1", endDate: d("2026-11-20") },
+      { propertyId: "p1", propertyName: "A", unit: "2", tenantName: "T2", endDate: d("2026-10-01") },
+      { propertyId: "p1", propertyName: "A", unit: "3", tenantName: "T3", endDate: d("2027-06-01") }, // beyond horizon
+      { propertyId: "p1", propertyName: "A", unit: "4", tenantName: "T4", endDate: null },
+    ],
+    documents: [{ propertyId: "p2", propertyName: "B", name: "Fire policy", category: "INSURANCE", expiresOn: d("2026-12-15") }],
+    loans: [{ propertyId: "p2", propertyName: "B", lender: "Bank", startDate: d("1996-11-15"), termYears: 30 }],
+    vacancies: [{ propertyId: "p2", propertyName: "B", unit: "9" }],
+  });
+  assert.deepEqual(a.map((x) => `${x.severity}:${x.kind}`), [
+    "overdue:LEASE_ENDING", "soon:LOAN_MATURING", "soon:LEASE_ENDING", "upcoming:DOCUMENT_EXPIRING", "upcoming:VACANT_UNIT",
+  ]);
+  assert.match(a[0].detail, /29 days overdue/);
+  assert.match(a[1].detail, /in 16 days/); // loan first: sorted by days within a severity
+  assert.match(a[2].detail, /in 21 days/);
 });

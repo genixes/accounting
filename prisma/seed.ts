@@ -270,20 +270,20 @@ async function seedRealEstate() {
   }
   await db.fxRate.create({ data: { tenantId: tenant.id, fromCcy: "PHP", toCcy: "USD", rate: 0.0172, asOf: new Date("2026-01-01"), source: "seed" } });
 
-  const mk = (name: string, currency: string, city: string, country: string, price: number, value: number, units: [string, number, string | null][]) =>
+  const mk = (name: string, currency: string, city: string, country: string, price: number, value: number, units: [string, number, string | null, string?][]) =>
     db.realProperty.create({
       data: {
         tenantId: tenant.id, name, type: "RESIDENTIAL", stage: "LEASED", currency, city, country,
         purchasePrice: price, purchaseDate: new Date("2026-01-10"), closingCosts: price * 0.02, currentValue: value,
         stageEvents: { create: [{ toStage: "PROSPECT", byName: "seed" }, { fromStage: "PROSPECT", toStage: "LEASED", byName: "seed", note: "Seeded as leased" }] },
-        units: { create: units.map(([label, rent, tenantName]) => ({
+        units: { create: units.map(([label, rent, tenantName, leaseEnd]) => ({
           label, marketRent: rent,
-          ...(tenantName ? { leases: { create: { tenantName, monthlyRent: rent, startDate: new Date("2026-02-01") } } } : {}),
+          ...(tenantName ? { leases: { create: { tenantName, monthlyRent: rent, startDate: new Date("2026-02-01"), endDate: leaseEnd ? new Date(leaseEnd) : null } } } : {}),
         })) },
       },
     });
   const austin = await mk("Maple Court Duplex", "USD", "Austin", "USA", 480000, 515000, [["A", 2100, "J. Rivera"], ["B", 2100, null]]);
-  const cebu = await mk("Cebu IT Park Condo", "PHP", "Cebu", "Philippines", 6500000, 6900000, [["12F", 38000, "K. Tan"]]);
+  const cebu = await mk("Cebu IT Park Condo", "PHP", "Cebu", "Philippines", 6500000, 6900000, [["12F", 38000, "K. Tan", "2026-11-20"]]);
 
   await db.loan.create({ data: { propertyId: austin.id, lender: "Lone Star Bank", principal: 384000, annualRate: 0.065, termYears: 30, startDate: new Date("2026-02-01") } });
 

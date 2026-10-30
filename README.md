@@ -67,5 +67,21 @@ property) and a `baseCurrency` that all portfolio totals are reported in.
 
 Demo: `npm run seed` also creates `/t/realty` (Ana Harbor / 1234).
 
-Not built yet: deal analyzer, loans, documents vault, market research
-automation, exit-strategy engine, investor portal, PDF statements.
+## Documents vault & alerts (Phase 3)
+
+- Files live in S3-compatible object storage (AWS S3, Cloudflare R2, Supabase
+  Storage, MinIO) behind a small driver interface (`src/lib/storage`). Set
+  `STORAGE_BUCKET` + credentials (see `.env.example`). **Required in
+  production** — without it the app refuses to start storing rather than
+  write legal documents to an ephemeral disk. Outside production it falls
+  back to `.data/uploads`.
+- Uploads are validated by magic bytes (the filename is never trusted), capped
+  at 10 MB, stored under a server-generated tenant-scoped key, and served only
+  through an authenticated, tenant-checked route as attachments.
+- Removing a document voids the row and keeps the file (append-only, like the
+  rest of the books).
+- "Needs attention" on the portfolio is computed on demand: lease ends, document
+  expiries (insurance, permits), loan maturities, and vacant units.
+
+Not built yet: market research automation, exit-strategy engine, investor
+portal, PDF statements, email/push delivery of alerts.

@@ -3,16 +3,18 @@ import { notFound } from "next/navigation";
 import { guard } from "../guard";
 import Flash from "../Flash";
 import {
-  addLoanAction, addUnitAction, changeStageAction, postTxnAction, setStakesAction, voidEntryAction,
+  addLoanAction, addUnitAction, changeStageAction, postTxnAction, setStakesAction, uploadDocAction, voidDocAction, voidEntryAction,
 } from "../actions";
 import { db } from "@/lib/db";
 import { getPropertyReport, loanStatus, TXN_KINDS } from "@/lib/realestate";
 import { yearlySummary } from "@/lib/finance/amortization";
 import { dscr as dscrOf, ltv as ltvOf } from "@/lib/finance/metrics";
+import { DOC_CATEGORIES, DOC_LABEL } from "@/lib/documents";
 import { AmortChart } from "@/components/FinanceCharts";
 import { formatMoney } from "@/lib/finance/money";
 import { allowedTransitions, PHASE_OF, STAGE_LABEL, type Stage } from "@/lib/finance/lifecycle";
 import { capRate as capRateOf, occupancy } from "@/lib/finance/metrics";
+import { daysUntil } from "@/lib/finance/alerts";
 import { dmy, pct, todayIso } from "@/lib/format";
 
 export default async function PropertyPage({
@@ -32,6 +34,7 @@ export default async function PropertyPage({
       stageEvents: { orderBy: { at: "desc" }, take: 10 },
       stakes: { include: { investor: true } },
       loans: { orderBy: { startDate: "asc" } },
+      documents: { where: { voidedAt: null }, orderBy: { createdAt: "desc" } },
     },
   });
   if (!p) notFound();
@@ -217,6 +220,50 @@ export default async function PropertyPage({
             </form>
           </div>
         )}
+      </div>
+
+      <div className="sheet" style={{ marginTop: 18 }}>
+        <div className="hd"><h2>Documents</h2><span className="tag hold">{p.documents.length} on file</span></div>
+        <div className="bd flush">
+          <table>
+            <thead><tr><th>Document</th><th>Category</th><th>Expires</th><th>Size</th><th>Added</th><th></th></tr></thead>
+            <tbody>
+              {p.documents.map((d) => {
+                const exp = d.expiresOn ? daysUntil(d.expiresOn, new Date()) : null;
+                return (
+                  <tr key={d.id}>
+                    <td><a href={`/t/${slug}/properties/documents/${d.id}`}><b>{d.name}</b></a><div className="sub">{d.originalName}</div></td>
+                    <td>{DOC_LABEL[d.category as keyof typeof DOC_LABEL]}</td>
+                    <td>{d.expiresOn ? <span className={`tag ${exp! < 0 ? "void" : exp! <= 30 ? "hold" : "go"}`}>{dmy(d.expiresOn)}</span> : "—"}</td>
+                    <td>{d.sizeBytes < 1048576 ? `${Math.max(1, Math.round(d.sizeBytes / 1024))} KB` : `${(d.sizeBytes / 1048576).toFixed(1)} MB`}</td>
+                    <td>{dmy(d.createdAt)} · {d.uploadedByName}</td>
+                    <td>{session.perms.canVoid && (
+                      <form action={voidDocAction.bind(null, slug, p.id, d.id)} style={{ display: "flex", gap: 6 }}>
+                        <input name="reason" placeholder="Reason" required style={{ width: 120 }} />
+                        <button className="btn ghost" style={{ width: "auto", padding: "5px 10px", margin: 0 }}>Remove</button>
+                      </form>
+                    )}</td>
+                  </tr>
+                );
+              })}
+              {!p.documents.length && <tr><td colSpan={6} style={{ color: "var(--ink-2)" }}>No documents yet. Upload deeds, leases, insurance and receipts here.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <div className="bd">
+          <form action={uploadDocAction.bind(null, slug, p.id)} encType="multipart/form-data">
+            <div className="grid2">
+              <div className="field"><label className="req" htmlFor="file">File</label><input id="file" name="file" type="file" required accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.xlsx,.txt,.csv" />
+                <div className="hint">PDF, images, DOCX, XLSX, TXT or CSV · max 10 MB</div></div>
+              <div className="field"><label htmlFor="category">Category</label>
+                <select id="category" name="category" defaultValue="OTHER">{DOC_CATEGORIES.map((c) => <option key={c} value={c}>{DOC_LABEL[c]}</option>)}</select></div>
+              <div className="field"><label htmlFor="docname">Title</label><input id="docname" name="name" placeholder="Defaults to the file name" /></div>
+              <div className="field"><label htmlFor="expiresOn">Expires (optional)</label><input id="expiresOn" name="expiresOn" type="date" />
+                <div className="hint">Set for insurance, permits, leases — you'll get an alert before it lapses.</div></div>
+            </div>
+            <button className="btn" type="submit">Upload</button>
+          </form>
+        </div>
       </div>
 
       <div className="sheet" style={{ marginTop: 18 }}>

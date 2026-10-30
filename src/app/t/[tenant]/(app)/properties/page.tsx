@@ -2,9 +2,10 @@ import Link from "next/link";
 import { guard } from "./guard";
 import Flash from "./Flash";
 import { getPortfolio } from "@/lib/realestate";
+import { getAlerts } from "@/lib/documents";
 import { formatMoney } from "@/lib/finance/money";
 import { PHASE_OF, STAGE_LABEL, type Stage } from "@/lib/finance/lifecycle";
-import { pct } from "@/lib/format";
+import { dmy, pct } from "@/lib/format";
 
 export default async function PortfolioPage({
   params, searchParams,
@@ -17,7 +18,7 @@ export default async function PortfolioPage({
   const { tenant, canManage } = await guard(slug);
   const base = tenant.baseCurrency;
   const yearStart = new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1));
-  const { rows, totals } = await getPortfolio(tenant.id, base, yearStart);
+  const [{ rows, totals }, alerts] = await Promise.all([getPortfolio(tenant.id, base, yearStart), getAlerts(tenant.id)]);
   const dash = (v: string | null) => v ?? "—";
   const phases = ["BUY", "RENT", "HOLD", "SELL"] as const;
 
@@ -48,6 +49,24 @@ export default async function PortfolioPage({
         <div className="k"><div className="top"><span className="lab">Occupancy</span></div><div className="v">{totals.occupancy === null ? "—" : pct(totals.occupancy)}</div><div className="sub">units with an active lease</div></div>
         <div className="k"><div className="top"><span className="lab">Properties</span></div><div className="v">{rows.length}</div><div className="sub">{phases.map((p) => `${rows.filter((r) => PHASE_OF[r.stage] === p).length} ${p.toLowerCase()}`).join(" · ")}</div></div>
       </div>
+
+      {alerts.length > 0 && (
+        <div className="sheet" style={{ marginTop: 18 }}>
+          <div className="hd"><h2>Needs attention</h2><span className={`tag ${alerts.some((a) => a.severity === "overdue") ? "void" : "hold"}`}>{alerts.length} item{alerts.length === 1 ? "" : "s"}</span></div>
+          <div className="bd flush">
+            <table><tbody>
+              {alerts.slice(0, 12).map((a, i) => (
+                <tr key={i}>
+                  <td style={{ width: 96 }}><span className={`tag ${a.severity === "overdue" ? "void" : a.severity === "soon" ? "hold" : "go"}`}>{a.severity}</span></td>
+                  <td><Link href={`/t/${slug}/properties/${a.propertyId}`}><b>{a.title}</b></Link><div className="sub">{a.propertyName}</div></td>
+                  <td>{a.detail}</td>
+                  <td>{a.date ? dmy(a.date) : ""}</td>
+                </tr>
+              ))}
+            </tbody></table>
+          </div>
+        </div>
+      )}
 
       <div className="sheet" style={{ marginTop: 18 }}>
         <div className="hd"><h2>Properties</h2></div>

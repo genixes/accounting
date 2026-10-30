@@ -44,6 +44,7 @@ model Tenant {
   journalEntries JournalEntry[]
   fxRates        FxRate[]
   investors      Investor[]
+  documents      Document[]
 }
 
 enum Vertical {
@@ -361,6 +362,7 @@ model RealProperty {
   journalEntries JournalEntry[]
   stakes         PropertyStake[]
   loans          Loan[]
+  documents      Document[]
 
   @@unique([tenantId, name])
   @@index([tenantId, stage])
@@ -533,4 +535,49 @@ model Loan {
   createdAt       DateTime     @default(now())
 
   @@index([propertyId])
+}
+
+// ---------------------------------------------------------------------------
+// DOCUMENTS VAULT
+// ---------------------------------------------------------------------------
+
+enum DocCategory {
+  DEED
+  TITLE
+  CLOSING
+  LEASE
+  INSURANCE
+  TAX
+  INSPECTION
+  RECEIPT
+  LOAN
+  OTHER
+}
+
+// File bytes live in object storage (src/lib/storage); this row is the index.
+// Like every other record here it is append-only: "deleting" voids the row and
+// keeps the file, because these are legal/financial records.
+model Document {
+  id             String        @id @default(cuid())
+  tenantId       String
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  propertyId     String?
+  property       RealProperty? @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  category       DocCategory
+  name           String
+  originalName   String
+  storageKey     String        @unique
+  mimeType       String
+  sizeBytes      Int
+  sha256         String
+  // Drives expiry alerts (insurance renewal, lease end, permit, ...).
+  expiresOn      DateTime?
+  uploadedById   String
+  uploadedByName String
+  createdAt      DateTime      @default(now())
+  voidedAt       DateTime?
+  voidReason     String?
+
+  @@index([tenantId, propertyId])
+  @@index([tenantId, expiresOn])
 }
