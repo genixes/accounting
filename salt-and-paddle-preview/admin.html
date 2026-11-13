@@ -284,6 +284,19 @@ var SP_SPRITE='<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;
 document.addEventListener('DOMContentLoaded',function(){var d=document.createElement('div');d.innerHTML=SP_SPRITE;document.body.insertBefore(d.firstChild,document.body.firstChild);});
 function ic(n,c){return '<svg class="i '+(c||'')+'" aria-hidden="true"><use href="#i-'+n+'"/></svg>';}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+/* Replace the placeholder paddle icon with the real club logo (same IMG_LOGO the booking page uses).
+   Uses the existing public getPageConfig(); if anything fails, the placeholder simply stays. */
+function loadBrandLogo(sel){
+  try{
+    google.script.run.withSuccessHandler(function(c){
+      if(!c||!c.logoUrl)return;
+      var slot=document.querySelector(sel);if(!slot)return;
+      var im=new Image();
+      im.onload=function(){var cur=document.querySelector(sel);if(cur){im.className='logo';im.alt='';cur.parentNode.replaceChild(im,cur);}};
+      im.src=c.logoUrl;
+    }).withFailureHandler(function(){}).getPageConfig();
+  }catch(e){}
+}
 function fx(n){if(!n)return;n.classList.remove('fx');void n.offsetWidth;n.classList.add('fx');}
 function toast(msg,kind){
   var t=document.getElementById('toast');
@@ -306,7 +319,7 @@ function toast(msg,kind){
 var cfg={businessName:'Salt & Paddle',tagline:'Book a court fast and easy',courts:[{id:'C1',name:'Court 1'},{id:'C2',name:'Court 2'}],
 slots:[].concat(Array.from({length:18},function(_,i){var h=6+i;return{start:p(h)+':00',end:p(h+1)+':00',label:h+'-'+(h+1)}})),
 tiers:[{start:'06:00',end:'15:59',rate:300},{start:'16:00',end:'23:59',rate:350}],membershipEnabled:true,memberRateType:'PERCENT',memberRateValue:10,salePct:0,saleStart:'',saleEnd:'',
-contactNumber:'(0968) 694 3759',mapsLink:'https://maps.google.com',address:'New Covered Court, Sitio Suba, Brgy. Tuyan, Naga City',facebook:'https://fb.com',instagram:'',logoUrl:'',heroUrl:'',webUrl:'status-pending.html'};
+contactNumber:'(0968) 694 3759',mapsLink:'https://maps.google.com',address:'New Covered Court, Sitio Suba, Brgy. Tuyan, Naga City',facebook:'https://fb.com',instagram:'',logoUrl:'https://i.imgur.com/t8kWuCM.png',heroUrl:'',webUrl:'status-pending.html'};
 var h={getPageConfig:function(){return cfg},checkEmail:function(e){return{member:/member/i.test(e),advanceDays:300}},
 getAvailability:function(d){return{date:d,taken:{'C1|18:00':'Confirmed','C1|19:00':'Confirmed','C2|20:00':'Pending'}}},
 getPaymentInfo:function(){return[{key:'GCash',label:'GCash',type:'wallet',number:'0908 694 ****',name:'JO*** M** A.',qr:''},{key:'Bank',label:'Bank Transfer',type:'bank',bankName:'GoTyme Bank',number:'******** 7068',name:'Jonnabelle Alesna',qr:''}]},
@@ -525,5 +538,6 @@ el('rcptOverlay').onclick=function(e){if(e.target===this)closeRcpt();};
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeConfirm();closeRcpt();closeSheet();}});
 el('refreshBtn').onclick=function(){if(selDate&&PIN)load(selDate);};
 </script>
+<script>loadBrandLogo('.nav .logo.svg');</script>
 </body>
 </html>

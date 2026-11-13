@@ -279,6 +279,20 @@ var SP_SPRITE='<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;
 document.addEventListener('DOMContentLoaded',function(){var d=document.createElement('div');d.innerHTML=SP_SPRITE;document.body.insertBefore(d.firstChild,document.body.firstChild);});
 function ic(n,c){return '<svg class="i '+(c||'')+'" aria-hidden="true"><use href="#i-'+n+'"/></svg>';}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+/* Replace the placeholder paddle icon with the real club logo (same IMG_LOGO the booking page uses).
+   Uses the existing public getPageConfig(); if anything fails, the placeholder simply stays. */
+function loadBrandLogo(sel){
+  try{
+    google.script.run.withSuccessHandler(function(c){
+      if(!c||!c.logoUrl)return;
+      var slot=document.querySelector(sel);if(!slot)return;
+      var im=new Image();
+      im.onload=function(){var cur=document.querySelector(sel);if(cur){im.className='logo';im.alt='';cur.parentNode.replaceChild(im,cur);}};
+      im.src=c.logoUrl;
+    }).withFailureHandler(function(){}).getPageConfig();
+  }catch(e){}
+}
 function fx(n){if(!n)return;n.classList.remove('fx');void n.offsetWidth;n.classList.add('fx');}
 function toast(msg,kind){
   var t=document.getElementById('toast');

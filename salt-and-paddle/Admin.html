@@ -217,6 +217,7 @@ el('overlay').onclick=function(e){if(e.target===this)closeSheet();};
 el('rcptOverlay').onclick=function(e){if(e.target===this)closeRcpt();};
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeConfirm();closeRcpt();closeSheet();}});
 el('refreshBtn').onclick=function(){if(selDate&&PIN)load(selDate);};
+loadBrandLogo('.nav .logo.svg');
 </script>
 </body>
 </html>

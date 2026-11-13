@@ -124,6 +124,7 @@ function startTimer(){
   }
   upd();tick=setInterval(upd,1000);
 }
+loadBrandLogo('.nav .logo.svg');
 try { render(); } catch(e){
   el('content').innerHTML='<div class="card center"><p class="sub">Couldn\'t display this booking. Please tap refresh.</p><button class="btn btn-ghost" onclick="location.reload()">Refresh</button></div>';
 }

@@ -614,6 +614,7 @@ el('saveSaleBtn').onclick=function(){
     showMsg(ok,(Number(pct)>0)?('Sale saved — '+pct+'% off applied for the selected dates.'):'Sale turned off.');
   }).withFailureHandler(function(e){btn.innerHTML='Save Sale';btn.disabled=false;showMsg(er,'Error: '+e.message);}).setSale(pct,st,en,PIN);
 };
+loadBrandLogo('.nav .logo.svg');
 </script>
 </body>
 </html>
