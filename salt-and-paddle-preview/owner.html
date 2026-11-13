@@ -44,13 +44,12 @@ body{
     radial-gradient(900px 620px at 100% 2%,#EADFF0 0%,transparent 55%),
     radial-gradient(1000px 800px at 50% 112%,#F3D2DD 0%,transparent 60%),
     #FBF2F5;
-  background-attachment:fixed;
 }
-/* floating light orbs behind the glass */
-body::before,body::after{content:"";position:fixed;z-index:-1;border-radius:50%;filter:blur(72px);opacity:.55;pointer-events:none;will-change:transform}
-body::before{width:46vmax;height:46vmax;left:-14vmax;top:16vh;background:radial-gradient(circle at 30% 30%,#D98CA4,rgba(217,140,164,0) 70%);animation:drift 22s ease-in-out infinite alternate}
-body::after{width:40vmax;height:40vmax;right:-12vmax;bottom:-8vmax;background:radial-gradient(circle at 60% 40%,#B9A9CC,rgba(185,169,204,0) 70%);animation:drift 28s ease-in-out infinite alternate-reverse}
-@keyframes drift{to{transform:translate3d(6vmax,-5vmax,0) scale(1.15)}}
+/* soft light behind the glass: ONE static fixed layer (no blur filter, no animation = cheap to paint) */
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(42vmax 42vmax at 4% 30%,rgba(217,140,164,.45),rgba(217,140,164,0) 70%),
+    radial-gradient(40vmax 40vmax at 98% 96%,rgba(185,169,204,.50),rgba(185,169,204,0) 70%)}
 
 h1,h2,h3{margin:0;letter-spacing:-.01em}
 h1,h2{font-family:var(--serif);font-weight:600}
@@ -64,7 +63,7 @@ button{font-family:inherit}
 /* ---------- glass surfaces ---------- */
 .glass,.card{
   background:var(--glass);
-  -webkit-backdrop-filter:blur(24px) saturate(170%);backdrop-filter:blur(24px) saturate(170%);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
   border:1px solid var(--glass-edge);border-radius:var(--r-lg);
   box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.9);
 }
@@ -116,7 +115,7 @@ input[readonly]{background:rgba(23,50,65,.05);color:var(--muted)}
 .btn-navy:hover{transform:translateY(-2px);box-shadow:0 16px 30px -10px rgba(57,54,61,.75),inset 0 1px 0 rgba(255,255,255,.3)}
 .btn:active{transform:translateY(0) scale(.98)}
 .btn[disabled]{opacity:.7;cursor:progress;transform:none}
-.btn-ghost{color:var(--brand-d);background:rgba(255,255,255,.65);border:1.5px solid var(--line);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.btn-ghost{color:var(--brand-d);background:rgba(255,255,255,.65);border:1.5px solid var(--line);}
 .btn-ghost:hover{transform:translateY(-2px);background:#fff;border-color:var(--brand)}
 .btn-danger{color:var(--bad-ink);background:var(--bad-bg);border:1.5px solid rgba(226,92,92,.25)}
 .btn-danger:hover{transform:translateY(-2px);background:rgba(226,92,92,.22)}
@@ -166,7 +165,7 @@ input[readonly]{background:rgba(23,50,65,.05);color:var(--muted)}
 .gridwrap{overflow:auto;-webkit-overflow-scrolling:touch;border-radius:var(--r-md);background:rgba(255,255,255,.35);border:1px solid var(--line);max-height:66vh}
 table.grid{border-collapse:separate;border-spacing:5px;width:max-content;min-width:100%}
 table.grid th,table.grid td{text-align:center;font-size:11.5px;white-space:nowrap;border-radius:11px}
-table.grid thead th{position:sticky;top:0;z-index:3;padding:11px 12px;font-weight:800;color:var(--brand-d);letter-spacing:.02em;background:rgba(240,248,249,.88);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+table.grid thead th{position:sticky;top:0;z-index:3;padding:11px 12px;font-weight:800;color:var(--brand-d);letter-spacing:.02em;background:rgba(240,248,249,.88);}
 table.grid th.tcol,table.grid td.tcol{position:sticky;left:0;z-index:2;padding:8px 12px;font-weight:800;color:var(--ink-2);background:rgba(240,248,249,.92)}
 table.grid thead th.tcol{z-index:4}
 .skel{height:38px;border-radius:12px;margin:8px 0;background:linear-gradient(100deg,rgba(255,255,255,.35) 30%,rgba(255,255,255,.9) 50%,rgba(255,255,255,.35) 70%);background-size:300% 100%;animation:shimmer 1.3s linear infinite}
@@ -178,7 +177,7 @@ table.grid thead th.tcol{z-index:4}
 .toast.bad{background:#B0363A}
 
 /* ---------- modal / sheet ---------- */
-.overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:flex-end;justify-content:center;background:rgba(8,30,44,.38);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);opacity:0;visibility:hidden;transition:opacity .35s var(--ease),visibility .35s}
+.overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:flex-end;justify-content:center;background:rgba(8,30,44,.38);opacity:0;visibility:hidden;transition:opacity .35s var(--ease),visibility .35s}
 .overlay.on{opacity:1;visibility:visible}
 .sheet{width:100%;max-width:520px;padding:24px 22px 28px;border-radius:30px 30px 0 0;background:rgba(255,255,255,.86);transform:translateY(60px) scale(.98);transition:transform .5s var(--ease)}
 .overlay.on .sheet{transform:none}
@@ -242,7 +241,7 @@ table.grid thead th.tcol{z-index:4}
   #cfOverlay .warnic .i{width:26px;height:26px}
   #cfOverlay p{color:var(--ink-2);font-size:14px;margin:8px 0 6px}
   .rcpt{align-items:center;z-index:110}
-  .rcptBox{position:relative;border-radius:26px;padding:14px;max-width:92%;max-height:88vh;overflow:auto;background:rgba(255,255,255,.88);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);border:1px solid var(--glass-edge);box-shadow:var(--shadow);transform:scale(.94);transition:transform .5s var(--ease)}
+  .rcptBox{position:relative;border-radius:26px;padding:14px;max-width:92%;max-height:88vh;overflow:auto;background:rgba(255,255,255,.88);border:1px solid var(--glass-edge);box-shadow:var(--shadow);transform:scale(.94);transition:transform .5s var(--ease)}
   .rcpt.on .rcptBox{transform:none}
   .rcptX{position:absolute;top:10px;right:10px;display:flex;align-items:center;justify-content:center;background:rgba(23,50,65,.75);color:#fff;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;z-index:2;transition:transform .25s var(--ease)}
   .rcptX:hover{transform:rotate(90deg)}
@@ -255,6 +254,13 @@ table.grid thead th.tcol{z-index:4}
 }
 input[type=number],input[type=date],input[type=time]{width:100%;padding:14px 16px;border:1.5px solid var(--line);border-radius:var(--r-sm);font:600 15px 'Manrope',sans-serif;color:var(--ink);background:rgba(255,255,255,.7);transition:border-color .25s,box-shadow .25s,background .25s}
 input[type=number]:focus,input[type=date]:focus,input[type=time]:focus{outline:none;border-color:var(--brand);background:#fff;box-shadow:0 0 0 4px rgba(176,93,120,.16)}
+
+/* ---------- lite mode: auto-enabled on slow devices (see script below) ---------- */
+html.lite .glass,html.lite .card{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(255,255,255,.92)}
+html.lite .nav{background:rgba(255,255,255,.95)}
+html.lite body::before{display:none}
+html.lite *:not(.spin):not(.spin *){animation:none!important}
+html.lite *{transition-duration:.01ms!important}
 </style>
 <script>
 /* Shared UI helpers: icon sprite, icon(), toast(), fx(), esc() */
@@ -284,18 +290,47 @@ var SP_SPRITE='<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;
 document.addEventListener('DOMContentLoaded',function(){var d=document.createElement('div');d.innerHTML=SP_SPRITE;document.body.insertBefore(d.firstChild,document.body.firstChild);});
 function ic(n,c){return '<svg class="i '+(c||'')+'" aria-hidden="true"><use href="#i-'+n+'"/></svg>';}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+
+/* Performance guard: if the first second of frames is slow, switch the page to "lite" (no blur/animation).
+   The choice is remembered for this browser session. Add ?lite=1 / ?lite=0 to the URL to force it. */
+(function(){
+  var root=document.documentElement,key='sp_lite',force=null;
+  try{var m=/[?&]lite=([01])/.exec(location.search);if(m)force=m[1];}catch(e){}
+  try{if(force==null){var v=localStorage.getItem(key);if(v==='1')force='1';else if(v==='0')force='0';}}catch(e){}
+  if(force==='1'){root.classList.add('lite');return;}
+  if(force==='0'||!window.requestAnimationFrame)return;
+  var n=0,last=0,sum=0;
+  function tick(t){if(last){var d=t-last;if(d<500){sum+=d;n++;}}last=t;
+    if(n<40){requestAnimationFrame(tick);return;}
+    if(sum/n>34){root.classList.add('lite');try{sessionStorage.setItem(key,'1');}catch(e){}}}
+  window.addEventListener('load',function(){setTimeout(function(){requestAnimationFrame(tick);},600);});
+})();
+
 /* Replace the placeholder paddle icon with the real club logo (same IMG_LOGO the booking page uses).
    Uses the existing public getPageConfig(); if anything fails, the placeholder simply stays. */
 function loadBrandLogo(sel){
-  try{
-    google.script.run.withSuccessHandler(function(c){
-      if(!c||!c.logoUrl)return;
-      var slot=document.querySelector(sel);if(!slot)return;
-      var im=new Image();
-      im.onload=function(){var cur=document.querySelector(sel);if(cur){im.className='logo';im.alt='';cur.parentNode.replaceChild(im,cur);}};
-      im.src=c.logoUrl;
-    }).withFailureHandler(function(){}).getPageConfig();
-  }catch(e){}
+  /* 1) paint the cached logo immediately (no server wait)  2) refresh the cache quietly, at most once a day,
+     and only after the page has finished its own loading so it never competes with the real data calls. */
+  var KEY='sp_logo',url='',ts=0;
+  try{var o=JSON.parse(localStorage.getItem(KEY)||'null');if(o&&o.url){url=o.url;ts=o.ts||0;}}catch(e){}
+  function paint(u){
+    var slot=document.querySelector(sel);if(!slot||!u)return;
+    var im=new Image();
+    im.onload=function(){var cur=document.querySelector(sel);if(cur){im.className='logo';im.alt='';cur.parentNode.replaceChild(im,cur);}};
+    im.src=u;
+  }
+  if(url)paint(url);
+  if(url&&Date.now()-ts<86400000)return;
+  setTimeout(function(){
+    try{
+      google.script.run.withSuccessHandler(function(c){
+        if(!c||!c.logoUrl)return;
+        try{localStorage.setItem(KEY,JSON.stringify({url:c.logoUrl,ts:Date.now()}));}catch(e){}
+        if(c.logoUrl!==url)paint(c.logoUrl);
+      }).withFailureHandler(function(){}).getPageConfig();
+    }catch(e){}
+  },2500);
 }
 function fx(n){if(!n)return;n.classList.remove('fx');void n.offsetWidth;n.classList.add('fx');}
 function toast(msg,kind){
@@ -633,12 +668,21 @@ function switchTab(t){
 }
 
 /* ---------- SCHEDULE ---------- */
-function loadSchedule(ds){
+/* Day-schedule cache: re-opening a date paints instantly; older than 20s is refreshed quietly in the background. */
+var SCHED={};
+function loadSchedule(ds,force){
   selDate=ds;renderCal();
+  var hit=SCHED[ds];
+  if(hit&&!force){courts=hit.r.courts;slots=hit.r.slots;cells=hit.r.cells||{};renderGrid();if(Date.now()-hit.t<20000)return;}
+  else{el('gridwrap').innerHTML='<div style="padding:12px"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>';}
   var rb=el('refreshBtn');rb.classList.add('spinning');
-  el('gridwrap').innerHTML='<div style="padding:12px"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>';
-  google.script.run.withSuccessHandler(function(r){rb.classList.remove('spinning');if(r.ok&&ds===selDate){courts=r.courts;slots=r.slots;cells=r.cells||{};renderGrid();}else if(!r.ok){toast('Session expired. Please reload and enter your PIN again.','bad');}})
-    .withFailureHandler(function(){rb.classList.remove('spinning');toast('Could not load the schedule.','bad');}).getDaySchedule(ds,PIN);
+  google.script.run.withSuccessHandler(function(r){
+    rb.classList.remove('spinning');
+    if(!r.ok){toast('Session expired. Please reload and enter your PIN again.','bad');return;}
+    var same=hit&&!force&&JSON.stringify(hit.r.cells)===JSON.stringify(r.cells);
+    SCHED[ds]={t:Date.now(),r:r};
+    if(ds===selDate&&!same){courts=r.courts;slots=r.slots;cells=r.cells||{};renderGrid();}
+  }).withFailureHandler(function(){rb.classList.remove('spinning');if(!hit||force)toast('Could not load the schedule.','bad');}).getDaySchedule(ds,PIN);
 }
 function renderCal(){
   el('calLabel').textContent=MONTHS[calM]+' '+calY;
@@ -651,7 +695,7 @@ function renderCal(){
 el('prevM').onclick=function(){calM--;if(calM<0){calM=11;calY--;}renderCal();};
 el('nextM').onclick=function(){calM++;if(calM>11){calM=0;calY++;}renderCal();};
 el('todayBtn').onclick=function(){calY=today.getFullYear();calM=today.getMonth();loadSchedule(ymd(today));};
-el('refreshBtn').onclick=function(){if(selDate&&PIN)loadSchedule(selDate);};
+el('refreshBtn').onclick=function(){if(selDate&&PIN)loadSchedule(selDate,true);};
 
 function renderGrid(){
   el('dayTitle').textContent=pretty(selDate);
@@ -702,7 +746,7 @@ function confirmDash(){
   if(!CURB)return;var btn=el('confBtn');if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>Confirming…';}
   function reset(){if(btn){btn.disabled=false;btn.innerHTML=ic('check')+'Confirm Booking';}}
   google.script.run.withSuccessHandler(function(r){
-    if(r&&r.ok){closeSheet();toast('Booking confirmed');loadSchedule(selDate);}
+    if(r&&r.ok){closeSheet();toast('Booking confirmed');SCHED={};FINC={};loadSchedule(selDate,true);}
     else{toast('Could not confirm. Please try again.','bad');reset();}
   }).withFailureHandler(function(e){toast('Error: '+e.message,'bad');reset();}).confirmFromDashboard(CURB.bookingId,PIN);
 }
@@ -712,7 +756,7 @@ function cancelDash(){
     var btn=el('cancelBtn');if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>Cancelling…';}
     function reset(){if(btn){btn.disabled=false;btn.textContent='Cancel Booking';}}
     google.script.run.withSuccessHandler(function(r){
-      if(r&&r.ok){closeSheet();toast('Booking cancelled');loadSchedule(selDate);}
+      if(r&&r.ok){closeSheet();toast('Booking cancelled');SCHED={};FINC={};loadSchedule(selDate,true);}
       else{toast('Could not cancel. Please try again.','bad');reset();}
     }).withFailureHandler(function(e){toast('Error: '+e.message,'bad');reset();}).cancelFromDashboard(b.bookingId,PIN);
   });
@@ -790,6 +834,7 @@ el('refreshMembers').onclick=loadMembers;
 
 /* ---------- FINANCIALS ---------- */
 var FIN={from:'',to:'',basis:'PLAY',data:null,dirty:true,busy:false,seq:0,tips:{}};
+var FINC={};   // 'from|to|basis' -> {t,r}  (report cache, 60s)
 function fmtMoney(n){n=Number(n)||0;return '₱'+n.toLocaleString(undefined,{maximumFractionDigits:2});}
 function fmtCompact(n){n=Number(n)||0;if(n>=1e6)return '₱'+(n/1e6).toFixed(n%1e6?1:0)+'M';if(n>=1e3)return '₱'+(n/1e3).toFixed(n%1e3?1:0)+'k';return '₱'+n;}
 function monthLabel(ym,short){var p=ym.split('-');return MONTHS[+p[1]-1].slice(0,3)+(short?'':" '"+p[0].slice(2));}
@@ -808,8 +853,8 @@ function rangeFor(k){
 function setChip(k){document.querySelectorAll('#finChips .chip').forEach(function(c){c.classList.toggle('on',c.getAttribute('data-r')===k);});}
 function applyRange(k){var r=rangeFor(k);el('finFrom').value=r.from;el('finTo').value=r.to;setChip(k);loadFinancials();}
 document.querySelectorAll('#finChips .chip').forEach(function(c){c.onclick=function(){applyRange(this.getAttribute('data-r'));};});
-el('finFrom').onchange=el('finTo').onchange=function(){setChip('');loadFinancials();};
-el('finRefresh').onclick=function(){loadFinancials();};
+var finDeb;el('finFrom').onchange=el('finTo').onchange=function(){setChip('');clearTimeout(finDeb);finDeb=setTimeout(function(){loadFinancials();},350);};
+el('finRefresh').onclick=function(){loadFinancials(true);};
 function setBasis(b){
   FIN.basis=(b==='PAID')?'PAID':'PLAY';
   el('basisPlay').classList.toggle('on',FIN.basis==='PLAY');el('basisPaid').classList.toggle('on',FIN.basis==='PAID');
@@ -818,16 +863,18 @@ function setBasis(b){
     :'Counted on the day the booking was made. Sales are Confirmed bookings only; Pending is shown separately and Cancelled is never counted.';
   if(FIN.data)loadFinancials();
 }
-function loadFinancials(){
+function loadFinancials(force){
   var from=el('finFrom').value,to=el('finTo').value,er=el('finErr');er.style.display='none';
   if(!from||!to)return;
   if(from>to){showMsg(er,'Start date must be on or before the end date.');return;}
-  var seq=++FIN.seq,rb=el('finRefresh');rb.classList.add('spinning');
+  var ck=from+'|'+to+'|'+FIN.basis,hit=FINC[ck],seq=++FIN.seq,rb=el('finRefresh');
+  if(hit&&!force&&Date.now()-hit.t<60000){FIN.data=hit.r;FIN.dirty=true;if(el('paneFinancials').classList.contains('on'))renderFinancials();return;}
+  rb.classList.add('spinning');
   el('finBody').innerHTML='<div class="card"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>';
   google.script.run.withSuccessHandler(function(r){
     if(seq!==FIN.seq)return;rb.classList.remove('spinning');
     if(!r||!r.ok){el('finBody').innerHTML='';showMsg(er,(r&&r.auth===false)?'Session expired. Please reload and enter your PIN again.':((r&&r.msg)||'Could not load the report.'));return;}
-    FIN.data=r;FIN.dirty=true;if(el('paneFinancials').classList.contains('on'))renderFinancials();
+    FINC[ck]={t:Date.now(),r:r};FIN.data=r;FIN.dirty=true;if(el('paneFinancials').classList.contains('on'))renderFinancials();
   }).withFailureHandler(function(e){if(seq!==FIN.seq)return;rb.classList.remove('spinning');el('finBody').innerHTML='';showMsg(er,'Error: '+e.message);}).getFinancials(PIN,from,to,FIN.basis);
 }
 function prettyRange(a,b){var p=a.split('-'),q=b.split('-');return MONTHS[+p[1]-1].slice(0,3)+' '+(+p[2])+(p[0]!==q[0]?', '+p[0]:'')+' – '+MONTHS[+q[1]-1].slice(0,3)+' '+(+q[2])+', '+q[0];}
@@ -953,7 +1000,7 @@ el('saveSaleBtn').onclick=function(){
     showMsg(ok,(Number(pct)>0)?('Sale saved — '+pct+'% off applied for the selected dates.'):'Sale turned off.');
   }).withFailureHandler(function(e){btn.innerHTML='Save Sale';btn.disabled=false;showMsg(er,'Error: '+e.message);}).setSale(pct,st,en,PIN);
 };
+loadBrandLogo('.nav .logo.svg');
 </script>
-<script>loadBrandLogo('.nav .logo.svg');</script>
 </body>
 </html>

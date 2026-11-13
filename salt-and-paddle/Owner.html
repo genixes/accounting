@@ -294,12 +294,21 @@ function switchTab(t){
 }
 
 /* ---------- SCHEDULE ---------- */
-function loadSchedule(ds){
+/* Day-schedule cache: re-opening a date paints instantly; older than 20s is refreshed quietly in the background. */
+var SCHED={};
+function loadSchedule(ds,force){
   selDate=ds;renderCal();
+  var hit=SCHED[ds];
+  if(hit&&!force){courts=hit.r.courts;slots=hit.r.slots;cells=hit.r.cells||{};renderGrid();if(Date.now()-hit.t<20000)return;}
+  else{el('gridwrap').innerHTML='<div style="padding:12px"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>';}
   var rb=el('refreshBtn');rb.classList.add('spinning');
-  el('gridwrap').innerHTML='<div style="padding:12px"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>';
-  google.script.run.withSuccessHandler(function(r){rb.classList.remove('spinning');if(r.ok&&ds===selDate){courts=r.courts;slots=r.slots;cells=r.cells||{};renderGrid();}else if(!r.ok){toast('Session expired. Please reload and enter your PIN again.','bad');}})
-    .withFailureHandler(function(){rb.classList.remove('spinning');toast('Could not load the schedule.','bad');}).getDaySchedule(ds,PIN);
+  google.script.run.withSuccessHandler(function(r){
+    rb.classList.remove('spinning');
+    if(!r.ok){toast('Session expired. Please reload and enter your PIN again.','bad');return;}
+    var same=hit&&!force&&JSON.stringify(hit.r.cells)===JSON.stringify(r.cells);
+    SCHED[ds]={t:Date.now(),r:r};
+    if(ds===selDate&&!same){courts=r.courts;slots=r.slots;cells=r.cells||{};renderGrid();}
+  }).withFailureHandler(function(){rb.classList.remove('spinning');if(!hit||force)toast('Could not load the schedule.','bad');}).getDaySchedule(ds,PIN);
 }
 function renderCal(){
   el('calLabel').textContent=MONTHS[calM]+' '+calY;
@@ -312,7 +321,7 @@ function renderCal(){
 el('prevM').onclick=function(){calM--;if(calM<0){calM=11;calY--;}renderCal();};
 el('nextM').onclick=function(){calM++;if(calM>11){calM=0;calY++;}renderCal();};
 el('todayBtn').onclick=function(){calY=today.getFullYear();calM=today.getMonth();loadSchedule(ymd(today));};
-el('refreshBtn').onclick=function(){if(selDate&&PIN)loadSchedule(selDate);};
+el('refreshBtn').onclick=function(){if(selDate&&PIN)loadSchedule(selDate,true);};
 
 function renderGrid(){
   el('dayTitle').textContent=pretty(selDate);
@@ -363,7 +372,7 @@ function confirmDash(){
   if(!CURB)return;var btn=el('confBtn');if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>Confirming…';}
   function reset(){if(btn){btn.disabled=false;btn.innerHTML=ic('check')+'Confirm Booking';}}
   google.script.run.withSuccessHandler(function(r){
-    if(r&&r.ok){closeSheet();toast('Booking confirmed');loadSchedule(selDate);}
+    if(r&&r.ok){closeSheet();toast('Booking confirmed');SCHED={};FINC={};loadSchedule(selDate,true);}
     else{toast('Could not confirm. Please try again.','bad');reset();}
   }).withFailureHandler(function(e){toast('Error: '+e.message,'bad');reset();}).confirmFromDashboard(CURB.bookingId,PIN);
 }
@@ -373,7 +382,7 @@ function cancelDash(){
     var btn=el('cancelBtn');if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>Cancelling…';}
     function reset(){if(btn){btn.disabled=false;btn.textContent='Cancel Booking';}}
     google.script.run.withSuccessHandler(function(r){
-      if(r&&r.ok){closeSheet();toast('Booking cancelled');loadSchedule(selDate);}
+      if(r&&r.ok){closeSheet();toast('Booking cancelled');SCHED={};FINC={};loadSchedule(selDate,true);}
       else{toast('Could not cancel. Please try again.','bad');reset();}
     }).withFailureHandler(function(e){toast('Error: '+e.message,'bad');reset();}).cancelFromDashboard(b.bookingId,PIN);
   });
@@ -451,6 +460,7 @@ el('refreshMembers').onclick=loadMembers;
 
 /* ---------- FINANCIALS ---------- */
 var FIN={from:'',to:'',basis:'PLAY',data:null,dirty:true,busy:false,seq:0,tips:{}};
+var FINC={};   // 'from|to|basis' -> {t,r}  (report cache, 60s)
 function fmtMoney(n){n=Number(n)||0;return '₱'+n.toLocaleString(undefined,{maximumFractionDigits:2});}
 function fmtCompact(n){n=Number(n)||0;if(n>=1e6)return '₱'+(n/1e6).toFixed(n%1e6?1:0)+'M';if(n>=1e3)return '₱'+(n/1e3).toFixed(n%1e3?1:0)+'k';return '₱'+n;}
 function monthLabel(ym,short){var p=ym.split('-');return MONTHS[+p[1]-1].slice(0,3)+(short?'':" '"+p[0].slice(2));}
@@ -469,8 +479,8 @@ function rangeFor(k){
 function setChip(k){document.querySelectorAll('#finChips .chip').forEach(function(c){c.classList.toggle('on',c.getAttribute('data-r')===k);});}
 function applyRange(k){var r=rangeFor(k);el('finFrom').value=r.from;el('finTo').value=r.to;setChip(k);loadFinancials();}
 document.querySelectorAll('#finChips .chip').forEach(function(c){c.onclick=function(){applyRange(this.getAttribute('data-r'));};});
-el('finFrom').onchange=el('finTo').onchange=function(){setChip('');loadFinancials();};
-el('finRefresh').onclick=function(){loadFinancials();};
+var finDeb;el('finFrom').onchange=el('finTo').onchange=function(){setChip('');clearTimeout(finDeb);finDeb=setTimeout(function(){loadFinancials();},350);};
+el('finRefresh').onclick=function(){loadFinancials(true);};
 function setBasis(b){
   FIN.basis=(b==='PAID')?'PAID':'PLAY';
   el('basisPlay').classList.toggle('on',FIN.basis==='PLAY');el('basisPaid').classList.toggle('on',FIN.basis==='PAID');
@@ -479,16 +489,18 @@ function setBasis(b){
     :'Counted on the day the booking was made. Sales are Confirmed bookings only; Pending is shown separately and Cancelled is never counted.';
   if(FIN.data)loadFinancials();
 }
-function loadFinancials(){
+function loadFinancials(force){
   var from=el('finFrom').value,to=el('finTo').value,er=el('finErr');er.style.display='none';
   if(!from||!to)return;
   if(from>to){showMsg(er,'Start date must be on or before the end date.');return;}
-  var seq=++FIN.seq,rb=el('finRefresh');rb.classList.add('spinning');
+  var ck=from+'|'+to+'|'+FIN.basis,hit=FINC[ck],seq=++FIN.seq,rb=el('finRefresh');
+  if(hit&&!force&&Date.now()-hit.t<60000){FIN.data=hit.r;FIN.dirty=true;if(el('paneFinancials').classList.contains('on'))renderFinancials();return;}
+  rb.classList.add('spinning');
   el('finBody').innerHTML='<div class="card"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>';
   google.script.run.withSuccessHandler(function(r){
     if(seq!==FIN.seq)return;rb.classList.remove('spinning');
     if(!r||!r.ok){el('finBody').innerHTML='';showMsg(er,(r&&r.auth===false)?'Session expired. Please reload and enter your PIN again.':((r&&r.msg)||'Could not load the report.'));return;}
-    FIN.data=r;FIN.dirty=true;if(el('paneFinancials').classList.contains('on'))renderFinancials();
+    FINC[ck]={t:Date.now(),r:r};FIN.data=r;FIN.dirty=true;if(el('paneFinancials').classList.contains('on'))renderFinancials();
   }).withFailureHandler(function(e){if(seq!==FIN.seq)return;rb.classList.remove('spinning');el('finBody').innerHTML='';showMsg(er,'Error: '+e.message);}).getFinancials(PIN,from,to,FIN.basis);
 }
 function prettyRange(a,b){var p=a.split('-'),q=b.split('-');return MONTHS[+p[1]-1].slice(0,3)+' '+(+p[2])+(p[0]!==q[0]?', '+p[0]:'')+' – '+MONTHS[+q[1]-1].slice(0,3)+' '+(+q[2])+', '+q[0];}

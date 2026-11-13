@@ -85,17 +85,26 @@ el('enterBtn').onclick=function(){
     ['dash'].forEach(function(i){fx(el(i));});
     if(r.businessName)el('hdr').textContent=r.businessName;
     calY=today.getFullYear();calM=today.getMonth();
-    apply(r);renderCal();
+    SCHED[selDate]={t:Date.now(),r:r};apply(r);renderCal();
   }).withFailureHandler(function(e){btn.innerHTML='Enter';btn.disabled=false;bad('Error: '+e.message);}).getDaySchedule(selDate,p);
 };
 el('pin').addEventListener('keydown',function(e){if(e.key==='Enter')el('enterBtn').click();});
 
-function load(ds){
+/* Day-schedule cache: re-opening a date paints instantly; older than 20s is refreshed quietly in the background. */
+var SCHED={};
+function load(ds,force){
   selDate=ds;renderCal();
+  var hit=SCHED[ds];
+  if(hit&&!force){apply(hit.r);if(Date.now()-hit.t<20000)return;}
+  else{el('gridwrap').innerHTML='<div style="padding:12px"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>';}
   var rb=el('refreshBtn');rb.classList.add('spinning');
-  el('gridwrap').innerHTML='<div style="padding:12px"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>';
-  google.script.run.withSuccessHandler(function(r){rb.classList.remove('spinning');if(r.ok&&ds===selDate)apply(r);else if(!r.ok){toast('Session expired. Please reload and enter your PIN again.','bad');}})
-    .withFailureHandler(function(e){rb.classList.remove('spinning');toast('Could not load the schedule.','bad');}).getDaySchedule(ds,PIN);
+  google.script.run.withSuccessHandler(function(r){
+    rb.classList.remove('spinning');
+    if(!r.ok){toast('Session expired. Please reload and enter your PIN again.','bad');return;}
+    var same=hit&&!force&&JSON.stringify(hit.r.cells)===JSON.stringify(r.cells);
+    SCHED[ds]={t:Date.now(),r:r};
+    if(ds===selDate&&!same)apply(r);
+  }).withFailureHandler(function(){rb.classList.remove('spinning');if(!hit||force)toast('Could not load the schedule.','bad');}).getDaySchedule(ds,PIN);
 }
 function apply(r){courts=r.courts;slots=r.slots;cells=r.cells||{};renderGrid();}
 
@@ -178,7 +187,7 @@ function confirmDash(){
   var btn=el('confBtn');if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>Confirming…';}
   function reset(){if(btn){btn.disabled=false;btn.innerHTML=ic('check')+'Confirm Booking';}}
   google.script.run.withSuccessHandler(function(r){
-    if(r&&r.ok){closeSheet();toast('Booking confirmed');load(selDate);}
+    if(r&&r.ok){closeSheet();toast('Booking confirmed');SCHED={};load(selDate,true);}
     else{toast(r&&r.auth===false?'Session expired. Please reload and enter your PIN again.':'Could not confirm. Please try again.','bad');reset();}
   }).withFailureHandler(function(e){toast('Error: '+e.message,'bad');reset();}).confirmFromDashboard(CURB.bookingId,PIN);
 }
@@ -189,7 +198,7 @@ function cancelDash(){
     var btn=el('cancelBtn');if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>Cancelling…';}
     function reset(){if(btn){btn.disabled=false;btn.textContent='Cancel Booking';}}
     google.script.run.withSuccessHandler(function(r){
-      if(r&&r.ok){closeSheet();toast('Booking cancelled');load(selDate);}
+      if(r&&r.ok){closeSheet();toast('Booking cancelled');SCHED={};load(selDate,true);}
       else{toast(r&&r.auth===false?'Session expired. Please reload and enter your PIN again.':'Could not cancel. Please try again.','bad');reset();}
     }).withFailureHandler(function(e){toast('Error: '+e.message,'bad');reset();}).cancelFromDashboard(b.bookingId,PIN);
   });
@@ -216,7 +225,7 @@ el('cfOverlay').onclick=function(e){if(e.target===this)closeConfirm();};
 el('overlay').onclick=function(e){if(e.target===this)closeSheet();};
 el('rcptOverlay').onclick=function(e){if(e.target===this)closeRcpt();};
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeConfirm();closeRcpt();closeSheet();}});
-el('refreshBtn').onclick=function(){if(selDate&&PIN)load(selDate);};
+el('refreshBtn').onclick=function(){if(selDate&&PIN)load(selDate,true);};
 loadBrandLogo('.nav .logo.svg');
 </script>
 </body>

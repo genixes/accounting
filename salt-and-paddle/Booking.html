@@ -37,7 +37,7 @@
   .dots i.on{width:22px;background:var(--brand)}
 
   /* floating checkout bar */
-  .bar{position:fixed;left:50%;bottom:14px;z-index:60;width:calc(100% - 28px);max-width:432px;transform:translate(-50%,0);display:flex;align-items:center;gap:18px;padding:12px 12px 12px 22px;border-radius:24px;color:#fff;background:rgba(57,54,61,.88);-webkit-backdrop-filter:blur(22px) saturate(160%);backdrop-filter:blur(22px) saturate(160%);border:1px solid rgba(255,255,255,.18);box-shadow:0 24px 50px -14px rgba(23,50,65,.7);transition:transform .6s var(--ease),opacity .4s}
+  .bar{position:fixed;left:50%;bottom:14px;z-index:60;width:calc(100% - 28px);max-width:432px;transform:translate(-50%,0);display:flex;align-items:center;gap:18px;padding:12px 12px 12px 22px;border-radius:24px;color:#fff;background:rgba(57,54,61,.88);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.18);box-shadow:0 24px 50px -14px rgba(23,50,65,.7);transition:transform .6s var(--ease),opacity .4s}
   .bar.hidden{transform:translate(-50%,170%);opacity:0;pointer-events:none}
   .bar .k{font-size:9.5px;color:#C9BFD0;letter-spacing:.16em;font-weight:800}
   .bar .v{font-family:var(--serif);font-weight:700;font-size:20px;line-height:1.2}
@@ -353,18 +353,31 @@ el('nextM').onclick=function(){calM++;if(calM>11){calM=0;calY++;}renderCal();};
 el('todayBtn').onclick=function(){calY=today.getFullYear();calM=today.getMonth();renderCal();};
 
 function skeleton(){return '<div style="padding:10px 12px"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>';}
-function pickDate(ds){
+/* Availability cache: re-opening a date paints instantly; older than 20s is refreshed quietly in the background.
+   The server still re-checks every slot when you submit, so nothing can be double-booked. */
+var AV={};
+function pickDate(ds,force){
   selDate=ds;if(!selByDate[ds])selByDate[ds]={};renderCal();updateBar();
   var gc=el('gridCard');if(gc.style.display!=='block'){gc.style.display='block';fx(gc);}
-  el('gridwrap').innerHTML=skeleton();
+  var hit=AV[ds];
+  if(hit&&!force){taken=hit.taken;buildGrid();if(Date.now()-hit.t<20000){scrollToGrid(gc);return;}}
+  else el('gridwrap').innerHTML=skeleton();
   google.script.run.withSuccessHandler(function(a){
+    AV[ds]={t:Date.now(),taken:a.taken};
     if(a.date!==selDate)return; // a newer date was picked meanwhile
-    taken=a.taken;buildGrid();
+    var changed=!hit||JSON.stringify(hit.taken)!==JSON.stringify(a.taken);
+    taken=a.taken;
+    if(changed){
+      var cur=curSel(),lost=false;Object.keys(cur).forEach(function(k){if(taken[k]){delete cur[k];lost=true;}});
+      buildGrid();
+      if(lost){toast('A slot you picked was just taken.','bad');updateBar();renderCal();}
+    }
   }).withFailureHandler(function(){
-    el('gridwrap').innerHTML='<p class="sub" style="padding:22px;margin:0;text-align:center">Could not load availability. <button class="link" onclick="pickDate(\''+ds+'\')">Try again</button></p>';
+    if(!hit)el('gridwrap').innerHTML='<p class="sub" style="padding:22px;margin:0;text-align:center">Could not load availability. <button class="link" onclick="pickDate(\''+ds+'\',true)">Try again</button></p>';
   }).getAvailability(ds);
-  if(window.innerWidth<980)setTimeout(function(){gc.scrollIntoView({behavior:'smooth',block:'start'});},120);
+  scrollToGrid(gc);
 }
+function scrollToGrid(gc){if(window.innerWidth<980)setTimeout(function(){gc.scrollIntoView({behavior:'smooth',block:'start'});},120);}
 
 function isPast(s){if(selDate!==ymd(today))return false;var n=new Date();return s<=pad(n.getHours())+':'+pad(n.getMinutes());}
 function buildGrid(){
@@ -496,7 +509,7 @@ el('submitBtn').onclick=function(){
   google.script.run.withSuccessHandler(function(res){
     btn.innerHTML='Submit Booking';btn.disabled=false;
     if(!res.ok)return fail(res.error||'Submission failed. Please try again.');
-    el('okId').textContent=res.bookingId;el('okStatus').href=CFG.webUrl+'?page=status&id='+encodeURIComponent(res.bookingId);show('scOk');
+    AV={};el('okId').textContent=res.bookingId;el('okStatus').href=CFG.webUrl+'?page=status&id='+encodeURIComponent(res.bookingId);show('scOk');
   }).withFailureHandler(function(e){btn.innerHTML='Submit Booking';btn.disabled=false;fail('Error: '+e.message);}).submitBooking(payload);
 };
 el('okNew').onclick=function(){location.reload();};
